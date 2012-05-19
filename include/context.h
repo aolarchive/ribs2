@@ -12,6 +12,7 @@ struct ribs_context {
     long r15; /* 40  */
     long rip; /* 48  */
     long rsp; /* 56  */
+    int fd;
 };
 
 extern int ribs_swapcontext(struct ribs_context *rctx, struct ribs_context *ctx);
