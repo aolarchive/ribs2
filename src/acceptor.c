@@ -24,6 +24,7 @@ void accept_connections(void) {
       int fd = accept4(current_ctx->fd, (struct sockaddr *)&new_addr, &new_addr_size, SOCK_CLOEXEC | SOCK_NONBLOCK);
       if (fd > -1)
          close(fd);
+
       yield();
    }
 }
