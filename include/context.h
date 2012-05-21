@@ -2,6 +2,7 @@
 #define _CONTEXT__H_
 
 #include <stddef.h>
+#include <sys/epoll.h>
 
 struct ribs_context {
     long rbx; /* 0   */
@@ -13,6 +14,7 @@ struct ribs_context {
     long rip; /* 48  */
     long rsp; /* 56  */
     int fd;
+    epoll_data_t data;
 };
 
 extern int ribs_swapcontext(struct ribs_context *rctx, struct ribs_context *ctx);
