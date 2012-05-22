@@ -11,33 +11,44 @@
 #include <sys/epoll.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 #include "epoll_worker.h"
 
 extern struct ribs_context main_ctx;
 extern struct ribs_context *current_ctx;
 
-#define ACCEPTOR_STACK_SIZE 4096
+#define ACCEPTOR_STACK_SIZE 8192
 
 void accept_connections(void) {
-   for (;;) {
+   for (;; yield()) {
       struct sockaddr_in new_addr;
       socklen_t new_addr_size = sizeof(struct sockaddr_in);
       int fd = accept4(current_ctx->fd, (struct sockaddr *)&new_addr, &new_addr_size, SOCK_CLOEXEC | SOCK_NONBLOCK);
       if (fd < 0)
          continue;
-      /*
-        TODO:
-        *
-      */
-      close(fd);
+      struct acceptor *acceptor = (struct acceptor *)current_ctx->data.ptr;
+      struct ribs_context *ctx = ctx_pool_get(&acceptor->ctx_pool);
+      ribs_makecontext(ctx, &main_ctx, ctx, acceptor->ctx_start_func, ctx_pool_cleanup_func);
+      ctx->fd = fd;
+      ctx->data.ptr = &acceptor->ctx_pool;
 
-      yield();
+      struct epoll_event ev;
+      ev.events = EPOLLIN | EPOLLET;
+      ev.data.ptr = ctx;
+      if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, fd, &ev))
+         perror("epoll_ctl");
    }
 }
 
 int acceptor_init(struct acceptor *acceptor, uint16_t port, void (*func)(void)) {
+   struct rlimit rlim;
+   if (0 > getrlimit(RLIMIT_STACK, &rlim))
+      return perror("getrlimit(RLIMIT_STACK)"), -1;
+   ctx_pool_init(&acceptor->ctx_pool, 1024, 1024, rlim.rlim_cur);
+   acceptor->ctx_start_func = func;
+
    const int LISTEN_BACKLOG = 32768;
-   acceptor->ctx_func = func;
    int lfd = socket(PF_INET, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
    if (0 > lfd)
       return -1;
@@ -74,7 +85,7 @@ int acceptor_init(struct acceptor *acceptor, uint16_t port, void (*func)(void)) 
    printf("listening on port: %d, backlog: %d\n", port, LISTEN_BACKLOG);
 
    acceptor->stack = malloc(ACCEPTOR_STACK_SIZE);
-   ribs_makecontext(&acceptor->ctx, &main_ctx, acceptor->stack, ACCEPTOR_STACK_SIZE, accept_connections);
+   ribs_makecontext(&acceptor->ctx, &main_ctx, acceptor->stack + ACCEPTOR_STACK_SIZE, accept_connections, NULL);
    acceptor->ctx.fd = lfd;
    acceptor->ctx.data.ptr = acceptor;
    struct epoll_event ev;

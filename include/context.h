@@ -15,10 +15,13 @@ struct ribs_context {
     long rsp; /* 56  */
     int fd;
     epoll_data_t data;
+    struct ribs_context *next_free;
 };
 
+extern struct ribs_context main_ctx;
+
 extern int ribs_swapcontext(struct ribs_context *rctx, struct ribs_context *ctx);
-extern int ribs_makecontext(struct ribs_context *ctx, struct ribs_context *rctx, void *stack, size_t stack_size, void (*func)(void));
+extern int ribs_makecontext(struct ribs_context *ctx, struct ribs_context *rctx, void *sp, void (*func)(void), void (*user_cleanup_func)(void));
 extern void __ribs_context_exit(void);
 
 #endif // _CONTEXT__H_
