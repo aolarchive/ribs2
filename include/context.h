@@ -16,6 +16,7 @@ struct ribs_context {
     int fd;
     epoll_data_t data;
     struct ribs_context *next_free;
+    char reserved[];
 };
 
 extern struct ribs_context main_ctx;

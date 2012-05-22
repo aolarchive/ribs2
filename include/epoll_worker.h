@@ -4,7 +4,10 @@
 #include "context.h"
 
 extern int ribs_epoll_fd;
-extern struct ribs_context ribs_epoll_ctx;
+extern struct ribs_context *current_ctx;
+extern struct epoll_event current_epollev;
+extern struct ribs_context **fd_to_ctx;
+
 
 int epoll_worker_init(void);
 void epoll_worker_loop(void);
