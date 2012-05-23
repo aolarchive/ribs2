@@ -191,7 +191,6 @@ static int check_persistent(char *p) {
     }
 
 void http_server_fiber_main(void) {
-    printf("entering http_server\n");
     struct http_server_context *ctx = http_server_get_context();
     struct http_server *server = (struct http_server *)current_ctx->data.ptr;
     int fd = current_ctx->fd;
@@ -311,6 +310,5 @@ http_server_write_response:
     else
         close(fd);
 
-    printf("leaving http_server\n");
 }
 
