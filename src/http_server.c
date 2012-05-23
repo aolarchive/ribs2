@@ -13,7 +13,6 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <sys/resource.h>
-#include "sstr.h"
 
 #define ACCEPTOR_STACK_SIZE 8192
 #define MIN_HTTP_REQ_SIZE 5 // method(3) + space(1) + URI(1) + optional VER...
@@ -26,14 +25,16 @@ SSTRL(PUT,  "PUT "  );
 SSTRL(CRLFCRLF, "\r\n\r\n");
 SSTRL(CRLF, "\r\n");
 
-SSTR(CONNECTION, "\r\nConnection: ");
-SSTR(CONNECTION_CLOSE, "close");
-SSTR(CONNECTION_KEEPALIVE, "Keep-Alive");
-SSTR(CONTENT_LENGTH, "\r\nContent-Length: ");
+SSTRL(CONNECTION, "\r\nConnection: ");
+SSTRL(CONNECTION_CLOSE, "close");
+SSTRL(CONNECTION_KEEPALIVE, "Keep-Alive");
+SSTRL(CONTENT_LENGTH, "\r\nContent-Length: ");
 
 /* 1xx */
 SSTRL(HTTP_STATUS_100, "100 Continue");
 SSTRL(EXPECT_100, "\r\nExpect: 100");
+/* 2xx */
+SSTR(HTTP_STATUS_200, "200 OK");
 /* 4xx */
 SSTRL(HTTP_STATUS_411, "411 Length Required");
 /* 5xx */
@@ -41,8 +42,12 @@ SSTRL(HTTP_STATUS_500, "500 Internal Server Error");
 SSTRL(HTTP_STATUS_501, "501 Not Implemented");
 SSTRL(HTTP_STATUS_503, "503 Service Unavailable");
 
+/* content types */
+SSTR(HTTP_CONTENT_TYPE_TEXT_PLAIN, "text/plain");
 
-SSTR(HTTP_SERVER_VER, "HTTP/1.1");
+
+SSTRL(HTTP_SERVER_VER, "HTTP/1.1");
+SSTRL(HTTP_SERVER_NAME, "ribs2.0");
 
 extern struct ribs_context *current_ctx;
 
@@ -139,7 +144,7 @@ int http_server_init(struct http_server *server, uint16_t port, void (*func)(voi
     server->accept_ctx.fd = lfd;
     server->accept_ctx.data.ptr = server;
     struct epoll_event ev;
-    ev.events = EPOLLIN | EPOLLET;
+    ev.events = EPOLLIN;
     fd_to_ctx[lfd] = &server->accept_ctx;
     ev.data.fd = lfd;
     if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, lfd, &ev))
@@ -183,6 +188,22 @@ static int check_persistent(char *p) {
         return 0;
 }
 
+
+void http_server_header_start(const char *status, const char *content_type) {
+    struct http_server_context *ctx = http_server_get_context();
+    vmbuf_sprintf(&ctx->header, "%s %s\r\nServer: %s\r\nContent-Type: %s%s%s", HTTP_SERVER_VER, status, HTTP_SERVER_NAME, content_type, CONNECTION, ctx->persistent ? CONNECTION_KEEPALIVE : CONNECTION_CLOSE);
+}
+
+void http_server_header_close() {
+    struct http_server_context *ctx = http_server_get_context();
+    vmbuf_strcpy(&ctx->header, CRLFCRLF);
+}
+
+void http_server_response(const char *status, const char *content_type) {
+    http_server_header_start(status, content_type);
+    http_server_header_close();
+}
+
 #define READ_FROM_SOCKET()                                              \
     res = vmbuf_read(&ctx->request, fd);                                \
     if (0 >= res) {                                                     \
@@ -199,11 +220,12 @@ void http_server_fiber_main(void) {
     char *headers;
     char *content;
     size_t content_length;
-    int persistent = 0;
     int res;
+    struct epoll_event ev;
+    ctx->persistent = 0;
 
     vmbuf_init(&ctx->request, 4096);
-    vmbuf_init(&ctx->response, 4096);
+    vmbuf_init(&ctx->header, 4096);
 
     /*
       TODO:
@@ -226,7 +248,7 @@ void http_server_fiber_main(void) {
         /* this will overwrite the first CR */
         *(vmbuf_wloc(&ctx->request) - SSTRLEN(CRLFCRLF)) = 0;
         char *p = vmbuf_data(&ctx->request);
-        persistent = check_persistent(p);
+        ctx->persistent = check_persistent(p);
         URI = strchrnul(p, ' '); /* can't be NULL GET and HEAD constants have space at the end */
         *URI = 0;
         ++URI; // skip the space
@@ -255,19 +277,19 @@ void http_server_fiber_main(void) {
         content += SSTRLEN(CRLFCRLF);
 
         if (strstr(vmbuf_data(&ctx->request), EXPECT_100)) {
-            vmbuf_sprintf(&ctx->response, "%s %s\r\n\r\n", HTTP_SERVER_VER, HTTP_STATUS_100);
-            if (0 > vmbuf_write(&ctx->response, fd)) {
+            vmbuf_sprintf(&ctx->header, "%s %s\r\n\r\n", HTTP_SERVER_VER, HTTP_STATUS_100);
+            if (0 > vmbuf_write(&ctx->header, fd)) {
                 close(fd);
                 return;
             }
-            vmbuf_reset(&ctx->response);
+            vmbuf_reset(&ctx->header);
         }
-        persistent = check_persistent(vmbuf_data(&ctx->request));
+        ctx->persistent = check_persistent(vmbuf_data(&ctx->request));
 
         /* parse the content length */
         char *p = strcasestr(vmbuf_data(&ctx->request), CONTENT_LENGTH);
         if (NULL == p) {
-            vmbuf_sprintf(&ctx->response, "%s %s\r\nServer: test%s%s\r\n\r\n", HTTP_SERVER_VER, HTTP_STATUS_411, CONNECTION, CONNECTION_CLOSE);
+            http_server_response(HTTP_STATUS_411, HTTP_CONTENT_TYPE_TEXT_PLAIN);
             goto http_server_write_response;
         }
 
@@ -293,22 +315,44 @@ void http_server_fiber_main(void) {
         *(content + content_length) = 0;
         server->user_func();
     } else {
-        vmbuf_sprintf(&ctx->response, "%s %s\r\nServer: test%s%s\r\n\r\n", HTTP_SERVER_VER, HTTP_STATUS_501, CONNECTION, CONNECTION_CLOSE);
+        http_server_response(HTTP_STATUS_501, HTTP_CONTENT_TYPE_TEXT_PLAIN);
         goto http_server_write_response;
     }
 http_server_write_response:
-    for (;;yield()) {
-        int res = vmbuf_write(&ctx->response, fd);
-        if (res < 0)
-            persistent = 0;
-        if (0 != res)
-            break;
+
+    res = vmbuf_write(&ctx->header, fd);
+    if (res < 0) {
+        close(fd);
+        return;
+    } else if (0 == res) {
+        /* write mode */
+        ev.events = EPOLLOUT | EPOLLET;
+        ev.data.fd = fd;
+        if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_MOD, fd, &ev))
+            perror("epoll_ctl");
+        for (;;) {
+            yield();
+            res = vmbuf_write(&ctx->header, fd);
+            if (res < 0) {
+                close(fd);
+                return;
+            }
+            if (0 != res)
+                break;
+        }
+        if (ctx->persistent) {
+            /* back to read mode */
+            ev.events = EPOLLIN | EPOLLET;
+            ev.data.fd = fd;
+            if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_MOD, fd, &ev))
+                perror("epoll_ctl");
+        }
     }
 
-    if (persistent)
+    if (ctx->persistent)
         fd_to_ctx[fd] = &server->idle_ctx;
     else
         close(fd);
-
 }
+
 

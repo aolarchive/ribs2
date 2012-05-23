@@ -15,7 +15,6 @@ int ctx_pool_init(struct ctx_pool *cp, size_t initial_size, size_t grow_by, size
 int ctx_pool_createstacks(struct ctx_pool *cp, size_t num_stacks, size_t stack_size, size_t reserved_size);
 inline struct ribs_context *ctx_pool_get(struct ctx_pool *cp);
 inline void ctx_pool_put(struct ctx_pool *cp, struct ribs_context *ctx);
-void ctx_pool_cleanup_func(void);
 
 
 #endif // _CTX_POOL__H_

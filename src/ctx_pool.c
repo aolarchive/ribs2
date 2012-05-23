@@ -54,8 +54,3 @@ inline void ctx_pool_put(struct ctx_pool *cp, struct ribs_context *ctx) {
    ctx->next_free = cp->freelist;
    cp->freelist = ctx;
 }
-
-void ctx_pool_cleanup_func(void) {
-   struct ctx_pool *cp = (struct ctx_pool *)current_ctx->data.ptr;
-   ctx_pool_put(cp, current_ctx);
-}

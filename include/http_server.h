@@ -4,11 +4,14 @@
 #include "ctx_pool.h"
 #include "vmbuf.h"
 #include "epoll_worker.h"
+#include "sstr.h"
 
 struct http_server_context {
     struct vmbuf request;
-    struct vmbuf response;
-    char data[];
+    struct vmbuf header;
+    struct vmbuf payload;
+    int persistent;
+    char user_data[];
 };
 
 struct http_server {
@@ -21,8 +24,14 @@ struct http_server {
     char *idle_stack;
 };
 
+SSTREXTRN(HTTP_STATUS_200);
+SSTREXTRN(HTTP_CONTENT_TYPE_TEXT_PLAIN);
+
 int http_server_init(struct http_server *server, uint16_t port, void (*func)(void), size_t context_size);
 void http_server_accept_connections(void);
+void http_server_header_start(const char *status, const char *content_type);
+void http_server_header_close();
+void http_server_response(const char *status, const char *content_type);
 void http_server_fiber_main(void);
 
 /*
