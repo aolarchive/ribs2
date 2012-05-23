@@ -2,6 +2,14 @@
 #define _HTTP_SERVER__H_
 
 #include "ctx_pool.h"
+#include "vmbuf.h"
+#include "epoll_worker.h"
+
+struct http_server_context {
+    struct vmbuf request;
+    struct vmbuf response;
+    void *data;
+};
 
 struct http_server {
     struct ctx_pool ctx_pool;
@@ -17,5 +25,11 @@ int http_server_init(struct http_server *server, uint16_t port, void (*func)(voi
 void http_server_accept_connections(void);
 void http_server_fiber_main(void);
 
+/*
+ * inline
+ */
+static inline struct http_server_context *http_server_get_context(void) {
+    return (struct http_server_context *)(current_ctx->reserved);
+}
 
 #endif // _HTTP_SERVER__H_
