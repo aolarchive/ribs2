@@ -8,7 +8,7 @@
 struct http_server_context {
     struct vmbuf request;
     struct vmbuf response;
-    void *data;
+    char data[];
 };
 
 struct http_server {
@@ -21,7 +21,7 @@ struct http_server {
     char *idle_stack;
 };
 
-int http_server_init(struct http_server *server, uint16_t port, void (*func)(void));
+int http_server_init(struct http_server *server, uint16_t port, void (*func)(void), size_t context_size);
 void http_server_accept_connections(void);
 void http_server_fiber_main(void);
 

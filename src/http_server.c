@@ -66,7 +66,7 @@ static void http_server_idle_handler(void) {
     }
 }
 
-int http_server_init(struct http_server *server, uint16_t port, void (*func)(void)) {
+int http_server_init(struct http_server *server, uint16_t port, void (*func)(void), size_t context_size) {
     server->user_func = func;
 
     /*
@@ -91,7 +91,7 @@ int http_server_init(struct http_server *server, uint16_t port, void (*func)(voi
     /* half of total mem to start with so we don't need to enable overcommit */
     num_ctx_in_one_map >>= 1;
     printf("pool: initial=%zu, grow=%zu\n", num_ctx_in_one_map, num_ctx_in_one_map);
-    ctx_pool_init(&server->ctx_pool, num_ctx_in_one_map, num_ctx_in_one_map, rlim.rlim_cur, sizeof(struct http_server_context));
+    ctx_pool_init(&server->ctx_pool, num_ctx_in_one_map, num_ctx_in_one_map, rlim.rlim_cur, sizeof(struct http_server_context) + context_size);
 
     /*
      * listen socket
