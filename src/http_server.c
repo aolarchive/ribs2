@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <sys/uio.h>
 
 #define ACCEPTOR_STACK_SIZE 8192
 #define MIN_HTTP_REQ_SIZE 5 // method(3) + space(1) + URI(1) + optional VER...
@@ -237,12 +238,12 @@ void http_server_fiber_main(void) {
         if (vmbuf_wlocpos(&ctx->request) > MIN_HTTP_REQ_SIZE)
             break;
     }
-
-    if (0 == SSTRNCMP(GET, vmbuf_data(&ctx->request)) || 0 == SSTRNCMP(HEAD, vmbuf_data(&ctx->request))) {
+    do {
+      if (0 == SSTRNCMP(GET, vmbuf_data(&ctx->request)) || 0 == SSTRNCMP(HEAD, vmbuf_data(&ctx->request))) {
         /* GET or HEAD */
         while (0 != SSTRNCMP(CRLFCRLF,  vmbuf_wloc(&ctx->request) - SSTRLEN(CRLFCRLF))) {
-            yield();
-            READ_FROM_SOCKET();
+	  yield();
+	  READ_FROM_SOCKET();
         }
         /* make sure the string is \0 terminated */
         /* this will overwrite the first CR */
@@ -255,51 +256,51 @@ void http_server_fiber_main(void) {
         p = strchrnul(URI, '\r'); /* HTTP/1.0 */
         headers = p;
         if (0 != *headers) /* are headers present? */
-            headers += SSTRLEN(CRLF); /* skip the new line */
+	  headers += SSTRLEN(CRLF); /* skip the new line */
         *p = 0;
         p = strchrnul(URI, ' '); /* truncate the version part */
         *p = 0; /* \0 at the end of URI */
         content = NULL;
         content_length = 0;
         server->user_func();
-    } else if (0 == SSTRNCMP(POST, vmbuf_data(&ctx->request)) || 0 == SSTRNCMP(PUT, vmbuf_data(&ctx->request))) {
+      } else if (0 == SSTRNCMP(POST, vmbuf_data(&ctx->request)) || 0 == SSTRNCMP(PUT, vmbuf_data(&ctx->request))) {
         /* POST or PUT */
         for (;;) {
-            *vmbuf_wloc(&ctx->request) = 0;
-            /* wait until we have the header */
-            if (NULL != (content = strstr(vmbuf_data(&ctx->request), CRLFCRLF)))
-                break;
-            yield();
-            READ_FROM_SOCKET();
+	  *vmbuf_wloc(&ctx->request) = 0;
+	  /* wait until we have the header */
+	  if (NULL != (content = strstr(vmbuf_data(&ctx->request), CRLFCRLF)))
+	    break;
+	  yield();
+	  READ_FROM_SOCKET();
         }
 
         *content = 0; /* terminate at the first CR like in GET */
         content += SSTRLEN(CRLFCRLF);
 
         if (strstr(vmbuf_data(&ctx->request), EXPECT_100)) {
-            vmbuf_sprintf(&ctx->header, "%s %s\r\n\r\n", HTTP_SERVER_VER, HTTP_STATUS_100);
-            if (0 > vmbuf_write(&ctx->header, fd)) {
-                close(fd);
-                return;
-            }
-            vmbuf_reset(&ctx->header);
+	  vmbuf_sprintf(&ctx->header, "%s %s\r\n\r\n", HTTP_SERVER_VER, HTTP_STATUS_100);
+	  if (0 > vmbuf_write(&ctx->header, fd)) {
+	    close(fd);
+	    return;
+	  }
+	  vmbuf_reset(&ctx->header);
         }
         ctx->persistent = check_persistent(vmbuf_data(&ctx->request));
 
         /* parse the content length */
         char *p = strcasestr(vmbuf_data(&ctx->request), CONTENT_LENGTH);
         if (NULL == p) {
-            http_server_response(HTTP_STATUS_411, HTTP_CONTENT_TYPE_TEXT_PLAIN);
-            goto http_server_write_response;
+	  http_server_response(HTTP_STATUS_411, HTTP_CONTENT_TYPE_TEXT_PLAIN);
+	  break;
         }
 
         p += SSTRLEN(CONTENT_LENGTH);
         content_length = atoi(p);
         for (;;) {
-            if (content + content_length <= vmbuf_wloc(&ctx->request))
-                break;
-            yield();
-            READ_FROM_SOCKET();
+	  if (content + content_length <= vmbuf_wloc(&ctx->request))
+	    break;
+	  yield();
+	  READ_FROM_SOCKET();
         }
         p = vmbuf_data(&ctx->request);
         URI = strchrnul(p, ' '); /* can't be NULL PUT and POST constants have space at the end */
@@ -308,49 +309,71 @@ void http_server_fiber_main(void) {
         p = strchrnul(URI, '\r'); /* HTTP/1.0 */
         headers = p;
         if (0 != *headers) /* are headers present? */
-            headers += SSTRLEN(CRLF); /* skip the new line */
+	  headers += SSTRLEN(CRLF); /* skip the new line */
         *p = 0;
         p = strchrnul(URI, ' '); /* truncate http version */
         *p = 0; /* \0 at the end of URI */
         *(content + content_length) = 0;
         server->user_func();
-    } else {
+      } else {
         http_server_response(HTTP_STATUS_501, HTTP_CONTENT_TYPE_TEXT_PLAIN);
-        goto http_server_write_response;
-    }
-http_server_write_response:
+        break;
+      }
+    } while(0);
 
-    res = vmbuf_write(&ctx->header, fd);
-    if (res < 0) {
-        close(fd);
-        return;
-    } else if (0 == res) {
-        /* write mode */
-        ev.events = EPOLLOUT | EPOLLET;
-        ev.data.fd = fd;
-        if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_MOD, fd, &ev))
-            perror("epoll_ctl");
-        for (;;) {
-            yield();
-            res = vmbuf_write(&ctx->header, fd);
-            if (res < 0) {
-                close(fd);
-                return;
-            }
-            if (0 != res)
-                break;
-        }
-        if (ctx->persistent) {
+
+    struct iovec iovec[2] = {
+      { vmbuf_data(&ctx->header), vmbuf_wlocpos(&ctx->header)},
+      { vmbuf_data(&ctx->payload), vmbuf_wlocpos(&ctx->payload)}
+    };
+
+    ev.events=0;
+
+    void my_yield(void)  {
+      if (0 == (EPOLLOUT & ev.events)) {
+	ev.events = EPOLLOUT | EPOLLET;
+	ev.data.fd = fd;
+	if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_MOD, fd, &ev))
+	  perror("epoll_ctl");
+      }
+      yield();
+    }
+
+    ssize_t num_write;
+    for (;; my_yield()) {
+      num_write = writev(fd, iovec, iovec[1].iov_len ? 2 : 1);
+      if (0 > num_write) {
+	if (EAGAIN == errno) {
+	  continue;
+	} else {
+	  close(fd);
+	  return;
+	}
+      } else {
+	if (num_write >= (ssize_t)iovec[0].iov_len) {
+	  num_write -= iovec[0].iov_len;
+	  iovec[0].iov_len = iovec[1].iov_len - num_write;
+	  if (iovec[0].iov_len == 0) 
+            break;
+	  iovec[0].iov_base = iovec[1].iov_base + num_write;
+	  iovec[1].iov_len = 0;
+	} else {
+	  iovec[0].iov_len -= num_write;
+	  iovec[0].iov_base += num_write;
+	}
+      }
+    }
+
+    if (ctx->persistent) {
+        if (0 < (EPOLLOUT & ev.events)) {
             /* back to read mode */
             ev.events = EPOLLIN | EPOLLET;
             ev.data.fd = fd;
             if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_MOD, fd, &ev))
                 perror("epoll_ctl");
-        }
+	}
+	fd_to_ctx[fd] = &server->idle_ctx;
     }
-
-    if (ctx->persistent)
-        fd_to_ctx[fd] = &server->idle_ctx;
     else
         close(fd);
 }

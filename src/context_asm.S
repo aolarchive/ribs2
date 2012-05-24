@@ -34,11 +34,3 @@ __ribs_context_exit:
         jmp ribs_setcontext
 
 
-
-
-
-
-
-
-
-
