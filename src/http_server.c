@@ -204,6 +204,8 @@ void http_server_header_close() {
 }
 
 void http_server_response(const char *status, const char *content_type) {
+    struct http_server_context *ctx = http_server_get_context();
+    vmbuf_reset(&ctx->header);
     http_server_header_start(status, content_type);
     http_server_header_content_length();
     http_server_header_close();
@@ -417,7 +419,7 @@ int http_server_sendfile(const char *filename) {
     struct http_server_context *ctx = http_server_get_context();
     int fd = current_ctx->fd;
     int ffd = open(filename, O_RDONLY);
-    if (fd < 0)
+    if (ffd < 0)
         return perror(filename), -1;
     struct stat st;
     if (0 > fstat(ffd, &st)) {
