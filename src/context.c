@@ -4,6 +4,10 @@
 struct ribs_context main_ctx;
 
 int ribs_makecontext(struct ribs_context *ctx, struct ribs_context *rctx, void *sp, void (*func)(void), void (*user_cleanup_func)(void)) {
+    /* align stack to 16 bytes, assuming function always does push rbp to align
+       __ribs_context_exit doesn't need to be aligned since it doesn't rely on stack alignment
+       (need mainly when using SSE instructions)
+    */
     sp = (unsigned long int *) ((((uintptr_t) sp) & -16L) - (user_cleanup_func ? 16 : 8));
 
     ctx->rbx = (uintptr_t) rctx;
