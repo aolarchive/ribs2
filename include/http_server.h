@@ -10,6 +10,11 @@ struct http_server_context {
     struct vmbuf request;
     struct vmbuf header;
     struct vmbuf payload;
+    char *URI;
+    char *headers;
+    char *query;
+    char *content;
+    uint32_t content_len;
     int persistent;
     char user_data[];
 };

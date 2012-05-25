@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include "http_server.h"
+#include "uri_decode.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -56,6 +57,8 @@ SSTRL(HTTP_SERVER_NAME, "ribs2.0");
 extern struct ribs_context *current_ctx;
 
 #define IDLE_STACK_SIZE 4096
+
+static void http_server_process_request(char *URI, char *headers);
 
 static void http_server_fiber_cleanup(void) {
     struct http_server *server = (struct http_server *)current_ctx->data.ptr;
@@ -300,7 +303,6 @@ inline void http_server_write(struct epoll_event *ev) {
 
 void http_server_fiber_main(void) {
     struct http_server_context *ctx = http_server_get_context();
-    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
     int fd = current_ctx->fd;
 
     char *URI;
@@ -347,9 +349,12 @@ void http_server_fiber_main(void) {
             *p = 0;
             p = strchrnul(URI, ' '); /* truncate the version part */
             *p = 0; /* \0 at the end of URI */
-            content = NULL;
-            content_length = 0;
-            server->user_func();
+
+            ctx->content = NULL;
+            ctx->content_len = 0;
+
+            /* minimal parsing and call user function */
+            http_server_process_request(URI, headers);
         } else if (0 == SSTRNCMP(POST, vmbuf_data(&ctx->request)) || 0 == SSTRNCMP(PUT, vmbuf_data(&ctx->request))) {
             /* POST or PUT */
             for (;;) {
@@ -401,7 +406,12 @@ void http_server_fiber_main(void) {
             p = strchrnul(URI, ' '); /* truncate http version */
             *p = 0; /* \0 at the end of URI */
             *(content + content_length) = 0;
-            server->user_func();
+
+            ctx->content = content;
+            ctx->content_len = content_length;
+
+            /* minimal parsing and call user function */
+            http_server_process_request(URI, headers);
         } else {
             http_server_response(HTTP_STATUS_501, HTTP_CONTENT_TYPE_TEXT_PLAIN);
             break;
@@ -414,6 +424,25 @@ void http_server_fiber_main(void) {
     http_server_write(&ev);
     http_server_close(&ev);
 }
+
+static void http_server_process_request(char *URI, char *headers) {
+    struct http_server_context *ctx = http_server_get_context();
+    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
+    ctx->headers = headers;
+    char *query = strchrnul(URI, '?');
+    if (*query)
+        *query++ = 0;
+    ctx->query = query;
+    static const char HTTP[] = "http://";
+    if (0 == SSTRNCMP(HTTP, URI)) {
+        URI += SSTRLEN(HTTP);
+        URI = strchrnul(URI, '/');
+    }
+    http_uri_decode(URI);
+    ctx->URI = URI;
+    server->user_func();
+}
+
 
 int http_server_sendfile(const char *filename) {
     struct http_server_context *ctx = http_server_get_context();
