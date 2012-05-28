@@ -5,7 +5,6 @@
 #include "context.h"
 
 extern int ribs_epoll_fd;
-extern struct ribs_context *current_ctx;
 extern struct epoll_event current_epollev;
 extern struct ribs_context **fd_to_ctx;
 

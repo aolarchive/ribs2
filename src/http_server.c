@@ -54,8 +54,6 @@ SSTR(HTTP_CONTENT_TYPE_TEXT_PLAIN, "text/plain");
 SSTRL(HTTP_SERVER_VER, "HTTP/1.1");
 SSTRL(HTTP_SERVER_NAME, "ribs2.0");
 
-extern struct ribs_context *current_ctx;
-
 #define IDLE_STACK_SIZE 4096
 
 static void http_server_process_request(char *URI, char *headers);
