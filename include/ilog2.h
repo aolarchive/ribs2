@@ -20,8 +20,6 @@
 #ifndef _ILOG2__H_
 #define _ILOG2__H_
 
-#include <stdint.h>
-
 static inline uint32_t ilog2(uint32_t x)
 {
     uint32_t res;

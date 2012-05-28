@@ -1,6 +1,7 @@
 #ifndef _EPOLL_WORKER__H_
 #define _EPOLL_WORKER__H_
 
+#include "ribs_defs.h"
 #include "context.h"
 
 extern int ribs_epoll_fd;

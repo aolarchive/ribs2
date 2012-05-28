@@ -1,7 +1,7 @@
 #ifndef _CTX_POOL__H_
 #define _CTX_POOL__H_
 
-#include <stdlib.h>
+#include "ribs_defs.h"
 #include "context.h"
 
 struct ctx_pool {

@@ -20,7 +20,6 @@
 #include "hashtable.h"
 #include "hash_funcs.h"
 #include "ilog2.h"
-#include "vmbuf.c"
 
 struct ht_entry {
     uint32_t hashcode;

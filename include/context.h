@@ -1,7 +1,7 @@
 #ifndef _CONTEXT__H_
 #define _CONTEXT__H_
 
-#include <stddef.h>
+#include "ribs_defs.h"
 #include <sys/epoll.h>
 
 struct ribs_context {

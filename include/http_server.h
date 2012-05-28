@@ -1,6 +1,7 @@
 #ifndef _HTTP_SERVER__H_
 #define _HTTP_SERVER__H_
 
+#include "ribs_defs.h"
 #include "ctx_pool.h"
 #include "vmbuf.h"
 #include "epoll_worker.h"

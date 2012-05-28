@@ -1,8 +1,8 @@
 #ifndef _HASHTABLE__H_
 #define _HASHTABLE__H_
 
+#include "ribs_defs.h"
 #include "vmbuf.h"
-#include <stdint.h>
 
 struct hashtable {
     struct vmbuf data;

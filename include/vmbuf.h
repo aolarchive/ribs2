@@ -20,12 +20,11 @@
 #ifndef _VM_BUF__H_
 #define _VM_BUF__H_
 
-#define _GNU_SOURCE
+#include "ribs_defs.h"
 #include <sys/mman.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <errno.h>
-#include <unistd.h>
 #include <string.h>
 #include <time.h>
 
@@ -35,6 +34,10 @@
 #define PAGEMASK 4095
 #define PAGESIZE 4096
 
+#ifndef VMBUF_INLINE
+#define VMBUF_INLINE extern inline
+#endif
+
 struct vmbuf
 {
     char *buf;
@@ -43,64 +46,66 @@ struct vmbuf
     size_t write_loc;
 };
 
-inline off_t vmbuf_align(off_t off);
-inline int vmbuf_init(struct vmbuf *vmb, size_t initial_size);
-inline void vmbuf_make(struct vmbuf *vmb);
-inline void vmbuf_reset(struct vmbuf *vmb);
-inline int vmbuf_free(struct vmbuf *vmb);
-inline int vmbuf_free_most(struct vmbuf *vmb);
+VMBUF_INLINE off_t vmbuf_align(off_t off);
+VMBUF_INLINE int vmbuf_init(struct vmbuf *vmb, size_t initial_size);
+VMBUF_INLINE void vmbuf_make(struct vmbuf *vmb);
+VMBUF_INLINE void vmbuf_reset(struct vmbuf *vmb);
+VMBUF_INLINE int vmbuf_free(struct vmbuf *vmb);
+VMBUF_INLINE int vmbuf_free_most(struct vmbuf *vmb);
 
-inline int vmbuf_resize_by(struct vmbuf *vmb, size_t by);
-inline int vmbuf_resize_to(struct vmbuf *vmb, size_t new_capacity);
-inline int vmbuf_resize_if_full(struct vmbuf *vmb);
-inline int vmbuf_resize_if_less(struct vmbuf *vmb, size_t desired_size);
-inline int vmbuf_resize_no_check(struct vmbuf *vmb, size_t n);
+VMBUF_INLINE int vmbuf_resize_by(struct vmbuf *vmb, size_t by);
+VMBUF_INLINE int vmbuf_resize_to(struct vmbuf *vmb, size_t new_capacity);
+VMBUF_INLINE int vmbuf_resize_if_full(struct vmbuf *vmb);
+VMBUF_INLINE int vmbuf_resize_if_less(struct vmbuf *vmb, size_t desired_size);
+VMBUF_INLINE int vmbuf_resize_no_check(struct vmbuf *vmb, size_t n);
 
-inline size_t vmbuf_alloc(struct vmbuf *vmb, size_t n);
-inline size_t vmbuf_alloczero(struct vmbuf *vmb, size_t n);
-inline size_t vmbuf_alloc_aligned(struct vmbuf *vmb, size_t n);
+VMBUF_INLINE size_t vmbuf_alloc(struct vmbuf *vmb, size_t n);
+VMBUF_INLINE size_t vmbuf_alloczero(struct vmbuf *vmb, size_t n);
+VMBUF_INLINE size_t vmbuf_alloc_aligned(struct vmbuf *vmb, size_t n);
 
-inline size_t vmbuf_num_elements(struct vmbuf *vmb, size_t size_of_element);
+VMBUF_INLINE size_t vmbuf_num_elements(struct vmbuf *vmb, size_t size_of_element);
 
-inline char *vmbuf_data(struct vmbuf *vmb);
-inline char *vmbuf_data_ofs(struct vmbuf *vmb, size_t loc);
+VMBUF_INLINE char *vmbuf_data(struct vmbuf *vmb);
+VMBUF_INLINE char *vmbuf_data_ofs(struct vmbuf *vmb, size_t loc);
 
-inline size_t vmbuf_wavail(struct vmbuf *vmb);
-inline size_t vmbuf_ravail(struct vmbuf *vmb);
+VMBUF_INLINE size_t vmbuf_wavail(struct vmbuf *vmb);
+VMBUF_INLINE size_t vmbuf_ravail(struct vmbuf *vmb);
 
-inline char *vmbuf_wloc(struct vmbuf *vmb);
-inline char *vmbuf_rloc(struct vmbuf *vmb);
+VMBUF_INLINE char *vmbuf_wloc(struct vmbuf *vmb);
+VMBUF_INLINE char *vmbuf_rloc(struct vmbuf *vmb);
 
-inline size_t vmbuf_rlocpos(struct vmbuf *vmb);
-inline size_t vmbuf_wlocpos(struct vmbuf *vmb);
+VMBUF_INLINE size_t vmbuf_rlocpos(struct vmbuf *vmb);
+VMBUF_INLINE size_t vmbuf_wlocpos(struct vmbuf *vmb);
 
-inline void vmbuf_rlocset(struct vmbuf *vmb, size_t ofs);
-inline void vmbuf_wlocset(struct vmbuf *vmb, size_t ofs);
+VMBUF_INLINE void vmbuf_rlocset(struct vmbuf *vmb, size_t ofs);
+VMBUF_INLINE void vmbuf_wlocset(struct vmbuf *vmb, size_t ofs);
 
-inline void vmbuf_rrewind(struct vmbuf *vmb, size_t by);
-inline void vmbuf_wrewind(struct vmbuf *vmb, size_t by);
+VMBUF_INLINE void vmbuf_rrewind(struct vmbuf *vmb, size_t by);
+VMBUF_INLINE void vmbuf_wrewind(struct vmbuf *vmb, size_t by);
 
-inline size_t vmbuf_capacity(struct vmbuf *vmb);
+VMBUF_INLINE size_t vmbuf_capacity(struct vmbuf *vmb);
 
-inline void vmbuf_unsafe_wseek(struct vmbuf *vmb, size_t by);
-inline int vmbuf_wseek(struct vmbuf *vmb, size_t by);
-inline void vmbuf_rseek(struct vmbuf *vmb, size_t by);
+VMBUF_INLINE void vmbuf_unsafe_wseek(struct vmbuf *vmb, size_t by);
+VMBUF_INLINE int vmbuf_wseek(struct vmbuf *vmb, size_t by);
+VMBUF_INLINE void vmbuf_rseek(struct vmbuf *vmb, size_t by);
 
-inline void vmbuf_rreset(struct vmbuf *vmb);
-inline void vmbuf_wreset(struct vmbuf *vmb);
+VMBUF_INLINE void vmbuf_rreset(struct vmbuf *vmb);
+VMBUF_INLINE void vmbuf_wreset(struct vmbuf *vmb);
 
-inline int vmbuf_sprintf(struct vmbuf *vmb, const char *format, ...);
-inline int vmbuf_vsprintf(struct vmbuf *vmb, const char *format, va_list ap);
-inline int vmbuf_strcpy(struct vmbuf *vmb, const char *src);
+VMBUF_INLINE int vmbuf_sprintf(struct vmbuf *vmb, const char *format, ...);
+VMBUF_INLINE int vmbuf_vsprintf(struct vmbuf *vmb, const char *format, va_list ap);
+VMBUF_INLINE int vmbuf_strcpy(struct vmbuf *vmb, const char *src);
 
-inline void vmbuf_remove_last_if(struct vmbuf *vmb, char c);
+VMBUF_INLINE void vmbuf_remove_last_if(struct vmbuf *vmb, char c);
 
-inline int vmbuf_read(struct vmbuf *vmb, int fd);
-inline int vmbuf_write(struct vmbuf *vmb, int fd);
+VMBUF_INLINE int vmbuf_read(struct vmbuf *vmb, int fd);
+VMBUF_INLINE int vmbuf_write(struct vmbuf *vmb, int fd);
 
-inline int vmbuf_memcpy(struct vmbuf *vmb, const void *src, size_t n);
-inline void vmbuf_memset(struct vmbuf *vmb, int c, size_t n);
+VMBUF_INLINE int vmbuf_memcpy(struct vmbuf *vmb, const void *src, size_t n);
+VMBUF_INLINE void vmbuf_memset(struct vmbuf *vmb, int c, size_t n);
 
-inline int vmbuf_strftime(struct vmbuf *vmb, const char *format, const struct tm *tm);
+VMBUF_INLINE int vmbuf_strftime(struct vmbuf *vmb, const char *format, const struct tm *tm);
+
+#include "../src/_vmbuf.c"
 
 #endif // _VM_BUF__H_
