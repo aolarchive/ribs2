@@ -21,19 +21,20 @@
 #define ACCEPTOR_STACK_SIZE 8192
 #define MIN_HTTP_REQ_SIZE 5 // method(3) + space(1) + URI(1) + optional VER...
 
+/* methods */
 SSTRL(HEAD, "HEAD " );
 SSTRL(GET,  "GET "  );
 SSTRL(POST, "POST " );
 SSTRL(PUT,  "PUT "  );
-
+/* misc */
+SSTRL(HTTP_SERVER_VER, "HTTP/1.1");
+SSTRL(HTTP_SERVER_NAME, "ribs2.0");
 SSTRL(CRLFCRLF, "\r\n\r\n");
 SSTRL(CRLF, "\r\n");
-
 SSTRL(CONNECTION, "\r\nConnection: ");
 SSTRL(CONNECTION_CLOSE, "close");
 SSTRL(CONNECTION_KEEPALIVE, "Keep-Alive");
 SSTRL(CONTENT_LENGTH, "\r\nContent-Length: ");
-
 /* 1xx */
 SSTRL(HTTP_STATUS_100, "100 Continue");
 SSTRL(EXPECT_100, "\r\nExpect: 100");
@@ -46,13 +47,8 @@ SSTRL(HTTP_STATUS_411, "411 Length Required");
 SSTRL(HTTP_STATUS_500, "500 Internal Server Error");
 SSTRL(HTTP_STATUS_501, "501 Not Implemented");
 SSTRL(HTTP_STATUS_503, "503 Service Unavailable");
-
 /* content types */
 SSTR(HTTP_CONTENT_TYPE_TEXT_PLAIN, "text/plain");
-
-
-SSTRL(HTTP_SERVER_VER, "HTTP/1.1");
-SSTRL(HTTP_SERVER_NAME, "ribs2.0");
 
 #define IDLE_STACK_SIZE 4096
 
