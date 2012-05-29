@@ -3,6 +3,8 @@
 #include "ctx_pool.h"
 #include "hashtable.h"
 #include <sys/time.h>
+#include "list.h"
+#include "mime_types.h"
 
 struct ribs_context ctx_main, ctx1, ctx2;
 
@@ -43,7 +45,48 @@ void fiber2()
 
 #define NUM_KEYS 10000
 
+struct my_struct {
+    int x;
+    struct list list;
+    int y;
+};
+
 int main(void) {
+    if (0 > mime_types_init())
+        return printf("ERROR: mime types\n"), 1;
+
+    const char *filenames[] = { "filename.jpg",
+                                "filename.doc",
+                                "filename.xml",
+                                "filename.test",
+                                "filename.bin",
+                                "filename.epsf"
+    };
+    const char **filename;
+    for (filename = filenames; filename != filenames + sizeof(filenames)/sizeof(filenames[0]); ++filename)
+        printf("%s = %s\n", *filename, mime_types_by_filename(*filename));
+    return 0;
+
+    int x = 0;
+    struct list head;
+    list_init(&head);
+    for (x = 0; x < 100; ++x) {
+        struct my_struct *m = (struct my_struct *)malloc(sizeof(struct my_struct));
+        m->x = x + 1000;
+        m->y = x + 2000;
+        list_insert_tail(&head, &m->list);
+    }
+
+    for (x = 0; x < 10; ++x)
+        list_make_first(&head, list_tail(&head));
+
+    while (!list_empty(&head)) {
+        struct list *l = list_pop_head(&head);
+        struct my_struct *m = list_entry(l, struct my_struct, list);
+        printf(" x = %d, y = %d\n", m->x, m->y);
+    }
+
+    return 0;
 
     struct timeval start, end, diff;
     struct hashtable ht;

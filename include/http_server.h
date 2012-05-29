@@ -33,6 +33,7 @@ struct http_server {
 SSTREXTRN(HTTP_STATUS_200);
 SSTREXTRN(HTTP_STATUS_404);
 SSTREXTRN(HTTP_CONTENT_TYPE_TEXT_PLAIN);
+SSTREXTRN(HTTP_CONTENT_TYPE_TEXT_HTML);
 
 int http_server_init(struct http_server *server, uint16_t port, void (*func)(void), size_t context_size);
 void http_server_accept_connections(void);
@@ -43,6 +44,7 @@ void http_server_response_sprintf(const char *status, const char *content_type, 
 void http_server_header_content_length();
 void http_server_fiber_main(void);
 int http_server_sendfile(const char *filename);
+int http_server_generate_dir_list(const char *filename);
 
 /*
  * inline

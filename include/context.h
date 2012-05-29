@@ -2,6 +2,7 @@
 #define _CONTEXT__H_
 
 #include "ribs_defs.h"
+#include "list.h"
 #include <sys/epoll.h>
 
 struct ribs_context {
@@ -16,6 +17,7 @@ struct ribs_context {
     int fd;
     epoll_data_t data;
     struct ribs_context *next_free;
+    struct list timeout_chain;
     char reserved[];
 };
 

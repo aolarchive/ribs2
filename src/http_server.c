@@ -2,6 +2,7 @@
 #include "http_server.h"
 #include "uri_decode.h"
 #include <sys/types.h>
+#include <dirent.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -17,6 +18,7 @@
 #include <sys/resource.h>
 #include <sys/uio.h>
 #include <sys/sendfile.h>
+#include "mime_types.h"
 
 #define ACCEPTOR_STACK_SIZE 8192
 #define MIN_HTTP_REQ_SIZE 5 // method(3) + space(1) + URI(1) + optional VER...
@@ -49,6 +51,7 @@ SSTRL(HTTP_STATUS_501, "501 Not Implemented");
 SSTRL(HTTP_STATUS_503, "503 Service Unavailable");
 /* content types */
 SSTR(HTTP_CONTENT_TYPE_TEXT_PLAIN, "text/plain");
+SSTR(HTTP_CONTENT_TYPE_TEXT_HTML, "text/html");
 
 #define IDLE_STACK_SIZE 4096
 
@@ -73,6 +76,8 @@ static void http_server_idle_handler(void) {
 }
 
 int http_server_init(struct http_server *server, uint16_t port, void (*func)(void), size_t context_size) {
+    if (0 > mime_types_init())
+        return printf("ERROR: failed to initialize mime types\n"), -1;
     server->user_func = func;
 
     /*
@@ -439,22 +444,28 @@ static void http_server_process_request(char *URI, char *headers) {
 
 
 int http_server_sendfile(const char *filename) {
+    if (0 == *filename)
+        filename = ".";
     struct http_server_context *ctx = http_server_get_context();
     int fd = current_ctx->fd;
     int ffd = open(filename, O_RDONLY);
     if (ffd < 0)
-        return perror(filename), -1;
+        return -1;
     struct stat st;
     if (0 > fstat(ffd, &st)) {
         perror(filename);
         close(ffd);
         return -1;
     }
+    if (S_ISDIR(st.st_mode)) {
+        close(ffd);
+        return 1;
+    }
     struct epoll_event ev;
     ev.events = 0;
     ev.data.fd = fd;
     vmbuf_reset(&ctx->header);
-    http_server_header_start(HTTP_STATUS_200, HTTP_CONTENT_TYPE_TEXT_PLAIN);
+    http_server_header_start(HTTP_STATUS_200, mime_types_by_filename(filename));
     vmbuf_sprintf(&ctx->header, "%s%zu", CONTENT_LENGTH, st.st_size);
     http_server_header_close();
     http_server_write(&ev);
@@ -478,4 +489,48 @@ int http_server_sendfile(const char *filename) {
     close(ffd);
     http_server_close(&ev);
     return 0;
+}
+
+int http_server_generate_dir_list(const char *URI) {
+    struct http_server_context *ctx = http_server_get_context();
+    struct vmbuf *payload = &ctx->payload;
+    const char *dir = URI;
+    if (*dir == '/') ++dir;
+    if (0 == *dir)
+        dir = ".";
+    vmbuf_sprintf(payload, "<html><head><title>Index of %s</title></head>", dir);
+    vmbuf_strcpy(payload, "<body>");
+    vmbuf_sprintf(payload, "<h1>Index of %s</h1><hr>", dir);
+
+    vmbuf_sprintf(payload, "<a href=\"..\">../</a><br><br>");
+    vmbuf_sprintf(payload, "<table width=\"100%\" border=\"0\">");
+    DIR *d = opendir(dir);
+    int error = 0;
+    if (d) {
+        struct dirent de, *dep;
+        while (0 == readdir_r(d, &de, &dep) && dep) {
+            if (de.d_name[0] == '.')
+                continue;
+            struct stat st;
+            if (0 > fstatat(dirfd(d), de.d_name, &st, 0)) {
+                vmbuf_sprintf(payload, "<tr><td>ERROR: %s</td><td>N/A</td></tr>", de.d_name);
+                continue;
+            }
+            const char *slash = (S_ISDIR(st.st_mode) ? "/" : "");
+            struct tm t_res, *t;
+            t = localtime_r(&st.st_mtime, &t_res);
+
+            vmbuf_strcpy(payload, "<tr>");
+            vmbuf_sprintf(payload, "<td><a href=\"%s%s%s\">%s%s</a></td>", URI, de.d_name, slash, de.d_name, slash);
+            vmbuf_strcpy(payload, "<td>");
+            if (t)
+                vmbuf_strftime(payload, "%F %T", t);
+            vmbuf_strcpy(payload, "</td>");
+            vmbuf_sprintf(payload, "<td>%zu</td>", st.st_size);
+            vmbuf_strcpy(payload, "</tr>");
+        }
+        closedir(d);
+    }
+    vmbuf_strcpy(payload, "</table><hr></body>");
+    return error;
 }

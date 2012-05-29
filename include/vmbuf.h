@@ -46,6 +46,8 @@ struct vmbuf
     size_t write_loc;
 };
 
+#define VMBUF_INITIALIZER { NULL, 0, 0, 0 }
+
 VMBUF_INLINE off_t vmbuf_align(off_t off);
 VMBUF_INLINE int vmbuf_init(struct vmbuf *vmb, size_t initial_size);
 VMBUF_INLINE void vmbuf_make(struct vmbuf *vmb);

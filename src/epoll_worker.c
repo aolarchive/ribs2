@@ -4,11 +4,14 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <stdlib.h>
+#include <signal.h>
 
 int ribs_epoll_fd = -1;
 struct ribs_context *current_ctx = NULL;
 struct epoll_event current_epollev;
 struct ribs_context **fd_to_ctx;
+
+LIST_CREATE(timeout_chain_head);
 
 int epoll_worker_init(void) {
     struct rlimit rlim;
@@ -18,6 +21,11 @@ int epoll_worker_init(void) {
     ribs_epoll_fd = epoll_create1(EPOLL_CLOEXEC);
     if (ribs_epoll_fd < 0)
         return perror("epoll_create1"), -1;
+    sigset_t set;
+    sigemptyset(&set);
+    sigaddset(&set, SIGPIPE);
+    if (-1 == sigprocmask(SIG_BLOCK, &set, NULL))
+        return perror("sigprocmask"), -1;
     return 0;
 }
 
