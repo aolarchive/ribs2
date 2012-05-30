@@ -28,6 +28,8 @@ struct http_server {
     void *accept_stack;
     struct ribs_context idle_ctx;
     char *idle_stack;
+    struct ribs_context igev_ctx;
+    char *igev_stack;
 };
 
 SSTREXTRN(HTTP_STATUS_200);

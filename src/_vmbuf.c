@@ -237,9 +237,12 @@ VMBUF_INLINE void vmbuf_remove_last_if(struct vmbuf *vmb, char c) {
 
 VMBUF_INLINE int vmbuf_read(struct vmbuf *vmb, int fd) {
     ssize_t res;
-    while (0 < (res = read(fd, vmbuf_wloc(vmb), vmbuf_wavail(vmb)))) {
+    ssize_t wavail;
+    while (0 < (res = read(fd, vmbuf_wloc(vmb), wavail = vmbuf_wavail(vmb)))) {
         if (0 > vmbuf_wseek(vmb, res))
             return -1;
+        if (res < wavail)
+            return 1;
     }
     if (res < 0)
         return (EAGAIN == errno ? 1 : -1);

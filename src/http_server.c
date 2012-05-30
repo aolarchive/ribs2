@@ -64,15 +64,24 @@ static void http_server_fiber_cleanup(void) {
 
 static void http_server_idle_handler(void) {
     for (;;) {
-        struct ribs_context *old_ctx = current_ctx;
-        struct http_server *server = (struct http_server *)current_ctx->data.ptr;
-        current_ctx = ctx_pool_get(&server->ctx_pool);
-        ribs_makecontext(current_ctx, &main_ctx, current_ctx, http_server_fiber_main, http_server_fiber_cleanup);
-        current_ctx->fd = current_epollev.data.fd;
-        current_ctx->data.ptr = server;
-        epoll_worker_fd_map[current_epollev.data.fd].ctx = current_ctx;
-        ribs_swapcontext(current_ctx, old_ctx);
+        if (current_epollev.events == EPOLLOUT)
+            yield();
+        else {
+            struct ribs_context *old_ctx = current_ctx;
+            struct http_server *server = (struct http_server *)current_ctx->data.ptr;
+            current_ctx = ctx_pool_get(&server->ctx_pool);
+            ribs_makecontext(current_ctx, &main_ctx, current_ctx, http_server_fiber_main, http_server_fiber_cleanup);
+            current_ctx->fd = current_epollev.data.fd;
+            current_ctx->data.ptr = server;
+            epoll_worker_fd_map[current_epollev.data.fd].ctx = current_ctx;
+            ribs_swapcontext(current_ctx, old_ctx);
+        }
     }
+}
+
+static void http_server_ignore_events_handler(void) {
+    while(1)
+        yield();
 }
 
 int http_server_init(struct http_server *server, uint16_t port, void (*func)(void), size_t context_size) {
@@ -86,6 +95,13 @@ int http_server_init(struct http_server *server, uint16_t port, void (*func)(voi
     server->idle_stack = malloc(IDLE_STACK_SIZE);
     ribs_makecontext(&server->idle_ctx, &main_ctx, server->idle_stack + IDLE_STACK_SIZE, http_server_idle_handler, NULL);
     server->idle_ctx.data.ptr = server;
+
+    /*
+     * ignore events handler (epoll_ctl killer)
+     */
+    server->igev_stack = malloc(IDLE_STACK_SIZE);
+    ribs_makecontext(&server->igev_ctx, &main_ctx, server->igev_stack + IDLE_STACK_SIZE, http_server_ignore_events_handler, NULL);
+    server->igev_ctx.data.ptr = server;
 
     /*
      * context pool
@@ -171,7 +187,7 @@ void http_server_accept_connections(void) {
         epoll_worker_fd_map[fd].ctx = &server->idle_ctx;
 
         struct epoll_event ev;
-        ev.events = EPOLLIN | EPOLLET;
+        ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
         ev.data.fd = fd;
         if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, fd, &ev))
             perror("epoll_ctl");
@@ -238,32 +254,16 @@ void http_server_header_content_length() {
         return;                                                         \
     }
 
-inline void http_server_write_yield(struct epoll_event *ev)  {
-    if (0 == (EPOLLOUT & ev->events)) {
-        ev->events = EPOLLOUT | EPOLLET;
-        if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_MOD, ev->data.fd, ev))
-            perror("epoll_ctl");
-    }
-    yield();
-}
-
-inline void http_server_close(struct epoll_event *ev) {
-    struct http_server_context *ctx = http_server_get_context();
+inline void http_server_close(struct http_server_context *ctx) {
     struct http_server *server = (struct http_server *)current_ctx->data.ptr;
     int fd = current_ctx->fd;
-    if (ctx->persistent) {
-        if (0 < (EPOLLOUT & ev->events)) {
-            /* back to read mode */
-            ev->events = EPOLLIN | EPOLLET;
-            if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_MOD, fd, ev))
-                perror("epoll_ctl");
-	}
+    if (ctx->persistent)
 	epoll_worker_fd_map[fd].ctx = &server->idle_ctx;
-    } else
+    else
         close(fd);
 }
 
-inline void http_server_write(struct epoll_event *ev) {
+inline void http_server_write() {
     struct http_server_context *ctx = http_server_get_context();
     struct iovec iovec[2] = {
         { vmbuf_data(&ctx->header), vmbuf_wlocpos(&ctx->header)},
@@ -271,11 +271,8 @@ inline void http_server_write(struct epoll_event *ev) {
     };
     int fd = current_ctx->fd;
 
-    ev->events = 0;
-    ev->data.fd = fd;
-
     ssize_t num_write;
-    for (;;http_server_write_yield(ev)) {
+    for (;;yield()) {
         num_write = writev(fd, iovec, iovec[1].iov_len ? 2 : 1);
         if (0 > num_write) {
             if (EAGAIN == errno) {
@@ -309,7 +306,6 @@ void http_server_fiber_main(void) {
     char *content;
     size_t content_length;
     int res;
-    struct epoll_event ev;
     ctx->persistent = 0;
 
     vmbuf_init(&ctx->request, 4096);
@@ -420,8 +416,8 @@ void http_server_fiber_main(void) {
     if (vmbuf_wlocpos(&ctx->header) == 0)
         return;
 
-    http_server_write(&ev);
-    http_server_close(&ev);
+    http_server_write();
+    http_server_close(ctx);
 }
 
 static void http_server_process_request(char *URI, char *headers) {
@@ -439,7 +435,12 @@ static void http_server_process_request(char *URI, char *headers) {
     }
     http_uri_decode(URI);
     ctx->URI = URI;
+
+    struct ribs_context *my_context = current_ctx;
+    int fd = current_ctx->fd;
+    epoll_worker_fd_map[fd].ctx = &server->igev_ctx;
     server->user_func();
+    epoll_worker_fd_map[fd].ctx = my_context;
 }
 
 
@@ -461,18 +462,15 @@ int http_server_sendfile(const char *filename) {
         close(ffd);
         return 1;
     }
-    struct epoll_event ev;
-    ev.events = 0;
-    ev.data.fd = fd;
     vmbuf_reset(&ctx->header);
     http_server_header_start(HTTP_STATUS_200, mime_types_by_filename(filename));
     vmbuf_sprintf(&ctx->header, "%s%zu", CONTENT_LENGTH, st.st_size);
     http_server_header_close();
-    http_server_write(&ev);
+    http_server_write();
     off_t ofs = 0;
     ssize_t res;
 
-    for (;;http_server_write_yield(&ev)) {
+    for (;;yield()) {
         res = sendfile(fd, ffd, &ofs, st.st_size - ofs);
         if (res < 0) {
             if (EAGAIN == errno)
@@ -487,7 +485,7 @@ int http_server_sendfile(const char *filename) {
     }
     vmbuf_reset(&ctx->header);
     close(ffd);
-    http_server_close(&ev);
+    http_server_close(ctx);
     return 0;
 }
 
