@@ -70,7 +70,7 @@ static void http_server_idle_handler(void) {
         ribs_makecontext(current_ctx, &main_ctx, current_ctx, http_server_fiber_main, http_server_fiber_cleanup);
         current_ctx->fd = current_epollev.data.fd;
         current_ctx->data.ptr = server;
-        fd_to_ctx[current_epollev.data.fd] = current_ctx;
+        epoll_worker_fd_map[current_epollev.data.fd].ctx = current_ctx;
         ribs_swapcontext(current_ctx, old_ctx);
     }
 }
@@ -140,22 +140,22 @@ int http_server_init(struct http_server *server, uint16_t port, void (*func)(voi
     if (0 > listen(lfd, LISTEN_BACKLOG))
         return perror("listen"), -1;
 
+    server->accept_ctx.fd = lfd;
     printf("listening on port: %d, backlog: %d\n", port, LISTEN_BACKLOG);
+    return 0;
+}
 
-    /*
-     * acceptor
-     */
+int http_server_init_acceptor(struct http_server *server) {
     server->accept_stack = malloc(ACCEPTOR_STACK_SIZE);
     ribs_makecontext(&server->accept_ctx, &main_ctx, server->accept_stack + ACCEPTOR_STACK_SIZE, http_server_accept_connections, NULL);
-    server->accept_ctx.fd = lfd;
+    int lfd = server->accept_ctx.fd;
     server->accept_ctx.data.ptr = server;
     struct epoll_event ev;
     ev.events = EPOLLIN;
-    fd_to_ctx[lfd] = &server->accept_ctx;
+    epoll_worker_fd_map[lfd].ctx = &server->accept_ctx;
     ev.data.fd = lfd;
     if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, lfd, &ev))
         return perror("epoll_ctl"), -1;
-
     return 0;
 }
 
@@ -168,7 +168,7 @@ void http_server_accept_connections(void) {
             continue;
 
         struct http_server *server = (struct http_server *)current_ctx->data.ptr;
-        fd_to_ctx[fd] = &server->idle_ctx;
+        epoll_worker_fd_map[fd].ctx = &server->idle_ctx;
 
         struct epoll_event ev;
         ev.events = EPOLLIN | EPOLLET;
@@ -258,7 +258,7 @@ inline void http_server_close(struct epoll_event *ev) {
             if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_MOD, fd, ev))
                 perror("epoll_ctl");
 	}
-	fd_to_ctx[fd] = &server->idle_ctx;
+	epoll_worker_fd_map[fd].ctx = &server->idle_ctx;
     } else
         close(fd);
 }

@@ -36,6 +36,7 @@ SSTREXTRN(HTTP_CONTENT_TYPE_TEXT_PLAIN);
 SSTREXTRN(HTTP_CONTENT_TYPE_TEXT_HTML);
 
 int http_server_init(struct http_server *server, uint16_t port, void (*func)(void), size_t context_size);
+int http_server_init_acceptor(struct http_server *server);
 void http_server_accept_connections(void);
 void http_server_header_start(const char *status, const char *content_type);
 void http_server_header_close();
