@@ -18,6 +18,7 @@
 #include <sys/resource.h>
 #include <sys/uio.h>
 #include <sys/sendfile.h>
+#include <sys/timerfd.h>
 #include "mime_types.h"
 
 #define ACCEPTOR_STACK_SIZE 8192
@@ -53,7 +54,7 @@ SSTRL(HTTP_STATUS_503, "503 Service Unavailable");
 SSTR(HTTP_CONTENT_TYPE_TEXT_PLAIN, "text/plain");
 SSTR(HTTP_CONTENT_TYPE_TEXT_HTML, "text/html");
 
-#define IDLE_STACK_SIZE 4096
+#define SMALL_STACK_SIZE 4096
 
 static void http_server_process_request(char *URI, char *headers);
 
@@ -63,17 +64,19 @@ static void http_server_fiber_cleanup(void) {
 }
 
 static void http_server_idle_handler(void) {
+    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
     for (;;) {
         if (current_epollev.events == EPOLLOUT)
             yield();
         else {
             struct ribs_context *old_ctx = current_ctx;
-            struct http_server *server = (struct http_server *)current_ctx->data.ptr;
             current_ctx = ctx_pool_get(&server->ctx_pool);
             ribs_makecontext(current_ctx, &main_ctx, current_ctx, http_server_fiber_main, http_server_fiber_cleanup);
             current_ctx->fd = current_epollev.data.fd;
             current_ctx->data.ptr = server;
-            epoll_worker_fd_map[current_epollev.data.fd].ctx = current_ctx;
+            struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + current_epollev.data.fd;
+            fd_data->ctx = current_ctx;
+            list_remove(&server->timeout_chain);
             ribs_swapcontext(current_ctx, old_ctx);
         }
     }
@@ -84,25 +87,35 @@ static void http_server_ignore_events_handler(void) {
         yield();
 }
 
+static void http_server_timeout_handler(void) {
+    uint64_t num_exp;
+    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
+    (void)server;
+    int fd = current_ctx->fd;
+    for (;;yield()) {
+        if (sizeof(num_exp) != read(fd, &num_exp, sizeof(num_exp)))
+            continue;
+        // TODO: expire stuff here
+        //printf("TODO: expire (%d, %p)\n", fd, server);
+    }
+}
+
 int http_server_init(struct http_server *server, uint16_t port, void (*func)(void), size_t context_size) {
     if (0 > mime_types_init())
         return printf("ERROR: failed to initialize mime types\n"), -1;
     server->user_func = func;
-
     /*
      * idle connection handler
      */
-    server->idle_stack = malloc(IDLE_STACK_SIZE);
-    ribs_makecontext(&server->idle_ctx, &main_ctx, server->idle_stack + IDLE_STACK_SIZE, http_server_idle_handler, NULL);
+    server->idle_stack = malloc(SMALL_STACK_SIZE);
+    ribs_makecontext(&server->idle_ctx, &main_ctx, server->idle_stack + SMALL_STACK_SIZE, http_server_idle_handler, NULL);
     server->idle_ctx.data.ptr = server;
-
     /*
      * ignore events handler (epoll_ctl killer)
      */
-    server->igev_stack = malloc(IDLE_STACK_SIZE);
-    ribs_makecontext(&server->igev_ctx, &main_ctx, server->igev_stack + IDLE_STACK_SIZE, http_server_ignore_events_handler, NULL);
+    server->igev_stack = malloc(SMALL_STACK_SIZE);
+    ribs_makecontext(&server->igev_ctx, &main_ctx, server->igev_stack + SMALL_STACK_SIZE, http_server_ignore_events_handler, NULL);
     server->igev_ctx.data.ptr = server;
-
     /*
      * context pool
      */
@@ -119,11 +132,6 @@ int http_server_init(struct http_server *server, uint16_t port, void (*func)(voi
     num_ctx_in_one_map >>= 1;
     printf("pool: initial=%zu, grow=%zu\n", num_ctx_in_one_map, num_ctx_in_one_map);
     ctx_pool_init(&server->ctx_pool, num_ctx_in_one_map, num_ctx_in_one_map, rlim.rlim_cur, sizeof(struct http_server_context) + context_size);
-
-    /*
-     * timeout chain
-     */
-    list_init(&server->timeout_chain);
 
     /*
      * listen socket
@@ -177,6 +185,28 @@ int http_server_init_acceptor(struct http_server *server) {
     ev.data.fd = lfd;
     if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, lfd, &ev))
         return perror("epoll_ctl"), -1;
+    /*
+     * timeout handler
+     */
+    server->timeout_handler_ctx.fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
+    if (0 > server->timeout_handler_ctx.fd)
+        return perror("timerfd_create"), -1;
+    server->timeout_handler_stack = malloc(SMALL_STACK_SIZE);
+    ribs_makecontext(&server->timeout_handler_ctx, &main_ctx, server->timeout_handler_stack + SMALL_STACK_SIZE, http_server_timeout_handler, NULL);
+    server->timeout_handler_ctx.data.ptr = server;
+    ev.events = EPOLLIN;
+    epoll_worker_fd_map[server->timeout_handler_ctx.fd].ctx = &server->timeout_handler_ctx;
+    ev.data.fd = server->timeout_handler_ctx.fd;
+    if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev))
+        return perror("epoll_ctl"), -1;
+
+    struct itimerspec when = {{2, 0}, {2, 0}}; /* TODO: move to set timeout function */
+    if (0 > timerfd_settime(server->timeout_handler_ctx.fd, 0, &when, NULL))
+        return perror("timerfd_settime"), -1;
+    /*
+     * timeout chain
+     */
+    list_init(&server->timeout_chain);
     return 0;
 }
 
@@ -189,7 +219,11 @@ void http_server_accept_connections(void) {
             continue;
 
         struct http_server *server = (struct http_server *)current_ctx->data.ptr;
-        epoll_worker_fd_map[fd].ctx = &server->idle_ctx;
+
+        struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
+        fd_data->ctx = &server->idle_ctx;
+        gettimeofday(&fd_data->timestamp, NULL);
+        list_insert_tail(&server->timeout_chain, &fd_data->timeout_chain);
 
         struct epoll_event ev;
         ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
@@ -259,13 +293,25 @@ void http_server_header_content_length() {
         return;                                                         \
     }
 
-inline void http_server_close(struct http_server_context *ctx) {
+static inline void http_server_close(struct http_server_context *ctx) {
     struct http_server *server = (struct http_server *)current_ctx->data.ptr;
     int fd = current_ctx->fd;
-    if (ctx->persistent)
-	epoll_worker_fd_map[fd].ctx = &server->idle_ctx;
-    else
+    if (ctx->persistent) {
+        struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
+        fd_data->ctx = &server->idle_ctx;
+        gettimeofday(&fd_data->timestamp, NULL);
+        list_insert_tail(&server->timeout_chain, &fd_data->timeout_chain);
+    } else
         close(fd);
+}
+
+static inline void http_server_yield() {
+    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
+    struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + current_ctx->fd;
+    gettimeofday(&fd_data->timestamp, NULL);
+    list_insert_tail(&server->timeout_chain, &fd_data->timeout_chain);
+    yield();
+    list_remove(&fd_data->timeout_chain);
 }
 
 inline void http_server_write() {
@@ -277,7 +323,7 @@ inline void http_server_write() {
     int fd = current_ctx->fd;
 
     ssize_t num_write;
-    for (;;yield()) {
+    for (;;http_server_yield()) {
         num_write = writev(fd, iovec, iovec[1].iov_len ? 2 : 1);
         if (0 > num_write) {
             if (EAGAIN == errno) {
@@ -322,7 +368,7 @@ void http_server_fiber_main(void) {
       if (inbuf.wlocpos() > max_req_size)
       return response(HTTP_STATUS_413, HTTP_CONTENT_TYPE_TEXT_PLAIN);
     */
-    for (;; yield()) {
+    for (;; http_server_yield()) {
         READ_FROM_SOCKET();
         if (vmbuf_wlocpos(&ctx->request) > MIN_HTTP_REQ_SIZE)
             break;
@@ -331,7 +377,7 @@ void http_server_fiber_main(void) {
         if (0 == SSTRNCMP(GET, vmbuf_data(&ctx->request)) || 0 == SSTRNCMP(HEAD, vmbuf_data(&ctx->request))) {
             /* GET or HEAD */
             while (0 != SSTRNCMP(CRLFCRLF,  vmbuf_wloc(&ctx->request) - SSTRLEN(CRLFCRLF))) {
-                yield();
+                http_server_yield();
                 READ_FROM_SOCKET();
             }
             /* make sure the string is \0 terminated */
@@ -362,7 +408,7 @@ void http_server_fiber_main(void) {
                 /* wait until we have the header */
                 if (NULL != (content = strstr(vmbuf_data(&ctx->request), CRLFCRLF)))
                     break;
-                yield();
+                http_server_yield();
                 READ_FROM_SOCKET();
             }
 
@@ -391,7 +437,7 @@ void http_server_fiber_main(void) {
             for (;;) {
                 if (content + content_length <= vmbuf_wloc(&ctx->request))
                     break;
-                yield();
+                http_server_yield();
                 READ_FROM_SOCKET();
             }
             p = vmbuf_data(&ctx->request);
@@ -475,7 +521,7 @@ int http_server_sendfile(const char *filename) {
     off_t ofs = 0;
     ssize_t res;
 
-    for (;;yield()) {
+    for (;;http_server_yield()) {
         res = sendfile(fd, ffd, &ofs, st.st_size - ofs);
         if (res < 0) {
             if (EAGAIN == errno)
