@@ -71,4 +71,12 @@ _RIBS_INLINE_ void list_make_last(struct list *list, struct list *entry) {
     list_insert_tail(list, entry);
 }
 
+#define list_is_head(head, iterator) ((iterator)==(head))
+
+#define list_for_each(head, iterator)                                   \
+    for ((iterator) = (head)->next; (iterator) != (head); (iterator) = (iterator)->next)
+
+#define list_for_each_rev(head, iterator)                               \
+    for ((iterator) = (head)->prev; (iterator) != (head); (iterator) = (iterator)->prev)
+
 #endif // _LIST__H_
