@@ -66,25 +66,20 @@ static void http_server_fiber_cleanup(void) {
 static void http_server_idle_handler(void) {
     struct http_server *server = (struct http_server *)current_ctx->data.ptr;
     for (;;) {
-        if (current_epollev.events == EPOLLOUT)
+        if (last_epollev.events == EPOLLOUT)
             yield();
         else {
             struct ribs_context *old_ctx = current_ctx;
             current_ctx = ctx_pool_get(&server->ctx_pool);
             ribs_makecontext(current_ctx, &main_ctx, current_ctx, http_server_fiber_main, http_server_fiber_cleanup);
-            current_ctx->fd = current_epollev.data.fd;
+            current_ctx->fd = last_epollev.data.fd;
             current_ctx->data.ptr = server;
-            struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + current_epollev.data.fd;
+            struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + last_epollev.data.fd;
             fd_data->ctx = current_ctx;
             list_remove(&server->timeout_chain);
             ribs_swapcontext(current_ctx, old_ctx);
         }
     }
-}
-
-static void http_server_ignore_events_handler(void) {
-    while(1)
-        yield();
 }
 
 static void http_server_timeout_handler(void) {
@@ -100,22 +95,24 @@ static void http_server_timeout_handler(void) {
     }
 }
 
-int http_server_init(struct http_server *server, uint16_t port, void (*func)(void), size_t context_size) {
+static inline void http_server_timeout_chain_add(struct http_server *server, int fd) {
+    struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
+    gettimeofday(&fd_data->timestamp, NULL);
+    list_insert_tail(&server->timeout_chain, &fd_data->timeout_chain);
+    fd_data->fd = fd;
+}
+
+int http_server_init(struct http_server *server, uint16_t port, void (*func)(void), size_t context_size, time_t timeout) {
     if (0 > mime_types_init())
         return printf("ERROR: failed to initialize mime types\n"), -1;
     server->user_func = func;
+    server->timeout = timeout;
     /*
      * idle connection handler
      */
     server->idle_stack = malloc(SMALL_STACK_SIZE);
     ribs_makecontext(&server->idle_ctx, &main_ctx, server->idle_stack + SMALL_STACK_SIZE, http_server_idle_handler, NULL);
     server->idle_ctx.data.ptr = server;
-    /*
-     * ignore events handler (epoll_ctl killer)
-     */
-    server->igev_stack = malloc(SMALL_STACK_SIZE);
-    ribs_makecontext(&server->igev_ctx, &main_ctx, server->igev_stack + SMALL_STACK_SIZE, http_server_ignore_events_handler, NULL);
-    server->igev_ctx.data.ptr = server;
     /*
      * context pool
      */
@@ -211,6 +208,8 @@ int http_server_init_acceptor(struct http_server *server) {
 }
 
 void http_server_accept_connections(void) {
+    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
+    struct epoll_event ev;
     for (;; yield()) {
         struct sockaddr_in new_addr;
         socklen_t new_addr_size = sizeof(struct sockaddr_in);
@@ -218,14 +217,12 @@ void http_server_accept_connections(void) {
         if (fd < 0)
             continue;
 
-        struct http_server *server = (struct http_server *)current_ctx->data.ptr;
-
         struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
         fd_data->ctx = &server->idle_ctx;
         gettimeofday(&fd_data->timestamp, NULL);
         list_insert_tail(&server->timeout_chain, &fd_data->timeout_chain);
+        fd_data->fd = fd;
 
-        struct epoll_event ev;
         ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
         ev.data.fd = fd;
         if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, fd, &ev))
@@ -489,7 +486,7 @@ static void http_server_process_request(char *URI, char *headers) {
 
     struct ribs_context *my_context = current_ctx;
     int fd = current_ctx->fd;
-    epoll_worker_fd_map[fd].ctx = &server->igev_ctx;
+    epoll_worker_fd_map[fd].ctx = &main_ctx;
     server->user_func();
     epoll_worker_fd_map[fd].ctx = my_context;
 }

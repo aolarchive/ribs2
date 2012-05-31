@@ -10,12 +10,13 @@
 #endif
 
 extern int ribs_epoll_fd;
-extern struct epoll_event current_epollev;
+extern struct epoll_event last_epollev;
 
 struct epoll_worker_fd_data {
     struct ribs_context *ctx;
     struct list timeout_chain;
     struct timeval timestamp;
+    int fd;
 };
 
 extern struct epoll_worker_fd_data *epoll_worker_fd_map;

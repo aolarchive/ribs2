@@ -28,12 +28,10 @@ struct http_server {
     void *accept_stack;
     struct ribs_context idle_ctx;
     char *idle_stack;
-    struct ribs_context igev_ctx;
-    char *igev_stack;
     struct ribs_context timeout_handler_ctx;
     char *timeout_handler_stack;
     struct list timeout_chain;
-
+    time_t timeout;
 };
 
 SSTREXTRN(HTTP_STATUS_200);
@@ -41,7 +39,7 @@ SSTREXTRN(HTTP_STATUS_404);
 SSTREXTRN(HTTP_CONTENT_TYPE_TEXT_PLAIN);
 SSTREXTRN(HTTP_CONTENT_TYPE_TEXT_HTML);
 
-int http_server_init(struct http_server *server, uint16_t port, void (*func)(void), size_t context_size);
+int http_server_init(struct http_server *server, uint16_t port, void (*func)(void), size_t context_size, time_t timeout /* msec */);
 int http_server_init_acceptor(struct http_server *server);
 void http_server_accept_connections(void);
 void http_server_header_start(const char *status, const char *content_type);

@@ -7,8 +7,7 @@
 #include <signal.h>
 
 int ribs_epoll_fd = -1;
-struct ribs_context *current_ctx = NULL;
-struct epoll_event current_epollev;
+struct epoll_event last_epollev;
 struct epoll_worker_fd_data *epoll_worker_fd_map;
 
 LIST_CREATE(epoll_worker_timeout_chain);
@@ -31,16 +30,16 @@ int epoll_worker_init(void) {
 
 void epoll_worker_loop(void) {
    for (;;) {
-      if (0 >= epoll_wait(ribs_epoll_fd, &current_epollev, 1, -1))
+      if (0 >= epoll_wait(ribs_epoll_fd, &last_epollev, 1, -1))
          continue;
-      current_ctx = epoll_worker_fd_map[current_epollev.data.fd].ctx;
+      current_ctx = epoll_worker_fd_map[last_epollev.data.fd].ctx;
       ribs_swapcontext(current_ctx, &main_ctx);
    }
 }
 
 void yield(void) {
-   while(0 >= epoll_wait(ribs_epoll_fd, &current_epollev, 1, -1));
+   while(0 >= epoll_wait(ribs_epoll_fd, &last_epollev, 1, -1));
    struct ribs_context *old_ctx = current_ctx;
-   current_ctx = epoll_worker_fd_map[current_epollev.data.fd].ctx;
+   current_ctx = epoll_worker_fd_map[last_epollev.data.fd].ctx;
    ribs_swapcontext(current_ctx, old_ctx);
 }
