@@ -1,4 +1,3 @@
-#define CTX_POOL_INLINE
 #include "ctx_pool.h"
 #include <sys/mman.h>
 #include <stdio.h>

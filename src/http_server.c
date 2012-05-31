@@ -121,6 +121,11 @@ int http_server_init(struct http_server *server, uint16_t port, void (*func)(voi
     ctx_pool_init(&server->ctx_pool, num_ctx_in_one_map, num_ctx_in_one_map, rlim.rlim_cur, sizeof(struct http_server_context) + context_size);
 
     /*
+     * timeout chain
+     */
+    list_init(&server->timeout_chain);
+
+    /*
      * listen socket
      */
     const int LISTEN_BACKLOG = 32768;

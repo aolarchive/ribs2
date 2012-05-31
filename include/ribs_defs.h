@@ -8,4 +8,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+#define _RIBS_INLINE_ static inline
+
 #endif // _RIBS_DEFS__H_

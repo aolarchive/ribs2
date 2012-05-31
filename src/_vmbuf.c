@@ -1,12 +1,13 @@
-
-VMBUF_INLINE off_t vmbuf_align(off_t off) {
+/*
+ * inline
+ */
+_RIBS_INLINE_ off_t vmbuf_align(off_t off) {
     off += PAGEMASK;
     off &= ~PAGEMASK;
     return off;
 }
 
-/* internal only */
-VMBUF_INLINE int vmbuf_init_mem(struct vmbuf *vmb, size_t initial_size) {
+_RIBS_INLINE_ int vmbuf_init(struct vmbuf *vmb, size_t initial_size) {
     if (NULL == vmb->buf) {
         initial_size = vmbuf_align(initial_size);
         vmb->buf = (char *)mmap(NULL, initial_size, PROT_WRITE | PROT_READ, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
@@ -16,28 +17,21 @@ VMBUF_INLINE int vmbuf_init_mem(struct vmbuf *vmb, size_t initial_size) {
             return -1;
         }
         vmb->capacity = initial_size;
-    } else if (vmb->capacity < initial_size) {
-        return vmbuf_resize_to(vmb, initial_size);
-    }
-    return 0;
-}
-
-VMBUF_INLINE int vmbuf_init(struct vmbuf *vmb, size_t initial_size) {
-    if (vmbuf_init_mem(vmb, initial_size) < 0)
-        return -1;
+    } else if (vmb->capacity < initial_size)
+        vmbuf_resize_to(vmb, initial_size);
     vmbuf_reset(vmb);
     return 0;
 }
 
-VMBUF_INLINE void vmbuf_make(struct vmbuf *vmb) {
+_RIBS_INLINE_ void vmbuf_make(struct vmbuf *vmb) {
    memset(vmb, 0, sizeof(struct vmbuf));
 }
 
-VMBUF_INLINE void vmbuf_reset(struct vmbuf *vmb) {
+_RIBS_INLINE_ void vmbuf_reset(struct vmbuf *vmb) {
    vmb->read_loc = vmb->write_loc = 0;
 }
 
-VMBUF_INLINE int vmbuf_free(struct vmbuf *vmb) {
+_RIBS_INLINE_ int vmbuf_free(struct vmbuf *vmb) {
     vmbuf_reset(vmb);
     if (NULL != vmb->buf && munmap(vmb->buf, vmb->capacity) < 0)
         return perror("vmbuf_free"), -1;
@@ -46,7 +40,7 @@ VMBUF_INLINE int vmbuf_free(struct vmbuf *vmb) {
     return 0;
 }
 
-VMBUF_INLINE int vmbuf_free_most(struct vmbuf *vmb) {
+_RIBS_INLINE_ int vmbuf_free_most(struct vmbuf *vmb) {
     vmbuf_reset(vmb);
     if (NULL != vmb->buf && vmb->capacity > PAGESIZE) {
         if (0 > munmap(vmb->buf + PAGESIZE, vmb->capacity - PAGESIZE))
@@ -56,11 +50,11 @@ VMBUF_INLINE int vmbuf_free_most(struct vmbuf *vmb) {
     return 0;
 }
 
-VMBUF_INLINE int vmbuf_resize_by(struct vmbuf *vmb, size_t by) {
+_RIBS_INLINE_ int vmbuf_resize_by(struct vmbuf *vmb, size_t by) {
     return vmbuf_resize_to(vmb, vmb->capacity + by);
 }
 
-VMBUF_INLINE int vmbuf_resize_to(struct vmbuf *vmb, size_t new_capacity) {
+_RIBS_INLINE_ int vmbuf_resize_to(struct vmbuf *vmb, size_t new_capacity) {
     new_capacity = vmbuf_align(new_capacity);
     char *newaddr = (char *)mremap(vmb->buf, vmb->capacity, new_capacity, MREMAP_MAYMOVE);
     if ((void *)-1 == newaddr)
@@ -71,20 +65,20 @@ VMBUF_INLINE int vmbuf_resize_to(struct vmbuf *vmb, size_t new_capacity) {
     return 0;
 }
 
-VMBUF_INLINE int vmbuf_resize_if_full(struct vmbuf *vmb) {
+_RIBS_INLINE_ int vmbuf_resize_if_full(struct vmbuf *vmb) {
     if (vmb->write_loc == vmb->capacity)
         return vmbuf_resize_to(vmb, vmb->capacity << 1);
     return 0;
 }
 
-VMBUF_INLINE int vmbuf_resize_if_less(struct vmbuf *vmb, size_t desired_size) {
+_RIBS_INLINE_ int vmbuf_resize_if_less(struct vmbuf *vmb, size_t desired_size) {
     size_t wa = vmbuf_wavail(vmb);
     if (desired_size <= wa)
         return 0;
     return vmbuf_resize_no_check(vmb, desired_size);
 }
 
-VMBUF_INLINE int vmbuf_resize_no_check(struct vmbuf *vmb, size_t n) {
+_RIBS_INLINE_ int vmbuf_resize_no_check(struct vmbuf *vmb, size_t n) {
     size_t new_capacity = vmb->capacity;
     do {
         new_capacity <<= 1;
@@ -92,102 +86,102 @@ VMBUF_INLINE int vmbuf_resize_no_check(struct vmbuf *vmb, size_t n) {
     return vmbuf_resize_to(vmb, new_capacity);
 }
 
-VMBUF_INLINE size_t vmbuf_alloc(struct vmbuf *vmb, size_t n) {
+_RIBS_INLINE_ size_t vmbuf_alloc(struct vmbuf *vmb, size_t n) {
     size_t loc = vmb->write_loc;
     if (0 > vmbuf_resize_if_less(vmb, n) || 0 > vmbuf_wseek(vmb, n))
         return -1;
     return loc;
 }
 
-VMBUF_INLINE size_t vmbuf_alloczero(struct vmbuf *vmb, size_t n) {
+_RIBS_INLINE_ size_t vmbuf_alloczero(struct vmbuf *vmb, size_t n) {
     size_t loc = vmbuf_alloc(vmb, n);
     memset(vmbuf_data_ofs(vmb, loc), 0, n);
     return loc;
 }
 
-VMBUF_INLINE size_t vmbuf_alloc_aligned(struct vmbuf *vmb, size_t n) {
+_RIBS_INLINE_ size_t vmbuf_alloc_aligned(struct vmbuf *vmb, size_t n) {
     vmb->write_loc += 7; // align
     vmb->write_loc &= ~7;
     return vmbuf_alloc(vmb, n);
 }
 
-VMBUF_INLINE size_t vmbuf_num_elements(struct vmbuf *vmb, size_t size_of_element) {
+_RIBS_INLINE_ size_t vmbuf_num_elements(struct vmbuf *vmb, size_t size_of_element) {
     return vmbuf_wlocpos(vmb) / size_of_element;
 };
 
-VMBUF_INLINE char *vmbuf_data(struct vmbuf *vmb) {
+_RIBS_INLINE_ char *vmbuf_data(struct vmbuf *vmb) {
    return vmb->buf;
 }
 
-VMBUF_INLINE char *vmbuf_data_ofs(struct vmbuf *vmb, size_t loc) {
+_RIBS_INLINE_ char *vmbuf_data_ofs(struct vmbuf *vmb, size_t loc) {
    return vmb->buf + loc;
 }
 
-VMBUF_INLINE size_t vmbuf_wavail(struct vmbuf *vmb) {
+_RIBS_INLINE_ size_t vmbuf_wavail(struct vmbuf *vmb) {
    return vmb->capacity - vmb->write_loc;
 }
 
-VMBUF_INLINE size_t vmbuf_ravail(struct vmbuf *vmb) {
+_RIBS_INLINE_ size_t vmbuf_ravail(struct vmbuf *vmb) {
    return vmb->write_loc - vmb->read_loc;
 }
 
-VMBUF_INLINE char *vmbuf_wloc(struct vmbuf *vmb) {
+_RIBS_INLINE_ char *vmbuf_wloc(struct vmbuf *vmb) {
    return vmb->buf + vmb->write_loc;
 }
 
-VMBUF_INLINE char *vmbuf_rloc(struct vmbuf *vmb) {
+_RIBS_INLINE_ char *vmbuf_rloc(struct vmbuf *vmb) {
    return vmb->buf + vmb->read_loc;
 }
 
-VMBUF_INLINE size_t vmbuf_rlocpos(struct vmbuf *vmb) {
+_RIBS_INLINE_ size_t vmbuf_rlocpos(struct vmbuf *vmb) {
    return vmb->read_loc;
 }
 
-VMBUF_INLINE size_t vmbuf_wlocpos(struct vmbuf *vmb) {
+_RIBS_INLINE_ size_t vmbuf_wlocpos(struct vmbuf *vmb) {
    return vmb->write_loc;
 }
 
-VMBUF_INLINE void vmbuf_rlocset(struct vmbuf *vmb, size_t ofs) {
+_RIBS_INLINE_ void vmbuf_rlocset(struct vmbuf *vmb, size_t ofs) {
    vmb->read_loc = ofs;
 }
 
-VMBUF_INLINE void vmbuf_wlocset(struct vmbuf *vmb, size_t ofs) {
+_RIBS_INLINE_ void vmbuf_wlocset(struct vmbuf *vmb, size_t ofs) {
    vmb->write_loc = ofs;
 }
 
-VMBUF_INLINE void vmbuf_rrewind(struct vmbuf *vmb, size_t by) {
+_RIBS_INLINE_ void vmbuf_rrewind(struct vmbuf *vmb, size_t by) {
    vmb->read_loc -= by;
 }
 
-VMBUF_INLINE void vmbuf_wrewind(struct vmbuf *vmb, size_t by) {
+_RIBS_INLINE_ void vmbuf_wrewind(struct vmbuf *vmb, size_t by) {
    vmb->write_loc -= by;
 }
 
-VMBUF_INLINE size_t vmbuf_capacity(struct vmbuf *vmb) {
+_RIBS_INLINE_ size_t vmbuf_capacity(struct vmbuf *vmb) {
    return vmb->capacity;
 }
 
-VMBUF_INLINE void vmbuf_unsafe_wseek(struct vmbuf *vmb, size_t by) {
+_RIBS_INLINE_ void vmbuf_unsafe_wseek(struct vmbuf *vmb, size_t by) {
    vmb->write_loc += by;
 }
 
-VMBUF_INLINE int vmbuf_wseek(struct vmbuf *vmb, size_t by) {
+_RIBS_INLINE_ int vmbuf_wseek(struct vmbuf *vmb, size_t by) {
    vmbuf_unsafe_wseek(vmb, by); return vmbuf_resize_if_full(vmb);
 }
 
-VMBUF_INLINE void vmbuf_rseek(struct vmbuf *vmb, size_t by) {
+_RIBS_INLINE_ void vmbuf_rseek(struct vmbuf *vmb, size_t by) {
    vmb->read_loc += by;
 }
 
-VMBUF_INLINE void vmbuf_rreset(struct vmbuf *vmb) {
+_RIBS_INLINE_ void vmbuf_rreset(struct vmbuf *vmb) {
    vmb->read_loc = 0;
 }
 
-VMBUF_INLINE void vmbuf_wreset(struct vmbuf *vmb) {
+_RIBS_INLINE_ void vmbuf_wreset(struct vmbuf *vmb) {
    vmb->write_loc = 0;
 }
 
-VMBUF_INLINE int vmbuf_sprintf(struct vmbuf *vmb, const char *format, ...) {
+_RIBS_INLINE_ int vmbuf_sprintf(struct vmbuf *vmb, const char *format, ...) {
     va_list ap;
     va_start(ap, format);
     int res = vmbuf_vsprintf(vmb, format, ap);
@@ -195,7 +189,7 @@ VMBUF_INLINE int vmbuf_sprintf(struct vmbuf *vmb, const char *format, ...) {
     return res;
 }
 
-VMBUF_INLINE int vmbuf_vsprintf(struct vmbuf *vmb, const char *format, va_list ap) {
+_RIBS_INLINE_ int vmbuf_vsprintf(struct vmbuf *vmb, const char *format, va_list ap) {
     size_t n;
     for (;;) {
         size_t wav = vmbuf_wavail(vmb);
@@ -213,7 +207,7 @@ VMBUF_INLINE int vmbuf_vsprintf(struct vmbuf *vmb, const char *format, va_list a
     return 0;
 }
 
-VMBUF_INLINE int vmbuf_strcpy(struct vmbuf *vmb, const char *src) {
+_RIBS_INLINE_ int vmbuf_strcpy(struct vmbuf *vmb, const char *src) {
     do {
         char *w = vmbuf_wloc(vmb);
         char *dst = w;
@@ -226,7 +220,7 @@ VMBUF_INLINE int vmbuf_strcpy(struct vmbuf *vmb, const char *src) {
     return 0;
 }
 
-VMBUF_INLINE void vmbuf_remove_last_if(struct vmbuf *vmb, char c) {
+_RIBS_INLINE_ void vmbuf_remove_last_if(struct vmbuf *vmb, char c) {
     char *loc = vmbuf_wloc(vmb);
     --loc;
     if (vmb->write_loc > 0 && *loc == c) {
@@ -235,7 +229,7 @@ VMBUF_INLINE void vmbuf_remove_last_if(struct vmbuf *vmb, char c) {
     }
 }
 
-VMBUF_INLINE int vmbuf_read(struct vmbuf *vmb, int fd) {
+_RIBS_INLINE_ int vmbuf_read(struct vmbuf *vmb, int fd) {
     ssize_t res;
     ssize_t wavail;
     while (0 < (res = read(fd, vmbuf_wloc(vmb), wavail = vmbuf_wavail(vmb)))) {
@@ -249,7 +243,7 @@ VMBUF_INLINE int vmbuf_read(struct vmbuf *vmb, int fd) {
     return 0; // remote side closed connection
 }
 
-VMBUF_INLINE int vmbuf_write(struct vmbuf *vmb, int fd) {
+_RIBS_INLINE_ int vmbuf_write(struct vmbuf *vmb, int fd) {
     ssize_t res;
     size_t rav;
     while ((rav = vmbuf_ravail(vmb)) > 0) {
@@ -264,17 +258,17 @@ VMBUF_INLINE int vmbuf_write(struct vmbuf *vmb, int fd) {
     return 1; // reached the end
 }
 
-VMBUF_INLINE int vmbuf_memcpy(struct vmbuf *vmb, const void *src, size_t n) {
+_RIBS_INLINE_ int vmbuf_memcpy(struct vmbuf *vmb, const void *src, size_t n) {
     vmbuf_resize_if_less(vmb, n);
     memcpy(vmbuf_wloc(vmb), src, n);
     return vmbuf_wseek(vmb, n);
 }
 
-VMBUF_INLINE void vmbuf_memset(struct vmbuf *vmb, int c, size_t n) {
+_RIBS_INLINE_ void vmbuf_memset(struct vmbuf *vmb, int c, size_t n) {
    memset(vmbuf_data(vmb), c, n);
 }
 
-VMBUF_INLINE int vmbuf_strftime(struct vmbuf *vmb, const char *format, const struct tm *tm) {
+_RIBS_INLINE_ int vmbuf_strftime(struct vmbuf *vmb, const char *format, const struct tm *tm) {
     size_t n;
     for (;;) {
         size_t wav = vmbuf_wavail(vmb);

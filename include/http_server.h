@@ -30,6 +30,7 @@ struct http_server {
     char *idle_stack;
     struct ribs_context igev_ctx;
     char *igev_stack;
+    struct list timeout_chain;
 };
 
 SSTREXTRN(HTTP_STATUS_200);
