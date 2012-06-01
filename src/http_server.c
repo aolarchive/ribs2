@@ -85,14 +85,13 @@ static void http_server_idle_handler(void) {
 static void http_server_timeout_handler(void) {
     uint64_t num_exp;
     struct http_server *server = (struct http_server *)current_ctx->data.ptr;
-    (void)server;
+    struct timeval when = {server->timeout/1000,(server->timeout%1000)*1000};
     int fd = current_ctx->fd;
     for (;;yield()) {
         if (sizeof(num_exp) != read(fd, &num_exp, sizeof(num_exp)))
             continue;
         struct timeval now, ts;
         gettimeofday(&now, NULL);
-        struct timeval when = {server->timeout/1000,(server->timeout%1000)*1000};
         timersub(&now, &when, &ts);
         struct list *fd_data_list;
         list_for_each(&server->timeout_chain, fd_data_list) {
