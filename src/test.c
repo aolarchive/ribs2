@@ -15,7 +15,7 @@ void fiber1()
    int i;
    for (i = 0; i < 10; ++i)
    {
-      ribs_swapcontext(&ctx2, &ctx1);
+      ribs_swapcurcontext(&ctx2);
       printf("back in fiber 1: %d  %d\n", a, i);
    }
 
@@ -31,7 +31,7 @@ void fiber2()
    int i;
    for (i = 0; i < 10; ++i)
    {
-      ribs_swapcontext(&ctx1, &ctx2);
+      ribs_swapcurcontext(&ctx1);
       printf("back in fiber 2: %d\n", i);
    }
 }
@@ -125,7 +125,8 @@ int main(void) {
    ribs_makecontext(&ctx2, &ctx_main, stk2 + STACK_SIZE, fiber2, NULL);
    printf("in main\n");
 
-   ribs_swapcontext(&ctx1, &ctx_main);
+   current_ctx = &ctx_main;
+   ribs_swapcurcontext(&ctx1);
    printf("back in main\n");
 
    return 0;

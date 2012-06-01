@@ -2,8 +2,6 @@
 .globl ribs_swapcurcontext
 ribs_swapcurcontext:
         movq    current_ctx, %rsi
-.globl ribs_swapcontext
-ribs_swapcontext:
 	/* Save the preserved registers and the return address. */
 	movq	%rbx, 0(%rsi)
 	movq	%rbp, 8(%rsi)
