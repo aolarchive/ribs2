@@ -99,7 +99,7 @@ static void http_server_timeout_handler(void) {
             if (timercmp(&fd_data->timestamp, &ts, >))
                 break;
             if (0 > shutdown(fd_data->fd, SHUT_RDWR))
-                printf("ERROR: shutdown [%d]", fd_data->fd);
+                perror("shutdown"), abort();//printf("ERROR: shutdown [%d]\n", fd_data->fd);
         }
         if (!list_is_head(&server->timeout_chain, fd_data_list)) {
             struct epoll_worker_fd_data *fd_data = list_entry(fd_data_list, struct epoll_worker_fd_data, timeout_chain);
@@ -124,6 +124,7 @@ static inline void http_server_timeout_chain_add(struct http_server *server, str
 int http_server_init(struct http_server *server, uint16_t port, void (*func)(void), size_t context_size, time_t timeout) {
     if (0 > mime_types_init())
         return printf("ERROR: failed to initialize mime types\n"), -1;
+    server->port = port;
     server->user_func = func;
     server->timeout = timeout;
     /*
@@ -554,6 +555,7 @@ int http_server_sendfile(const char *filename) {
 
 int http_server_generate_dir_list(const char *URI) {
     struct http_server_context *ctx = http_server_get_context();
+    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
     struct vmbuf *payload = &ctx->payload;
     const char *dir = URI;
     if (*dir == '/') ++dir;
@@ -592,6 +594,8 @@ int http_server_generate_dir_list(const char *URI) {
         }
         closedir(d);
     }
-    vmbuf_strcpy(payload, "</table><hr></body>");
+    vmbuf_strcpy(payload, "<tr><td colspan=3><hr></td></tr></table>");
+    vmbuf_sprintf(payload, "<address>RIBS 2.0 Port %hu</address></body>", server->port);
+    vmbuf_strcpy(payload, "</body>");
     return error;
 }
