@@ -10,7 +10,7 @@ struct list {
 #define LIST_INITIALIZER(name) { &(name), &(name) }
 #define LIST_CREATE(name) struct list name = LIST_INITIALIZER(name);
 
-#define list_entry(ptr, type, member)                   \
+#define LIST_ENTRY(ptr, type, member)                   \
     ((type *)((char *)(ptr)-offsetof(type, member)))
 
 _RIBS_INLINE_ void list_init(struct list *list) {
@@ -73,10 +73,10 @@ _RIBS_INLINE_ void list_make_last(struct list *list, struct list *entry) {
 
 #define list_is_head(head, iterator) ((iterator)==(head))
 
-#define list_for_each(head, iterator)                                   \
+#define LIST_FOR_EACH(head, iterator)                                   \
     for ((iterator) = (head)->next; (iterator) != (head); (iterator) = (iterator)->next)
 
-#define list_for_each_rev(head, iterator)                               \
+#define LIST_FOR_EACH_REV(head, iterator)                               \
     for ((iterator) = (head)->prev; (iterator) != (head); (iterator) = (iterator)->prev)
 
 #endif // _LIST__H_

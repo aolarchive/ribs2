@@ -16,7 +16,6 @@ struct epoll_worker_fd_data {
     struct ribs_context *ctx;
     struct list timeout_chain;
     struct timeval timestamp;
-    int fd;
 };
 
 extern struct epoll_worker_fd_data *epoll_worker_fd_map;

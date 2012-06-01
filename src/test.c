@@ -82,7 +82,7 @@ int main(void) {
 
     while (!list_empty(&head)) {
         struct list *l = list_pop_head(&head);
-        struct my_struct *m = list_entry(l, struct my_struct, list);
+        struct my_struct *m = LIST_ENTRY(l, struct my_struct, list);
         printf(" x = %d, y = %d\n", m->x, m->y);
     }
 

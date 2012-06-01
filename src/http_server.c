@@ -94,19 +94,17 @@ static void http_server_timeout_handler(void) {
         gettimeofday(&now, NULL);
         timersub(&now, &when, &ts);
         struct list *fd_data_list;
-        list_for_each(&server->timeout_chain, fd_data_list) {
-            struct epoll_worker_fd_data *fd_data = list_entry(fd_data_list, struct epoll_worker_fd_data, timeout_chain);
-            if (timercmp(&fd_data->timestamp, &ts, >))
+        LIST_FOR_EACH(&server->timeout_chain, fd_data_list) {
+            struct epoll_worker_fd_data *fd_data = LIST_ENTRY(fd_data_list, struct epoll_worker_fd_data, timeout_chain);
+            if (timercmp(&fd_data->timestamp, &ts, >)) {
+                timersub(&fd_data->timestamp, &ts, &now);
+                struct itimerspec when = {{0,0},{now.tv_sec,now.tv_usec*1000}};
+                if (0 > timerfd_settime(server->timeout_handler_ctx.fd, 0, &when, NULL))
+                    perror("timerfd_settime");
                 break;
-            if (0 > shutdown(fd_data->fd, SHUT_RDWR))
-                perror("shutdown"), abort();//printf("ERROR: shutdown [%d]\n", fd_data->fd);
-        }
-        if (!list_is_head(&server->timeout_chain, fd_data_list)) {
-            struct epoll_worker_fd_data *fd_data = list_entry(fd_data_list, struct epoll_worker_fd_data, timeout_chain);
-            timersub(&fd_data->timestamp, &ts, &now);
-            struct itimerspec when = {{0,0},{now.tv_sec,now.tv_usec*1000}};
-            if (0 > timerfd_settime(server->timeout_handler_ctx.fd, 0, &when, NULL))
-                perror("timerfd_settime");
+            }
+            if (0 > shutdown(fd_data - epoll_worker_fd_map, SHUT_RDWR))
+                printf("ERROR: shutdown [%d]\n", fd_data->ctx->fd);
         }
     }
 }
@@ -216,10 +214,6 @@ int http_server_init_acceptor(struct http_server *server) {
     ev.data.fd = server->timeout_handler_ctx.fd;
     if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev))
         return perror("epoll_ctl"), -1;
-
-    /* struct itimerspec when = {{2, 0}, {2, 0}}; /\* TODO: move to set timeout function *\/ */
-    /* if (0 > timerfd_settime(server->timeout_handler_ctx.fd, 0, &when, NULL)) */
-    /*     return perror("timerfd_settime"), -1; */
     /*
      * timeout chain
      */
@@ -480,6 +474,8 @@ void http_server_fiber_main(void) {
     if (vmbuf_wlocpos(&ctx->header) == 0)
         return;
 
+    epoll_worker_fd_map[current_ctx->fd].ctx = current_ctx; /* resume events */
+
     http_server_write();
     http_server_close(ctx);
 }
@@ -500,12 +496,8 @@ static void http_server_process_request(char *URI, char *headers) {
     http_uri_decode(URI);
     ctx->URI = URI;
 
-    // TODO: fix me
-    struct ribs_context *my_context = current_ctx;
-    struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + current_ctx->fd;
-    fd_data->ctx = &main_ctx;
+    epoll_worker_fd_map[current_ctx->fd].ctx = &main_ctx; /* suspend events */
     server->user_func();
-    fd_data->ctx = my_context;
 }
 
 
@@ -527,6 +519,7 @@ int http_server_sendfile(const char *filename) {
         close(ffd);
         return 1;
     }
+    epoll_worker_fd_map[current_ctx->fd].ctx = current_ctx; /* resume events */
     vmbuf_reset(&ctx->header);
     http_server_header_start(HTTP_STATUS_200, mime_types_by_filename(filename));
     vmbuf_sprintf(&ctx->header, "%s%zu", CONTENT_LENGTH, st.st_size);
