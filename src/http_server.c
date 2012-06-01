@@ -508,12 +508,12 @@ int http_server_sendfile(const char *filename) {
     int fd = current_ctx->fd;
     int ffd = open(filename, O_RDONLY);
     if (ffd < 0)
-        return -1;
+        return -2;
     struct stat st;
     if (0 > fstat(ffd, &st)) {
         perror(filename);
         close(ffd);
-        return -1;
+        return -2;
     }
     if (S_ISDIR(st.st_mode)) {
         close(ffd);
@@ -524,27 +524,37 @@ int http_server_sendfile(const char *filename) {
     http_server_header_start(HTTP_STATUS_200, mime_types_by_filename(filename));
     vmbuf_sprintf(&ctx->header, "%s%zu", CONTENT_LENGTH, st.st_size);
     http_server_header_close();
+    int option = 1;
+    if (0 > setsockopt(fd, IPPROTO_TCP, TCP_CORK, &option, sizeof(option)))
+        perror("TCP_CORK set");
     http_server_write();
     off_t ofs = 0;
     ssize_t res;
-
+    int ret;
     for (;;http_server_yield()) {
         res = sendfile(fd, ffd, &ofs, st.st_size - ofs);
         if (res < 0) {
             if (EAGAIN == errno)
                 continue;
             perror(filename);
-            close(ffd);
-            return -1;
+            ctx->persistent = 0;
+            ret = -1;
+            break;
         }
         if (ofs < st.st_size)
             continue;
+        ret = 0;
         break;
     }
     vmbuf_reset(&ctx->header);
     close(ffd);
+    if (ctx->persistent) {
+        option = 0;
+        if (0 > setsockopt(fd, IPPROTO_TCP, TCP_CORK, &option, sizeof(option)))
+            perror("TCP_CORK release");
+    }
     http_server_close(ctx);
-    return 0;
+    return ret;
 }
 
 int http_server_generate_dir_list(const char *URI) {
