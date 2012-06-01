@@ -22,6 +22,7 @@ struct ribs_context {
 extern struct ribs_context main_ctx;
 extern struct ribs_context *current_ctx;
 
+extern int ribs_swapcurcontext(struct ribs_context *rctx);
 extern int ribs_swapcontext(struct ribs_context *rctx, struct ribs_context *ctx);
 extern int ribs_makecontext(struct ribs_context *ctx, struct ribs_context *rctx, void *sp, void (*func)(void), void (*user_cleanup_func)(void));
 extern void __ribs_context_exit(void);

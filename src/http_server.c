@@ -69,15 +69,15 @@ static void http_server_idle_handler(void) {
         if (last_epollev.events == EPOLLOUT)
             yield();
         else {
-            struct ribs_context *old_ctx = current_ctx;
-            current_ctx = ctx_pool_get(&server->ctx_pool);
-            ribs_makecontext(current_ctx, &main_ctx, current_ctx, http_server_fiber_main, http_server_fiber_cleanup);
-            current_ctx->fd = last_epollev.data.fd;
-            current_ctx->data.ptr = server;
-            struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + last_epollev.data.fd;
-            fd_data->ctx = current_ctx;
+            struct ribs_context *new_ctx = ctx_pool_get(&server->ctx_pool);
+            ribs_makecontext(new_ctx, &main_ctx, new_ctx, http_server_fiber_main, http_server_fiber_cleanup);
+            int fd = last_epollev.data.fd;
+            new_ctx->fd = fd;
+            new_ctx->data.ptr = server;
+            struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
+            fd_data->ctx = new_ctx;
             list_remove(&fd_data->timeout_chain);
-            ribs_swapcontext(current_ctx, old_ctx);
+            ribs_swapcurcontext(new_ctx);
         }
     }
 }
@@ -500,6 +500,7 @@ static void http_server_process_request(char *URI, char *headers) {
     http_uri_decode(URI);
     ctx->URI = URI;
 
+    // TODO: fix me
     struct ribs_context *my_context = current_ctx;
     struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + current_ctx->fd;
     fd_data->ctx = &main_ctx;

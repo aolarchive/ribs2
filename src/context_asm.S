@@ -1,3 +1,7 @@
+.extern current_ctx
+.globl ribs_swapcurcontext
+ribs_swapcurcontext:
+        movq    current_ctx, %rsi
 .globl ribs_swapcontext
 ribs_swapcontext:
 	/* Save the preserved registers and the return address. */
@@ -15,6 +19,7 @@ ribs_swapcontext:
 
 ribs_setcontext:
 	/* Load the new stack pointer and the preserved registers.  */
+        movq    %rdi, current_ctx
 	movq	0(%rdi), %rbx
 	movq	8(%rdi), %rbp
 	movq	16(%rdi), %r12
