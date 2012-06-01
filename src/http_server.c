@@ -119,12 +119,9 @@ static inline void http_server_timeout_chain_add(struct http_server *server, str
     list_insert_tail(&server->timeout_chain, &fd_data->timeout_chain);
 }
 
-int http_server_init(struct http_server *server, uint16_t port, void (*func)(void), size_t context_size, time_t timeout) {
+int http_server_init(struct http_server *server, size_t context_size) {
     if (0 > mime_types_init())
         return printf("ERROR: failed to initialize mime types\n"), -1;
-    server->port = port;
-    server->user_func = func;
-    server->timeout = timeout;
     /*
      * idle connection handler
      */
@@ -176,7 +173,7 @@ int http_server_init(struct http_server *server, uint16_t port, void (*func)(voi
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(struct sockaddr_in));
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
+    addr.sin_port = htons(server->port);
     addr.sin_addr.s_addr = INADDR_ANY;
     if (0 > bind(lfd, (struct sockaddr *)&addr, sizeof(addr)))
         return perror("bind"), -1;
@@ -185,7 +182,7 @@ int http_server_init(struct http_server *server, uint16_t port, void (*func)(voi
         return perror("listen"), -1;
 
     server->accept_ctx.fd = lfd;
-    printf("listening on port: %d, backlog: %d\n", port, LISTEN_BACKLOG);
+    printf("listening on port: %d, backlog: %d\n", server->port, LISTEN_BACKLOG);
     return 0;
 }
 
@@ -496,7 +493,7 @@ static void http_server_process_request(char *URI, char *headers) {
     http_uri_decode(URI);
     ctx->URI = URI;
 
-    epoll_worker_fd_map[current_ctx->fd].ctx = &main_ctx; /* suspend events */
+    epoll_worker_ignore_events();
     server->user_func();
 }
 
@@ -519,7 +516,7 @@ int http_server_sendfile(const char *filename) {
         close(ffd);
         return 1;
     }
-    epoll_worker_fd_map[current_ctx->fd].ctx = current_ctx; /* resume events */
+    epoll_worker_resume_events();
     vmbuf_reset(&ctx->header);
     http_server_header_start(HTTP_STATUS_200, mime_types_by_filename(filename));
     vmbuf_sprintf(&ctx->header, "%s%zu", CONTENT_LENGTH, st.st_size);

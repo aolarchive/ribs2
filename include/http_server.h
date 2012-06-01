@@ -42,7 +42,7 @@ SSTREXTRN(HTTP_CONTENT_TYPE_TEXT_HTML);
 
 #define HTTP_SERVER_NOT_FOUND (-2)
 
-int http_server_init(struct http_server *server, uint16_t port, void (*func)(void), size_t context_size, time_t timeout /* msec */);
+int http_server_init(struct http_server *server, size_t context_size);
 int http_server_init_acceptor(struct http_server *server);
 void http_server_accept_connections(void);
 void http_server_header_start(const char *status, const char *content_type);

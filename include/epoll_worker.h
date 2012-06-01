@@ -24,4 +24,6 @@ int epoll_worker_init(void);
 void epoll_worker_loop(void);
 void yield(void);
 
+#include "../src/_epoll_worker.c"
+
 #endif // _EPOLL_WORKER__H_

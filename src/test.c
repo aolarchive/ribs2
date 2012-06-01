@@ -6,7 +6,7 @@
 #include "list.h"
 #include "mime_types.h"
 
-struct ribs_context ctx_main, ctx1, ctx2;
+struct ribs_context ctx1, ctx2;
 
 void fiber1()
 {
@@ -65,7 +65,6 @@ int main(void) {
     const char **filename;
     for (filename = filenames; filename != filenames + sizeof(filenames)/sizeof(filenames[0]); ++filename)
         printf("%s = %s\n", *filename, mime_types_by_filename(*filename));
-    return 0;
 
     int x = 0;
     struct list head;
@@ -85,8 +84,6 @@ int main(void) {
         struct my_struct *m = LIST_ENTRY(l, struct my_struct, list);
         printf(" x = %d, y = %d\n", m->x, m->y);
     }
-
-    return 0;
 
     struct timeval start, end, diff;
     struct hashtable ht;
@@ -115,17 +112,16 @@ int main(void) {
     }
 
     REPORT_TIME();
-    return 0;
 
    const unsigned STACK_SIZE = 65536;
    char stk1[STACK_SIZE];
    char stk2[STACK_SIZE];
 
-   ribs_makecontext(&ctx1, &ctx_main, stk1 + STACK_SIZE, fiber1, cleanup_func1);
-   ribs_makecontext(&ctx2, &ctx_main, stk2 + STACK_SIZE, fiber2, NULL);
+   ribs_makecontext(&ctx1, current_ctx, stk1 + STACK_SIZE, fiber1, cleanup_func1);
+   ribs_makecontext(&ctx2, current_ctx, stk2 + STACK_SIZE, fiber2, NULL);
+
    printf("in main\n");
 
-   current_ctx = &ctx_main;
    ribs_swapcurcontext(&ctx1);
    printf("back in main\n");
 
