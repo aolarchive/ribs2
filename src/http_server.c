@@ -471,7 +471,7 @@ void http_server_fiber_main(void) {
     if (vmbuf_wlocpos(&ctx->header) == 0)
         return;
 
-    epoll_worker_fd_map[current_ctx->fd].ctx = current_ctx; /* resume events */
+    epoll_worker_resume_events();
 
     http_server_write();
     http_server_close(ctx);
