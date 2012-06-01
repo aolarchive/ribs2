@@ -2,7 +2,7 @@
 #include <stdint.h>
 
 struct ribs_context main_ctx;
-struct ribs_context *current_ctx = NULL;
+struct ribs_context *current_ctx = &main_ctx;
 
 int ribs_makecontext(struct ribs_context *ctx, struct ribs_context *rctx, void *sp, void (*func)(void), void (*user_cleanup_func)(void)) {
     /* align stack to 16 bytes, assuming function always does push rbp to align

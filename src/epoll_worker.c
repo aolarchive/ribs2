@@ -29,7 +29,6 @@ int epoll_worker_init(void) {
 }
 
 void epoll_worker_loop(void) {
-    current_ctx = &main_ctx;
     for (;;yield());
 }
 
