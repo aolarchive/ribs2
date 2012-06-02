@@ -19,6 +19,7 @@ int ctx_pool_init(struct ctx_pool *cp, size_t initial_size, size_t grow_by, size
 }
 
 int ctx_pool_createstacks(struct ctx_pool *cp, size_t num_stacks, size_t stack_size, size_t reserved_size) {
+    printf("allocating %zu stacks, size = %zu\n", num_stacks, stack_size);
 #ifdef STACK_PROTECTION
    stack_size += 4096; // one more page as stack guard page
 #endif

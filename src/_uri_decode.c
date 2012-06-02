@@ -1,6 +1,5 @@
-#include "uri_decode.h"
 
-static inline char hex_val_char(char c) {
+_RIBS_INLINE_ char hex_val_char(char c) {
     if (c >= '0' && c <= '9')
         return c - '0';
     else if (c >= 'A' && c <= 'F')
@@ -10,7 +9,7 @@ static inline char hex_val_char(char c) {
     return 0;
 }
 
-static inline char hex_val(char **h) {
+_RIBS_INLINE_ char hex_val(char **h) {
     char *s = *h;
     char val = 0;
     if (*s) {
@@ -23,8 +22,7 @@ static inline char hex_val(char **h) {
     return val;
 }
 
-
-inline void http_uri_decode(char *uri) {
+_RIBS_INLINE_ void http_uri_decode(char *uri) {
     char *p1 = uri, *p2 = p1;
     const char SPACE = ' ';
     while (*p1) {
