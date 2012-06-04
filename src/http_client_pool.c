@@ -20,11 +20,11 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
     return 0;
 }
 
-#define CLIENT_ERROR()                          \
-    do {                                        \
-        printf("client error\n");               \
-        close(fd);                              \
-        return;                                 \
+#define CLIENT_ERROR()                                   \
+    do {                                                 \
+        printf("client error\n"); /* TODO: remove */     \
+        close(fd);                                       \
+        return;                                          \
     } while (0)
 
 
@@ -85,6 +85,7 @@ void http_client_fiber_main(void) {
 }
 
 struct http_client_context *http_client_pool_create_client(struct http_client_pool *http_client_pool, struct in_addr addr, uint16_t port) {
+    /* TODO: persistent connections */
     int cfd = socket(PF_INET, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
     if (0 > cfd)
         return perror("socket"), NULL;

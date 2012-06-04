@@ -33,6 +33,7 @@ struct http_server {
     char *timeout_handler_stack;
     struct list timeout_chain;
     time_t timeout;
+    /* TODO: add initial buffer sizes */
 };
 
 SSTREXTRN(HTTP_STATUS_200);

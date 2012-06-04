@@ -26,8 +26,6 @@ extern int ribs_swapcurcontext(struct ribs_context *rctx);
 extern int ribs_makecontext(struct ribs_context *ctx, struct ribs_context *rctx, void *sp, void (*func)(void), void (*user_cleanup_func)(void));
 extern void __ribs_context_exit(void);
 
-static inline struct ribs_context *ribs_reserved_to_context(void *reserved) {
-    return (struct ribs_context *)(reserved - offsetof(struct ribs_context, reserved));
-}
+#define RIBS_RESERVED_TO_CONTEXT(ptr) ((struct ribs_context *)((char *)ptr - offsetof(struct ribs_context, reserved)))
 
 #endif // _CONTEXT__H_
