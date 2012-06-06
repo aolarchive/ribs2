@@ -21,10 +21,6 @@ void fiber1()
 
 }
 
-void cleanup_func1(void) {
-   printf("in cleanup_func1\n");
-}
-
 void fiber2()
 {
    printf("in fiber 2\n");
@@ -117,8 +113,8 @@ int main(void) {
    char stk1[STACK_SIZE];
    char stk2[STACK_SIZE];
 
-   ribs_makecontext(&ctx1, current_ctx, stk1 + STACK_SIZE, fiber1, cleanup_func1);
-   ribs_makecontext(&ctx2, current_ctx, stk2 + STACK_SIZE, fiber2, NULL);
+   ribs_makecontext(&ctx1, current_ctx, stk1 + STACK_SIZE, fiber1);
+   ribs_makecontext(&ctx2, current_ctx, stk2 + STACK_SIZE, fiber2);
 
    printf("in main\n");
 

@@ -58,7 +58,8 @@ SSTR(HTTP_CONTENT_TYPE_TEXT_HTML, "text/html");
 
 static void http_server_process_request(char *URI, char *headers);
 
-static void http_server_fiber_cleanup(void) {
+static void http_server_fiber_main_wrapper(void) {
+    http_server_fiber_main();
     struct http_server *server = (struct http_server *)current_ctx->data.ptr;
     ctx_pool_put(&server->ctx_pool, current_ctx);
 }
@@ -70,7 +71,7 @@ static void http_server_idle_handler(void) {
             yield();
         else {
             struct ribs_context *new_ctx = ctx_pool_get(&server->ctx_pool);
-            ribs_makecontext(new_ctx, &main_ctx, new_ctx, http_server_fiber_main, http_server_fiber_cleanup);
+            ribs_makecontext(new_ctx, &main_ctx, new_ctx, http_server_fiber_main_wrapper);
             int fd = last_epollev.data.fd;
             new_ctx->fd = fd;
             new_ctx->data.ptr = server;
@@ -126,7 +127,7 @@ int http_server_init(struct http_server *server, size_t context_size) {
      * idle connection handler
      */
     server->idle_stack = malloc(SMALL_STACK_SIZE);
-    ribs_makecontext(&server->idle_ctx, &main_ctx, server->idle_stack + SMALL_STACK_SIZE, http_server_idle_handler, NULL);
+    ribs_makecontext(&server->idle_ctx, &main_ctx, server->idle_stack + SMALL_STACK_SIZE, http_server_idle_handler);
     server->idle_ctx.data.ptr = server;
     /*
      * context pool
@@ -188,7 +189,7 @@ int http_server_init(struct http_server *server, size_t context_size) {
 
 int http_server_init_acceptor(struct http_server *server) {
     server->accept_stack = malloc(ACCEPTOR_STACK_SIZE);
-    ribs_makecontext(&server->accept_ctx, &main_ctx, server->accept_stack + ACCEPTOR_STACK_SIZE, http_server_accept_connections, NULL);
+    ribs_makecontext(&server->accept_ctx, &main_ctx, server->accept_stack + ACCEPTOR_STACK_SIZE, http_server_accept_connections);
     int lfd = server->accept_ctx.fd;
     server->accept_ctx.data.ptr = server;
     struct epoll_event ev;
@@ -204,7 +205,7 @@ int http_server_init_acceptor(struct http_server *server) {
     if (0 > server->timeout_handler_ctx.fd)
         return perror("timerfd_create"), -1;
     server->timeout_handler_stack = malloc(SMALL_STACK_SIZE);
-    ribs_makecontext(&server->timeout_handler_ctx, &main_ctx, server->timeout_handler_stack + SMALL_STACK_SIZE, http_server_timeout_handler, NULL);
+    ribs_makecontext(&server->timeout_handler_ctx, &main_ctx, server->timeout_handler_stack + SMALL_STACK_SIZE, http_server_timeout_handler);
     server->timeout_handler_ctx.data.ptr = server;
     ev.events = EPOLLIN;
     epoll_worker_fd_map[server->timeout_handler_ctx.fd].ctx = &server->timeout_handler_ctx;
@@ -298,17 +299,6 @@ void http_server_header_content_length() {
         close(fd); /* remote side closed or other error occured */      \
         return;                                                         \
     }
-
-static inline void http_server_close(struct http_server_context *ctx) {
-    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
-    int fd = current_ctx->fd;
-    if (ctx->persistent) {
-        struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
-        fd_data->ctx = &server->idle_ctx;
-        http_server_timeout_chain_add(server, fd_data);
-    } else
-        close(fd);
-}
 
 static inline void http_server_yield() {
     struct http_server *server = (struct http_server *)current_ctx->data.ptr;
@@ -468,13 +458,18 @@ void http_server_fiber_main(void) {
         }
     } while(0);
 
-    if (vmbuf_wlocpos(&ctx->header) == 0)
-        return;
+    if (vmbuf_wlocpos(&ctx->header) > 0) {
+        epoll_worker_resume_events();
+        http_server_write();
+    }
 
-    epoll_worker_resume_events();
-
-    http_server_write();
-    http_server_close(ctx);
+    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
+    if (ctx->persistent) {
+        struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
+        fd_data->ctx = &server->idle_ctx;
+        http_server_timeout_chain_add(server, fd_data);
+    } else
+        close(fd);
 }
 
 static void http_server_process_request(char *URI, char *headers) {
@@ -550,7 +545,6 @@ int http_server_sendfile(const char *filename) {
         if (0 > setsockopt(fd, IPPROTO_TCP, TCP_CORK, &option, sizeof(option)))
             perror("TCP_CORK release");
     }
-    http_server_close(ctx);
     return ret;
 }
 

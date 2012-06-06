@@ -143,7 +143,7 @@ struct http_client_context *http_client_pool_create_client(struct http_client_po
     if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, cfd, &ev))
         perror("epoll_ctl");
     epoll_worker_fd_map[cfd].ctx = new_ctx;
-    ribs_makecontext(new_ctx, current_ctx, new_ctx, http_client_fiber_main, NULL);
+    ribs_makecontext(new_ctx, current_ctx, new_ctx, http_client_fiber_main);
     struct http_client_context *cctx = (struct http_client_context *)new_ctx->reserved;
     vmbuf_init(&cctx->request, 4096);
     vmbuf_init(&cctx->response, 4096);
