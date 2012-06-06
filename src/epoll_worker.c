@@ -32,7 +32,7 @@ void epoll_worker_loop(void) {
     for (;;yield());
 }
 
-void yield(void) {
+inline void yield(void) {
    while(0 >= epoll_wait(ribs_epoll_fd, &last_epollev, 1, -1));
    ribs_swapcurcontext(epoll_worker_fd_map[last_epollev.data.fd].ctx);
 }
