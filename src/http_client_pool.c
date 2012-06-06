@@ -7,6 +7,7 @@
 
 SSTRL(CRLFCRLF, "\r\n\r\n");
 SSTRL(CRLF, "\r\n");
+const char CR = '\r';
 SSTRL(CONTENT_LENGTH, "\r\nContent-Length: ");
 SSTRL(TRANSFER_ENCODING, "\r\nTransfer-Encoding: ");
 
@@ -21,17 +22,27 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
 }
 
 #define CLIENT_ERROR()                                   \
-    do {                                                 \
-        printf("client error\n"); /* TODO: remove */     \
+    {                                                    \
+        perror("client error\n"); /* TODO: remove */     \
         close(fd);                                       \
         return;                                          \
-    } while (0)
+    }
+
+#define READ_DATA(cond)                                     \
+    while(cond) {                                           \
+        if (res == 0)                                       \
+            CLIENT_ERROR(); /* partial response */          \
+        yield();                                            \
+        if ((res = vmbuf_read(&ctx->response, fd)) < 0)     \
+            CLIENT_ERROR();                                 \
+    }
 
 
 void http_client_fiber_main(void) {
     struct http_client_context *ctx = http_client_get_context();
     int fd = current_ctx->fd;
     int persistent = 0;
+    epoll_worker_set_last_fd(fd); /* needed in the case where epoll_wait never occured */
 
     /*
      * write request
@@ -43,14 +54,13 @@ void http_client_fiber_main(void) {
     /*
      * HTTP header
      */
+    uint32_t eoh_ofs;
+    char *data;
     char *eoh;
-    for (;;yield()) {
-        vmbuf_read(&ctx->response, fd);
-        *vmbuf_wloc(&ctx->response) = 0;
-        if (NULL != (eoh = strstr(vmbuf_data(&ctx->response), CRLFCRLF)))
-            break;
-    }
-    char *data = vmbuf_data(&ctx->response);
+    res = 1; /* READ_DATA checks res */
+    READ_DATA(NULL == (eoh = strstr(data = vmbuf_data(&ctx->response), CRLFCRLF)));
+    eoh_ofs = eoh - data + SSTRLEN(CRLFCRLF);
+    *eoh = 0;
     char *p = strstr(data, CONNECTION);
     if (p != NULL) {
         p += SSTRLEN(CONNECTION);
@@ -70,18 +80,42 @@ void http_client_fiber_main(void) {
     char *content_len = strstr(data, CONTENT_LENGTH);
     if (NULL != content_len) {
         content_len += SSTRLEN(CONTENT_LENGTH);
-        size_t content_end = eoh - data + SSTRLEN(CRLFCRLF) + atoi(content_len);
-        while (vmbuf_wlocpos(&ctx->response) < content_end) {
-            if (0 > vmbuf_read(&ctx->response, fd))
-                CLIENT_ERROR();
-            yield();
-        }
+        size_t content_end = eoh_ofs + atoi(content_len);
+        READ_DATA(vmbuf_wlocpos(&ctx->response) < content_end);
     } else {
-        CLIENT_ERROR(); // TODO: chunked
+        char *transfer_encoding_str = strstr(data, TRANSFER_ENCODING);
+        if (NULL != transfer_encoding_str &&
+            0 == SSTRNCMP(transfer_encoding_str + SSTRLEN(TRANSFER_ENCODING), "chunked")) {
+#if 0
+
+            size_t chunk_start = eoh_ofs;
+            data = vmbuf_data(&ctx->response);
+            *vmbuf_wloc(&ctx->response) = 0;
+            char *chunk_size = data + chunk_start;
+            /*
+              <chunk size in hex>\r\n
+              <..... chunk data .....>
+              chunk size == 0 is end of chunks
+            */
+            char *p;
+            READ_DATA((p = strchrnul(chunk_size, '\r')) == 0);
+
+#endif
+
+        } else {
+            for (;;yield()) {
+                if ((res = vmbuf_read(&ctx->response, fd)) < 0)
+                    CLIENT_ERROR();
+                if (0 == res)
+                    break;
+            }
+        }
     }
+    vmbuf_data_ofs(&ctx->response, eoh_ofs - SSTRLEN(CRLFCRLF))[0] = CR;
     *vmbuf_wloc(&ctx->response) = 0;
-     (void)persistent;
-    close(current_ctx->fd);
+    (void)persistent;
+    // TODO: persistent connections
+    close(fd);
 }
 
 struct http_client_context *http_client_pool_create_client(struct http_client_pool *http_client_pool, struct in_addr addr, uint16_t port) {
