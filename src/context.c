@@ -12,13 +12,16 @@ int ribs_makecontext(struct ribs_context *ctx, struct ribs_context *rctx, void *
     sp = (unsigned long int *) ((((uintptr_t) sp) & -16L) - (user_cleanup_func ? 16 : 8));
 
     ctx->rbx = (uintptr_t) rctx;
-    ctx->rip = (uintptr_t) func;
 
     *(uintptr_t *)(sp) = (uintptr_t)&__ribs_context_exit;
     if (user_cleanup_func) {
         sp -= 8;
         *(uintptr_t *)(sp) = (uintptr_t)user_cleanup_func;
     }
+
+    sp -= 8;
+    *(uintptr_t *)(sp) = (uintptr_t)func;
+
     ctx->rsp = (uintptr_t) sp;
 
     return 0;

@@ -11,11 +11,10 @@ struct ribs_context {
     long r13; /* 24  */
     long r14; /* 32  */
     long r15; /* 40  */
-    long rip; /* 48  */
-    long rsp; /* 56  */
-    int fd;
+    long rsp; /* 48  */
     epoll_data_t data;
     struct ribs_context *next_free;
+    int fd;
     char reserved[];
 };
 
