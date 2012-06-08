@@ -1,7 +1,12 @@
 #include "http_client_pool.h"
 #include <netinet/tcp.h>
 #include <sys/types.h>
+#include <sys/time.h>
+#include <sys/resource.h>
+#include <search.h>
+#include "hashtable.h"
 #include "sstr.h"
+#include "list.h"
 
 #define CLIENT_STACK_SIZE  65536
 
@@ -14,10 +19,54 @@ SSTRL(TRANSFER_ENCODING, "\r\nTransfer-Encoding: ");
 SSTRL(CONNECTION, "\r\nConnection: ");
 SSTRL(CONNECTION_CLOSE, "close");
 
+#define SMALL_STACK_SIZE 4096
+
+static struct list* client_chains = NULL;
+static struct ribs_context idle_ctx;
+static struct hashtable ht_persistent_clients = HASHTABLE_INITIALIZER;
+
+struct http_client_key {
+    in_addr addr;
+    uint16_t port;
+};
+
+void http_client_close(struct http_client_pool *client_pool, struct http_client_context *cctx) {
+    if (cctx->persistent)
+        epoll_worker_set_fd_ctx(RIBS_RESERVED_TO_CONTEXT(cctx)->fd, &idle_ctx);
+    ctx_pool_put(&client_pool->ctx_pool, RIBS_RESERVED_TO_CONTEXT(cctx));
+}
+
+/* Idle client, ignore EPOLLOUT only, close on any other event */
+static void http_client_idle_handler(void) {
+    for (;;yield()) {
+        if (last_epollev.events != EPOLLOUT) {
+            int fd = last_epollev.data.fd;
+/* TODO: remove from persistent connection clients list */
+            close(fd);
+        }
+    }
+}
 
 int http_client_pool_init(struct http_client_pool *http_client_pool, size_t initial, size_t grow) {
     if (0 > ctx_pool_init(&http_client_pool->ctx_pool, initial, grow, CLIENT_STACK_SIZE, sizeof(struct http_client_context)))
         return -1;
+
+    /* Global to all clients */
+    if (!client_chains) {
+
+        struct rlimit rlim;
+        if (0 > getrlimit(RLIMIT_NOFILE, &rlim))
+            return perror("getrlimit(RLIMIT_NOFILE)"), -1;
+
+        client_chains = calloc(rlim.rlim_cur, sizeof(struct list));
+        if (!client_chains)
+            return perror("calloc client_chais"), -1;
+
+        void* idle_stack = malloc(SMALL_STACK_SIZE);
+        ribs_makecontext(&idle_ctx, &main_ctx, idle_stack + SMALL_STACK_SIZE, http_client_idle_handler);
+
+        hashtable_init(&ht_persistent_clients, rlim.rlim_cur);
+    }
     return 0;
 }
 
@@ -116,9 +165,10 @@ void http_client_fiber_main(void) {
     }
     vmbuf_data_ofs(&ctx->response, eoh_ofs - SSTRLEN(CRLFCRLF))[0] = CR;
     *vmbuf_wloc(&ctx->response) = 0;
-    (void)persistent;
-    // TODO: persistent connections
-    close(fd);
+    ctx->persistent = persistent;
+    if (!persistent) {
+        close(fd);
+    }
 }
 
 struct http_client_context *http_client_pool_create_client(struct http_client_pool *http_client_pool, struct in_addr addr, uint16_t port) {
@@ -151,4 +201,5 @@ struct http_client_context *http_client_pool_create_client(struct http_client_po
     vmbuf_init(&cctx->request, 4096);
     vmbuf_init(&cctx->response, 4096);
     return cctx;
+
 }

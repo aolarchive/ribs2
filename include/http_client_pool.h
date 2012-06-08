@@ -13,6 +13,7 @@ struct http_client_context {
     struct vmbuf request;
     struct vmbuf response;
     epoll_data_t data;
+    int persistent;
     /* TODO: add initial buffer sizes */
 };
 
@@ -21,6 +22,8 @@ struct http_client_pool {
 };
 
 int http_client_pool_init(struct http_client_pool *http_client_pool, size_t initial, size_t grow);
+
+void http_client_close(struct http_client_pool *client_pool, struct http_client_context *cctx);
 
 struct http_client_context *http_client_pool_create_client(struct http_client_pool *http_client_pool, struct in_addr addr, uint16_t port);
 
@@ -35,9 +38,6 @@ static inline struct http_client_context *http_client_get_last_context() {
     return (struct http_client_context *)epoll_worker_get_last_context()->reserved;
 }
 
-static inline void http_client_close(struct http_client_pool *client_pool, struct http_client_context *cctx) {
-    ctx_pool_put(&client_pool->ctx_pool, RIBS_RESERVED_TO_CONTEXT(cctx));
-}
 
 
 #endif // _HTTP_CLIENT_POOL__H_
