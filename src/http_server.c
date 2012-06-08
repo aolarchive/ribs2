@@ -105,7 +105,7 @@ static void http_server_timeout_handler(void) {
                 break;
             }
             if (0 > shutdown(fd_data - epoll_worker_fd_map, SHUT_RDWR))
-                printf("ERROR: shutdown [%d]\n", fd_data->ctx->fd);
+                perror("shutdown");
         }
     }
 }
