@@ -25,14 +25,20 @@ static struct list* client_chains = NULL;
 static struct ribs_context idle_ctx;
 static struct hashtable ht_persistent_clients = HASHTABLE_INITIALIZER;
 
-struct http_client_key {
-    in_addr addr;
-    uint16_t port;
-};
-
 void http_client_close(struct http_client_pool *client_pool, struct http_client_context *cctx) {
-    if (cctx->persistent)
-        epoll_worker_set_fd_ctx(RIBS_RESERVED_TO_CONTEXT(cctx)->fd, &idle_ctx);
+    if (cctx->persistent) {
+        int fd = RIBS_RESERVED_TO_CONTEXT(cctx)->fd;
+        epoll_worker_set_fd_ctx(fd, &idle_ctx);
+        uint32_t ofs = hashtable_lookup(&ht_persistent_clients, &cctx->key, sizeof(struct http_client_key));
+        struct list *head;
+        if (0 == ofs) {
+            ofs = hashtable_insert_new(&ht_persistent_clients, &cctx->key, sizeof(struct http_client_key), sizeof(struct list));
+            list_init((struct list *)hashtable_get_val(&ht_persistent_clients, ofs));
+        }
+        head = (struct list *)hashtable_get_val(&ht_persistent_clients, ofs);
+        struct list *client = client_chains + fd;
+        list_insert_head(head, client);
+    }
     ctx_pool_put(&client_pool->ctx_pool, RIBS_RESERVED_TO_CONTEXT(cctx));
 }
 
@@ -41,7 +47,8 @@ static void http_client_idle_handler(void) {
     for (;;yield()) {
         if (last_epollev.events != EPOLLOUT) {
             int fd = last_epollev.data.fd;
-/* TODO: remove from persistent connection clients list */
+            struct list *client = client_chains + fd;
+            list_remove(client);
             close(fd);
         }
     }
@@ -172,32 +179,41 @@ void http_client_fiber_main(void) {
 }
 
 struct http_client_context *http_client_pool_create_client(struct http_client_pool *http_client_pool, struct in_addr addr, uint16_t port) {
-    /* TODO: persistent connections */
-    int cfd = socket(PF_INET, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
-    if (0 > cfd)
-        return perror("socket"), NULL;
+    int cfd;
+    struct http_client_key key = { .addr = addr, .port = port };
+    uint32_t ofs = hashtable_lookup(&ht_persistent_clients, &key, sizeof(struct http_client_key));
+    struct list *head;
+    if (ofs > 0 && !list_empty(head = (struct list *)hashtable_get_val(&ht_persistent_clients, ofs))) {
+        struct list *client = list_pop_head(head);
+        cfd = client - client_chains;
+    } else {
+        cfd = socket(PF_INET, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
+        if (0 > cfd)
+            return perror("socket"), NULL;
 
-    const int option = 1;
-    if (0 > setsockopt(cfd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)))
-        return perror("setsockopt SO_REUSEADDR"), NULL;
+        const int option = 1;
+        if (0 > setsockopt(cfd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)))
+            return perror("setsockopt SO_REUSEADDR"), NULL;
 
-    if (0 > setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, &option, sizeof(option)))
-        return perror("setsockopt TCP_NODELAY"), NULL;
+        if (0 > setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, &option, sizeof(option)))
+            return perror("setsockopt TCP_NODELAY"), NULL;
 
-    struct sockaddr_in saddr = { .sin_family = AF_INET, .sin_port = htons(port), .sin_addr = addr };
-    connect(cfd, (struct sockaddr *)&saddr, sizeof(saddr));
+        struct sockaddr_in saddr = { .sin_family = AF_INET, .sin_port = htons(port), .sin_addr = addr };
+        connect(cfd, (struct sockaddr *)&saddr, sizeof(saddr));
+        struct epoll_event ev;
+        ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
+        ev.data.fd = cfd;
+        if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, cfd, &ev))
+            perror("epoll_ctl");
 
+    }
     struct ribs_context *new_ctx = ctx_pool_get(&http_client_pool->ctx_pool);
     new_ctx->fd = cfd;
     new_ctx->data.ptr = http_client_pool;
-    struct epoll_event ev;
-    ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
-    ev.data.fd = cfd;
-    if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, cfd, &ev))
-        perror("epoll_ctl");
     epoll_worker_fd_map[cfd].ctx = new_ctx;
     ribs_makecontext(new_ctx, current_ctx, new_ctx, http_client_fiber_main);
     struct http_client_context *cctx = (struct http_client_context *)new_ctx->reserved;
+    cctx->key = (struct http_client_key){ .addr = addr, .port = port };
     vmbuf_init(&cctx->request, 4096);
     vmbuf_init(&cctx->response, 4096);
     return cctx;

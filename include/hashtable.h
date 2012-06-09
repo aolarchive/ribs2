@@ -14,6 +14,7 @@ struct hashtable {
 
 int hashtable_init(struct hashtable *ht, uint32_t nel);
 uint32_t hashtable_insert(struct hashtable *ht, const void *key, size_t key_len, const void *val, size_t val_len);
+uint32_t hashtable_insert_new(struct hashtable *ht, const void *key, size_t key_len, size_t val_len);
 uint32_t hashtable_lookup(struct hashtable *ht, const void *key, size_t key_len);
 
 static inline void *hashtable_get_key(struct hashtable *ht, uint32_t rec_ofs) {

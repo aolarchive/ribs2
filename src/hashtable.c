@@ -64,6 +64,33 @@ uint32_t hashtable_insert(struct hashtable *ht, const void *key, size_t key_len,
     return 0;
 }
 
+uint32_t hashtable_insert_new(struct hashtable *ht, const void *key, size_t key_len, size_t val_len) {
+    uint32_t hc = hashcode(key, key_len);
+    uint32_t mask = ht->mask;
+    uint32_t bucket = hc & mask;
+    struct ht_entry *entries = (struct ht_entry *)vmbuf_data(&ht->data);
+    for (;;) {
+        struct ht_entry *e = entries + bucket;
+        if (0 == e->rec) {
+            e->hashcode = hc;
+            uint32_t ofs = vmbuf_wlocpos(&ht->data);
+            e->rec = ofs;
+            uint32_t *rec = (uint32_t *)vmbuf_data_ofs(&ht->data, vmbuf_alloc(&ht->data, 2 * sizeof(uint32_t)));
+            rec[0] = key_len;
+            rec[1] = val_len;
+            vmbuf_memcpy(&ht->data, key, key_len);
+            vmbuf_alloc(&ht->data, val_len);
+            ++ht->size;
+            return ofs;
+        } else {
+            ++bucket;
+            if (bucket > mask)
+                bucket = 0;
+        }
+    }
+    return 0;
+}
+
 uint32_t hashtable_lookup(struct hashtable *ht, const void *key, size_t key_len) {
     uint32_t hc = hashcode(key, key_len);
     uint32_t mask = ht->mask;
