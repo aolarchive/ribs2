@@ -30,12 +30,12 @@ void http_client_close(struct http_client_pool *client_pool, struct http_client_
         int fd = RIBS_RESERVED_TO_CONTEXT(cctx)->fd;
         epoll_worker_set_fd_ctx(fd, &idle_ctx);
         uint32_t ofs = hashtable_lookup(&ht_persistent_clients, &cctx->key, sizeof(struct http_client_key));
-        struct list *head;
         if (0 == ofs) {
+            /* TODO: bug: the list is on vmbuf, change to ofs */
             ofs = hashtable_insert_new(&ht_persistent_clients, &cctx->key, sizeof(struct http_client_key), sizeof(struct list));
             list_init((struct list *)hashtable_get_val(&ht_persistent_clients, ofs));
         }
-        head = (struct list *)hashtable_get_val(&ht_persistent_clients, ofs);
+        struct list *head = (struct list *)hashtable_get_val(&ht_persistent_clients, ofs);
         struct list *client = client_chains + fd;
         list_insert_head(head, client);
     }
@@ -50,6 +50,7 @@ static void http_client_idle_handler(void) {
             struct list *client = client_chains + fd;
             list_remove(client);
             close(fd);
+            /* TODO: remove from hashtable when list is empty (first add remove method to hashtable) */
         }
     }
 }
@@ -205,7 +206,6 @@ struct http_client_context *http_client_pool_create_client(struct http_client_po
         ev.data.fd = cfd;
         if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, cfd, &ev))
             perror("epoll_ctl");
-
     }
     struct ribs_context *new_ctx = ctx_pool_get(&http_client_pool->ctx_pool);
     new_ctx->fd = cfd;
