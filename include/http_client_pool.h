@@ -12,8 +12,12 @@
 struct http_client_context {
     struct vmbuf request;
     struct vmbuf response;
-    epoll_data_t data;
+    epoll_data_t userdata;
     int persistent;
+    int http_status_code;
+    char *content;
+    uint32_t content_length;
+
     /* TODO: add initial buffer sizes */
 
     /* keep 1 byte aligned structs last */

@@ -139,15 +139,17 @@ void http_client_fiber_main(void) {
     int code = (*p ? atoi(p + 1) : 0);
     if (0 == code)
         CLIENT_ERROR();
-    if (code == 204 || code == 304) /* No Content,  Not Modified */
-        return;
+    do {
+        if (code == 204 || code == 304) /* No Content,  Not Modified */
+            break;
 
-    char *content_len = strstr(data, CONTENT_LENGTH);
-    if (NULL != content_len) {
-        content_len += SSTRLEN(CONTENT_LENGTH);
-        size_t content_end = eoh_ofs + atoi(content_len);
-        READ_MORE_DATA(vmbuf_wlocpos(&ctx->response) < content_end);
-    } else {
+        char *content_len_str = strstr(data, CONTENT_LENGTH);
+        if (NULL != content_len_str) {
+            content_len_str += SSTRLEN(CONTENT_LENGTH);
+            size_t content_end = eoh_ofs + atoi(content_len_str);
+            READ_MORE_DATA(vmbuf_wlocpos(&ctx->response) < content_end);
+            break;
+        }
         char *transfer_encoding_str = strstr(data, TRANSFER_ENCODING);
         if (NULL != transfer_encoding_str &&
             0 == SSTRNCMP(transfer_encoding_str + SSTRLEN(TRANSFER_ENCODING), "chunked")) {
@@ -169,21 +171,23 @@ void http_client_fiber_main(void) {
                 READ_MORE_DATA(vmbuf_wlocpos(&ctx->response) < chunk_end);
                 chunk_start = chunk_end;
             }
-        } else {
-            for (;;yield()) {
-                if ((res = vmbuf_read(&ctx->response, fd)) < 0)
-                    CLIENT_ERROR();
-                if (0 == res)
-                    break;
-            }
+            break;
         }
-    }
+        for (;;yield()) {
+            if ((res = vmbuf_read(&ctx->response, fd)) < 0)
+                CLIENT_ERROR();
+            if (0 == res)
+                break;
+        }
+    } while (0);
+    ctx->content = vmbuf_data_ofs(&ctx->response, eoh_ofs);
+    ctx->content_length = vmbuf_wlocpos(&ctx->response) - eoh_ofs;
+    ctx->http_status_code = code;
     vmbuf_data_ofs(&ctx->response, eoh_ofs - SSTRLEN(CRLFCRLF))[0] = CR;
     *vmbuf_wloc(&ctx->response) = 0;
     ctx->persistent = persistent;
-    if (!persistent) {
+    if (!persistent)
         close(fd);
-    }
 }
 
 struct http_client_context *http_client_pool_create_client(struct http_client_pool *http_client_pool, struct in_addr addr, uint16_t port) {
