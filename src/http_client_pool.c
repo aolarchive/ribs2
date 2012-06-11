@@ -152,16 +152,23 @@ void http_client_fiber_main(void) {
         if (NULL != transfer_encoding_str &&
             0 == SSTRNCMP(transfer_encoding_str + SSTRLEN(TRANSFER_ENCODING), "chunked")) {
             size_t chunk_start = eoh_ofs;
-            /*
-              <chunk size in hex>\r\n
-              <..... chunk data .....>
-              chunk size == 0 is end of chunks
-            */
             char *p;
-            READ_MORE_DATA_STR((p = strchrnul((data = vmbuf_data(&ctx->response)) + chunk_start, '\r')) == 0);
-            uint32_t s = strtoul(data + chunk_start, NULL, 16);
-            chunk_start = p - data + SSTRLEN(CRLF);
-            (void)s;
+            for (;;) {
+                READ_MORE_DATA_STR((p = strchrnul((data = vmbuf_data(&ctx->response)) + chunk_start, '\r')) == 0);
+                if (0 != SSTRNCMP(CRLF, p))
+                    CLIENT_ERROR();
+                uint32_t s = strtoul(data + chunk_start, NULL, 16);
+                if (0 == s)
+                    break;
+                p += SSTRLEN(CRLF); /* points to beginning of chunk data */
+                size_t move_size = vmbuf_wloc(&ctx->response) - p;
+                memmove(data + chunk_start, p, move_size);
+                vmbuf_wlocset(&ctx->response, chunk_start + move_size);
+                *vmbuf_wloc(&ctx->response) = 0;
+                size_t chunk_end = chunk_start + s + SSTRLEN(CRLF);
+                READ_MORE_DATA(vmbuf_wlocpos(&ctx->response) < chunk_end);
+                chunk_start = chunk_end;
+            }
         } else {
             for (;;yield()) {
                 if ((res = vmbuf_read(&ctx->response, fd)) < 0)
