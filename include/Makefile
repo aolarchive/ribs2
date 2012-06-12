@@ -1,0 +1,2 @@
+buildall:
+	@$(MAKE) -s -C ../

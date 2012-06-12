@@ -6,6 +6,7 @@
 #include "vmbuf.h"
 #include "epoll_worker.h"
 #include "sstr.h"
+#include "timeout_handler.h"
 
 struct http_server_context {
     struct vmbuf request;
@@ -29,10 +30,7 @@ struct http_server {
     void *accept_stack;
     struct ribs_context idle_ctx;
     char *idle_stack;
-    struct ribs_context timeout_handler_ctx;
-    char *timeout_handler_stack;
-    struct list timeout_chain;
-    time_t timeout;
+    struct timeout_handler timeout_handler;
     /* TODO: add initial buffer sizes */
 };
 

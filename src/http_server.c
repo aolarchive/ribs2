@@ -77,47 +77,10 @@ static void http_server_idle_handler(void) {
             new_ctx->data.ptr = server;
             struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
             fd_data->ctx = new_ctx;
-            list_remove(&fd_data->timeout_chain);
+            TIMEOUT_HANDLER_REMOVE_FD_DATA(fd_data);
             ribs_swapcurcontext(new_ctx);
         }
     }
-}
-
-static void http_server_timeout_handler(void) {
-    uint64_t num_exp;
-    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
-    struct timeval when = {server->timeout/1000,(server->timeout%1000)*1000};
-    int fd = current_ctx->fd;
-    for (;;yield()) {
-        if (sizeof(num_exp) != read(fd, &num_exp, sizeof(num_exp)))
-            continue;
-        struct timeval now, ts;
-        gettimeofday(&now, NULL);
-        timersub(&now, &when, &ts);
-        struct list *fd_data_list;
-        LIST_FOR_EACH(&server->timeout_chain, fd_data_list) {
-            struct epoll_worker_fd_data *fd_data = LIST_ENTRY(fd_data_list, struct epoll_worker_fd_data, timeout_chain);
-            if (timercmp(&fd_data->timestamp, &ts, >)) {
-                timersub(&fd_data->timestamp, &ts, &now);
-                struct itimerspec when = {{0,0},{now.tv_sec,now.tv_usec*1000}};
-                if (0 > timerfd_settime(server->timeout_handler_ctx.fd, 0, &when, NULL))
-                    perror("timerfd_settime");
-                break;
-            }
-            if (0 > shutdown(fd_data - epoll_worker_fd_map, SHUT_RDWR))
-                perror("shutdown");
-        }
-    }
-}
-
-static inline void http_server_timeout_chain_add(struct http_server *server, struct epoll_worker_fd_data *fd_data) {
-    gettimeofday(&fd_data->timestamp, NULL);
-    if (list_empty(&server->timeout_chain)) {
-        struct itimerspec when = {{0,0},{server->timeout/1000,(server->timeout%1000)*1000000L}};
-        if (0 > timerfd_settime(server->timeout_handler_ctx.fd, 0, &when, NULL))
-            perror("timerfd_settime"), abort();
-    }
-    list_insert_tail(&server->timeout_chain, &fd_data->timeout_chain);
 }
 
 int http_server_init(struct http_server *server, size_t context_size) {
@@ -198,25 +161,8 @@ int http_server_init_acceptor(struct http_server *server) {
     ev.data.fd = lfd;
     if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, lfd, &ev))
         return perror("epoll_ctl"), -1;
-    /*
-     * timeout handler
-     */
-    server->timeout_handler_ctx.fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
-    if (0 > server->timeout_handler_ctx.fd)
-        return perror("timerfd_create"), -1;
-    server->timeout_handler_stack = malloc(SMALL_STACK_SIZE);
-    ribs_makecontext(&server->timeout_handler_ctx, &main_ctx, server->timeout_handler_stack + SMALL_STACK_SIZE, http_server_timeout_handler);
-    server->timeout_handler_ctx.data.ptr = server;
-    ev.events = EPOLLIN;
-    epoll_worker_fd_map[server->timeout_handler_ctx.fd].ctx = &server->timeout_handler_ctx;
-    ev.data.fd = server->timeout_handler_ctx.fd;
-    if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev))
-        return perror("epoll_ctl"), -1;
-    /*
-     * timeout chain
-     */
-    list_init(&server->timeout_chain);
-    return 0;
+
+    return timeout_handler_init(&server->timeout_handler);
 }
 
 void http_server_accept_connections(void) {
@@ -231,7 +177,7 @@ void http_server_accept_connections(void) {
 
         struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
         fd_data->ctx = &server->idle_ctx;
-        http_server_timeout_chain_add(server, fd_data);
+        timeout_handler_add_fd_data(&server->timeout_handler, fd_data);
 
         ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
         ev.data.fd = fd;
@@ -303,9 +249,9 @@ void http_server_header_content_length() {
 static inline void http_server_yield() {
     struct http_server *server = (struct http_server *)current_ctx->data.ptr;
     struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + current_ctx->fd;
-    http_server_timeout_chain_add(server, fd_data);
+    timeout_handler_add_fd_data(&server->timeout_handler, fd_data);
     yield();
-    list_remove(&fd_data->timeout_chain);
+    TIMEOUT_HANDLER_REMOVE_FD_DATA(fd_data);
 }
 
 inline void http_server_write() {
@@ -467,7 +413,7 @@ void http_server_fiber_main(void) {
     if (ctx->persistent) {
         struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
         fd_data->ctx = &server->idle_ctx;
-        http_server_timeout_chain_add(server, fd_data);
+        timeout_handler_add_fd_data(&server->timeout_handler, fd_data);
     } else
         close(fd);
 }
