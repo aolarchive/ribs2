@@ -80,7 +80,7 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
 
 #define CLIENT_ERROR()                                   \
     {                                                    \
-        perror("client error\n"); /* TODO: remove */     \
+        ctx->http_status_code = 500;                     \
         close(fd);                                       \
         return;                                          \
     }
@@ -142,7 +142,9 @@ void http_client_fiber_main(void) {
     do {
         if (code == 204 || code == 304) /* No Content,  Not Modified */
             break;
-
+        /*
+         * content length
+         */
         char *content_len_str = strstr(data, CONTENT_LENGTH);
         if (NULL != content_len_str) {
             content_len_str += SSTRLEN(CONTENT_LENGTH);
@@ -150,34 +152,41 @@ void http_client_fiber_main(void) {
             READ_MORE_DATA(vmbuf_wlocpos(&ctx->response) < content_end);
             break;
         }
+        /*
+         * chunked encoding
+         */
         char *transfer_encoding_str = strstr(data, TRANSFER_ENCODING);
         if (NULL != transfer_encoding_str &&
             0 == SSTRNCMP(transfer_encoding_str + SSTRLEN(TRANSFER_ENCODING), "chunked")) {
             size_t chunk_start = eoh_ofs;
+            size_t data_start = eoh_ofs;
             char *p;
             for (;;) {
                 READ_MORE_DATA_STR((p = strchrnul((data = vmbuf_data(&ctx->response)) + chunk_start, '\r')) == 0);
                 if (0 != SSTRNCMP(CRLF, p))
                     CLIENT_ERROR();
                 uint32_t s = strtoul(data + chunk_start, NULL, 16);
-                if (0 == s)
+                if (0 == s) {
+                    vmbuf_wlocset(&ctx->response, data_start);
                     break;
-                p += SSTRLEN(CRLF); /* points to beginning of chunk data */
-                size_t move_size = vmbuf_wloc(&ctx->response) - p;
-                memmove(data + chunk_start, p, move_size);
-                vmbuf_wlocset(&ctx->response, chunk_start + move_size);
-                *vmbuf_wloc(&ctx->response) = 0;
+                }
+                chunk_start = p - data + SSTRLEN(CRLF);
                 size_t chunk_end = chunk_start + s + SSTRLEN(CRLF);
                 READ_MORE_DATA(vmbuf_wlocpos(&ctx->response) < chunk_end);
+                memmove(vmbuf_data(&ctx->response) + data_start, vmbuf_data(&ctx->response) + chunk_start, s);
+                data_start += s;
                 chunk_start = chunk_end;
             }
             break;
         }
+        /*
+         * older versions of HTTP, terminated by disconnect
+         */
         for (;;yield()) {
             if ((res = vmbuf_read(&ctx->response, fd)) < 0)
                 CLIENT_ERROR();
             if (0 == res)
-                break;
+                break; /* remote side closed connection */
         }
     } while (0);
     ctx->content = vmbuf_data_ofs(&ctx->response, eoh_ofs);
@@ -228,5 +237,4 @@ struct http_client_context *http_client_pool_create_client(struct http_client_po
     vmbuf_init(&cctx->request, 4096);
     vmbuf_init(&cctx->response, 4096);
     return cctx;
-
 }
