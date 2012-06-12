@@ -22,6 +22,9 @@ SSTRL(CONNECTION_CLOSE, "close");
 #define SMALL_STACK_SIZE 4096
 
 static struct list* client_chains = NULL;
+static struct list* client_heads = NULL;
+static struct list free_list = LIST_INITIALIZER(free_list);
+uint32_t next_avail_head = 0;
 static struct ribs_context idle_ctx;
 static struct hashtable ht_persistent_clients = HASHTABLE_INITIALIZER;
 
@@ -30,12 +33,18 @@ void http_client_close(struct http_client_pool *client_pool, struct http_client_
         int fd = RIBS_RESERVED_TO_CONTEXT(cctx)->fd;
         epoll_worker_set_fd_ctx(fd, &idle_ctx);
         uint32_t ofs = hashtable_lookup(&ht_persistent_clients, &cctx->key, sizeof(struct http_client_key));
+        struct list *head;
         if (0 == ofs) {
-            /* TODO: bug: the list is on vmbuf, change to ofs */
-            ofs = hashtable_insert_new(&ht_persistent_clients, &cctx->key, sizeof(struct http_client_key), sizeof(struct list));
-            list_init((struct list *)hashtable_get_val(&ht_persistent_clients, ofs));
-        }
-        struct list *head = (struct list *)hashtable_get_val(&ht_persistent_clients, ofs);
+            if (list_empty(&free_list)) {
+                close(fd);
+                return;
+            }
+            head = list_pop_head(&free_list);
+            uint32_t h = head - client_heads;
+            hashtable_insert(&ht_persistent_clients, &cctx->key, sizeof(struct http_client_key), &h, sizeof(h));
+            list_init(head);
+        } else
+            head = client_heads + *(uint32_t *)hashtable_get_val(&ht_persistent_clients, ofs);
         struct list *client = client_chains + fd;
         list_insert_head(head, client);
     }
@@ -51,6 +60,7 @@ static void http_client_idle_handler(void) {
             list_remove(client);
             close(fd);
             /* TODO: remove from hashtable when list is empty (first add remove method to hashtable) */
+            /* TODO: insert list head into free list */
         }
     }
 }
@@ -61,14 +71,21 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
 
     /* Global to all clients */
     if (!client_chains) {
-
         struct rlimit rlim;
         if (0 > getrlimit(RLIMIT_NOFILE, &rlim))
             return perror("getrlimit(RLIMIT_NOFILE)"), -1;
 
         client_chains = calloc(rlim.rlim_cur, sizeof(struct list));
         if (!client_chains)
-            return perror("calloc client_chais"), -1;
+            return perror("calloc client_chains"), -1;
+
+        /* storage for multiple client chains */
+        client_heads = calloc(rlim.rlim_cur, sizeof(struct list));
+        struct list *tmp = client_heads, *tmp_end = tmp + rlim.rlim_cur;
+        if (!client_heads)
+            return perror("calloc client_heads"), -1;
+        for (;tmp != tmp_end; ++tmp)
+            list_insert_tail(&free_list, tmp);
 
         void* idle_stack = malloc(SMALL_STACK_SIZE);
         ribs_makecontext(&idle_ctx, &main_ctx, idle_stack + SMALL_STACK_SIZE, http_client_idle_handler);
