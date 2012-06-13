@@ -47,7 +47,7 @@ SSTR(HTTP_STATUS_200, "200 OK");
 SSTR(HTTP_STATUS_404, "404 Not Found");
 SSTRL(HTTP_STATUS_411, "411 Length Required");
 /* 5xx */
-SSTRL(HTTP_STATUS_500, "500 Internal Server Error");
+SSTR(HTTP_STATUS_500, "500 Internal Server Error");
 SSTRL(HTTP_STATUS_501, "501 Not Implemented");
 SSTRL(HTTP_STATUS_503, "503 Service Unavailable");
 /* content types */

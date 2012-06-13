@@ -20,7 +20,7 @@ int timeout_handler_init(struct timeout_handler *timeout_handler);
 _RIBS_INLINE_ void timeout_handler_add_fd_data(struct timeout_handler *timeout_handler, struct epoll_worker_fd_data *fd_data);
 
 #define TIMEOUT_HANDLER_REMOVE_FD_DATA(fd_data) \
-    list_remove(&fd_data->timeout_chain);
+    list_remove(&(fd_data)->timeout_chain)
 
 #include "../src/_timeout_handler.c"
 

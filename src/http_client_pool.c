@@ -28,7 +28,7 @@ uint32_t next_avail_head = 0;
 static struct ribs_context idle_ctx;
 static struct hashtable ht_persistent_clients = HASHTABLE_INITIALIZER;
 
-void http_client_close(struct http_client_pool *client_pool, struct http_client_context *cctx) {
+void http_client_free(struct http_client_pool *client_pool, struct http_client_context *cctx) {
     if (cctx->persistent) {
         int fd = RIBS_RESERVED_TO_CONTEXT(cctx)->fd;
         epoll_worker_set_fd_ctx(fd, &idle_ctx);
@@ -98,6 +98,7 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
 #define CLIENT_ERROR()                                   \
     {                                                    \
         ctx->http_status_code = 500;                     \
+        ctx->persistent = 0;                             \
         close(fd);                                       \
         return;                                          \
     }
@@ -107,8 +108,10 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
         if (res == 0)                                       \
             CLIENT_ERROR(); /* partial response */          \
         http_client_yield();                                \
-        if ((res = vmbuf_read(&ctx->response, fd)) < 0)     \
+        if ((res = vmbuf_read(&ctx->response, fd)) < 0) {   \
+            perror("read");                                 \
             CLIENT_ERROR();                                 \
+        }                                                   \
         extra;                                              \
     }
 
@@ -127,8 +130,11 @@ static inline void http_client_yield() {
 }
 
 void http_client_fiber_main(void) {
-    struct http_client_context *ctx = http_client_get_context();
+    struct http_client_context *ctx = (struct http_client_context *)current_ctx->reserved;
     int fd = current_ctx->fd;
+    struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
+    TIMEOUT_HANDLER_REMOVE_FD_DATA(fd_data);
+
     int persistent = 0;
     epoll_worker_set_last_fd(fd); /* needed in the case where epoll_wait never occured */
 
@@ -137,8 +143,10 @@ void http_client_fiber_main(void) {
      */
     int res;
     for (; (res = vmbuf_write(&ctx->request, fd)) == 0; http_client_yield());
-    if (0 > res)
+    if (0 > res) {
         perror("write");
+        CLIENT_ERROR();
+    }
     /*
      * HTTP header
      */
@@ -238,10 +246,10 @@ struct http_client_context *http_client_pool_create_client(struct http_client_po
 
         const int option = 1;
         if (0 > setsockopt(cfd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)))
-            return perror("setsockopt SO_REUSEADDR"), NULL;
+            return perror("setsockopt SO_REUSEADDR"), close(cfd), NULL;
 
         if (0 > setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, &option, sizeof(option)))
-            return perror("setsockopt TCP_NODELAY"), NULL;
+            return perror("setsockopt TCP_NODELAY"), close(cfd), NULL;
 
         struct sockaddr_in saddr = { .sin_family = AF_INET, .sin_port = htons(port), .sin_addr = addr };
         connect(cfd, (struct sockaddr *)&saddr, sizeof(saddr));
@@ -249,16 +257,18 @@ struct http_client_context *http_client_pool_create_client(struct http_client_po
         ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
         ev.data.fd = cfd;
         if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, cfd, &ev))
-            perror("epoll_ctl");
+            return perror("epoll_ctl"), close(cfd), NULL;
     }
     struct ribs_context *new_ctx = ctx_pool_get(&http_client_pool->ctx_pool);
     new_ctx->fd = cfd;
     new_ctx->data.ptr = http_client_pool;
-    epoll_worker_fd_map[cfd].ctx = new_ctx;
+    struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + cfd;
+    fd_data->ctx = new_ctx;
     ribs_makecontext(new_ctx, current_ctx, new_ctx, http_client_fiber_main);
     struct http_client_context *cctx = (struct http_client_context *)new_ctx->reserved;
     cctx->key = (struct http_client_key){ .addr = addr, .port = port };
     vmbuf_init(&cctx->request, 4096);
     vmbuf_init(&cctx->response, 4096);
+    timeout_handler_add_fd_data(&http_client_pool->timeout_handler, fd_data);
     return cctx;
 }
