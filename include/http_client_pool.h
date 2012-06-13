@@ -5,6 +5,7 @@
 #include "ctx_pool.h"
 #include "vmbuf.h"
 #include "epoll_worker.h"
+#include "timeout_handler.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -31,6 +32,7 @@ struct http_client_context {
 
 struct http_client_pool {
     struct ctx_pool ctx_pool;
+    struct timeout_handler timeout_handler;
 };
 
 int http_client_pool_init(struct http_client_pool *http_client_pool, size_t initial, size_t grow);

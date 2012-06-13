@@ -92,7 +92,7 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
 
         hashtable_init(&ht_persistent_clients, rlim.rlim_cur);
     }
-    return 0;
+    return timeout_handler_init(&http_client_pool->timeout_handler);
 }
 
 #define CLIENT_ERROR()                                   \
@@ -106,7 +106,7 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
     while(cond) {                                           \
         if (res == 0)                                       \
             CLIENT_ERROR(); /* partial response */          \
-        yield();                                            \
+        http_client_yield();                                \
         if ((res = vmbuf_read(&ctx->response, fd)) < 0)     \
             CLIENT_ERROR();                                 \
         extra;                                              \
@@ -118,6 +118,13 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
 #define READ_MORE_DATA(cond)                    \
     _READ_MORE_DATA(cond, )
 
+static inline void http_client_yield() {
+    struct http_client_pool *client_pool = (struct http_client_pool *)current_ctx->data.ptr;
+    struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + current_ctx->fd;
+    timeout_handler_add_fd_data(&client_pool->timeout_handler, fd_data);
+    yield();
+    TIMEOUT_HANDLER_REMOVE_FD_DATA(fd_data);
+}
 
 void http_client_fiber_main(void) {
     struct http_client_context *ctx = http_client_get_context();
@@ -129,7 +136,7 @@ void http_client_fiber_main(void) {
      * write request
      */
     int res;
-    for (; (res = vmbuf_write(&ctx->request, fd)) == 0; yield());
+    for (; (res = vmbuf_write(&ctx->request, fd)) == 0; http_client_yield());
     if (0 > res)
         perror("write");
     /*
