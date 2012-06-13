@@ -272,3 +272,20 @@ struct http_client_context *http_client_pool_create_client(struct http_client_po
     timeout_handler_add_fd_data(&http_client_pool->timeout_handler, fd_data);
     return cctx;
 }
+
+int http_client_pool_get_request(struct http_client_pool *http_client_pool, struct in_addr addr, uint16_t port, const char *hostname, const char *format, ...) {
+    struct http_client_context *cctx = http_client_pool_create_client(http_client_pool, addr, port);
+    if (NULL == cctx)
+        return -1;
+    vmbuf_strcpy(&cctx->request, "GET ");
+    va_list ap;
+    va_start(ap, format);
+    vmbuf_vsprintf(&cctx->request, format, ap);
+    va_end(ap);
+    vmbuf_sprintf(&cctx->request, " HTTP/1.1\r\nHost: %s\r\n\r\n", hostname);
+    if (0 > http_client_send_request(cctx)) {
+        http_client_free(http_client_pool, cctx);
+        return -1;
+    }
+    return 0;
+}
