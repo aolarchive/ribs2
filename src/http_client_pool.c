@@ -231,7 +231,7 @@ void http_client_fiber_main(void) {
         close(fd);
 }
 
-struct http_client_context *http_client_pool_create_client(struct http_client_pool *http_client_pool, struct in_addr addr, uint16_t port) {
+struct http_client_context *http_client_pool_create_client(struct http_client_pool *http_client_pool, struct in_addr addr, uint16_t port, struct ribs_context *rctx) {
     int cfd;
     struct http_client_key key = { .addr = addr, .port = port };
     uint32_t ofs = hashtable_lookup(&ht_persistent_clients, &key, sizeof(struct http_client_key));
@@ -264,7 +264,7 @@ struct http_client_context *http_client_pool_create_client(struct http_client_po
     new_ctx->data.ptr = http_client_pool;
     struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + cfd;
     fd_data->ctx = new_ctx;
-    ribs_makecontext(new_ctx, current_ctx, new_ctx, http_client_fiber_main);
+    ribs_makecontext(new_ctx, rctx ? rctx : current_ctx, new_ctx, http_client_fiber_main);
     struct http_client_context *cctx = (struct http_client_context *)new_ctx->reserved;
     cctx->key = (struct http_client_key){ .addr = addr, .port = port };
     vmbuf_init(&cctx->request, 4096);
@@ -274,7 +274,7 @@ struct http_client_context *http_client_pool_create_client(struct http_client_po
 }
 
 int http_client_pool_get_request(struct http_client_pool *http_client_pool, struct in_addr addr, uint16_t port, const char *hostname, const char *format, ...) {
-    struct http_client_context *cctx = http_client_pool_create_client(http_client_pool, addr, port);
+    struct http_client_context *cctx = http_client_pool_create_client(http_client_pool, addr, port, NULL);
     if (NULL == cctx)
         return -1;
     vmbuf_strcpy(&cctx->request, "GET ");
