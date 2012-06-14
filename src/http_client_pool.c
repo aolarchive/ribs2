@@ -236,7 +236,7 @@ struct http_client_context *http_client_pool_create_client(struct http_client_po
     struct http_client_key key = { .addr = addr, .port = port };
     uint32_t ofs = hashtable_lookup(&ht_persistent_clients, &key, sizeof(struct http_client_key));
     struct list *head;
-    if (ofs > 0 && !list_empty(head = (struct list *)hashtable_get_val(&ht_persistent_clients, ofs))) {
+    if (ofs > 0 && !list_empty(head = client_heads + *(uint32_t *)hashtable_get_val(&ht_persistent_clients, ofs))) {
         struct list *client = list_pop_head(head);
         cfd = client - client_chains;
     } else {
