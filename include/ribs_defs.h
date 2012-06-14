@@ -10,4 +10,7 @@
 
 #define _RIBS_INLINE_ static inline
 
+#define likely(x)     __builtin_expect((x),1)
+#define unlikely(x)   __builtin_expect((x),0)
+
 #endif // _RIBS_DEFS__H_
