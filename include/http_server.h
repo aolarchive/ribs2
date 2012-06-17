@@ -4,7 +4,6 @@
 #include "ribs_defs.h"
 #include "ctx_pool.h"
 #include "vmbuf.h"
-#include "epoll_worker.h"
 #include "sstr.h"
 #include "timeout_handler.h"
 

@@ -4,10 +4,7 @@
 #include "ribs_defs.h"
 #include "ctx_pool.h"
 #include "vmbuf.h"
-#include "epoll_worker.h"
 #include "timeout_handler.h"
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <netinet/in.h>
 
 struct http_client_context {
