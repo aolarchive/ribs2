@@ -16,29 +16,20 @@ int ribs_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen, int
     (void)timeout;
     int flags = fcntl(sockfd, F_GETFL);
     if (0 > fcntl(sockfd, F_SETFL, flags | O_NONBLOCK))
-        return perror("fcntl"), -1;
+        return perror("mysql_client: fcntl"), -1;
     struct epoll_event ev;
     ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
     ev.data.fd = sockfd;
-    if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, sockfd, &ev))
-        return perror("epoll_ctl"), -1;
 
-    epoll_worker_fd_map[sockfd].ctx = current_ctx;
-
-    int res;
-    while ((res = connect(sockfd, addr, addrlen)) < 0) {
-        if (errno != EAGAIN && errno != EINPROGRESS) {
-            perror("connect");
-            break;
-        }
-        dprintf(2, "waiting for connect...\n");
-        yield();
-        dprintf(2, "waiting for connect...done\n");
+    int res = connect(sockfd, addr, addrlen);
+    if (res < 0 && errno != EAGAIN && errno != EINPROGRESS) {
+        perror("mysql_client: connect");
+        return res;
     }
-    epoll_worker_fd_map[sockfd].ctx = &main_ctx;
-    /*if (0 > fcntl(sockfd, F_SETFL, flags)) */
-    /*     return perror("fcntl restore"), -1; */
-    return res;
+    if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, sockfd, &ev))
+        return perror("mysql_client: epoll_ctl"), -1;
+
+    return 0;
 }
 
 ssize_t ribs_read(int fd, void *buf, size_t count) {
