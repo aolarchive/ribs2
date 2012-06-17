@@ -24,18 +24,9 @@ int ribs_makecontext(struct ribs_context *ctx, struct ribs_context *rctx, void *
 
 struct ribs_context *ribs_context_create(size_t stack_size, void (*func)(void)) {
     void *stack;
-    stack = malloc(stack_size + sizeof(struct ribs_context) + sizeof(size_t));
+    stack = malloc(stack_size + sizeof(struct ribs_context));
     stack += stack_size;
     struct ribs_context *ctx = (struct ribs_context *)stack;
     ribs_makecontext(ctx, current_ctx, ctx, func);
-    size_t *stack_size_stored = (size_t *)ctx->reserved;
-    *stack_size_stored = stack_size;
     return ctx;
-}
-
-void ribs_context_free(struct ribs_context *ctx) {
-    void *stack = current_ctx;
-    size_t *stack_size_stored = (size_t *)ctx->reserved;
-    stack -= *stack_size_stored;
-    free(stack);
 }
