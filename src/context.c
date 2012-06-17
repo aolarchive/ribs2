@@ -32,7 +32,7 @@ static void __ribs_fiber_wrapper() {
     fw->func();
     void *stack = current_ctx;
     stack -= fw->stack_size;
-    free(stack);
+    //    free(stack);
 }
 
 struct ribs_context *ribs_context_create(size_t stack_size, void (*func)(void)) {

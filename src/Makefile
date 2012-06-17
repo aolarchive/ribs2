@@ -3,5 +3,6 @@ buildall:
 	@$(MAKE) -s -f httpd.mk
 	@$(MAKE) -s -f logplayer.mk
 	@$(MAKE) -s -f test.mk
+	@$(MAKE) -s -f test_mysql.mk
 
 include ../make/ribs.mk
