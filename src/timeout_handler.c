@@ -20,7 +20,7 @@ static void expiration_handler(void) {
             if (timercmp(&fd_data->timestamp, &ts, >)) {
                 timersub(&fd_data->timestamp, &ts, &now);
                 struct itimerspec when = {{0,0},{now.tv_sec,now.tv_usec*1000}};
-                if (0 > timerfd_settime(timeout_handler->timeout_handler_ctx.fd, 0, &when, NULL))
+                if (0 > timerfd_settime(timeout_handler->timeout_handler_ctx->fd, 0, &when, NULL))
                     perror("timerfd_settime");
                 break;
             }
@@ -35,16 +35,15 @@ int timeout_handler_init(struct timeout_handler *timeout_handler) {
     /*
      * expiration handler
      */
-    timeout_handler->timeout_handler_ctx.fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
-    if (0 > timeout_handler->timeout_handler_ctx.fd)
+    timeout_handler->timeout_handler_ctx = ribs_context_create(SMALL_STACK_SIZE, expiration_handler);
+    timeout_handler->timeout_handler_ctx->data.ptr = timeout_handler;
+    timeout_handler->timeout_handler_ctx->fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
+    if (0 > timeout_handler->timeout_handler_ctx->fd)
         return perror("timerfd_create"), -1;
-    timeout_handler->timeout_handler_stack = malloc(SMALL_STACK_SIZE);
-    ribs_makecontext(&timeout_handler->timeout_handler_ctx, &main_ctx, timeout_handler->timeout_handler_stack + SMALL_STACK_SIZE, expiration_handler);
-    timeout_handler->timeout_handler_ctx.data.ptr = timeout_handler;
     struct epoll_event ev;
     ev.events = EPOLLIN;
-    epoll_worker_fd_map[timeout_handler->timeout_handler_ctx.fd].ctx = &timeout_handler->timeout_handler_ctx;
-    ev.data.fd = timeout_handler->timeout_handler_ctx.fd;
+    epoll_worker_fd_map[timeout_handler->timeout_handler_ctx->fd].ctx = timeout_handler->timeout_handler_ctx;
+    ev.data.fd = timeout_handler->timeout_handler_ctx->fd;
     if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev))
         return perror("epoll_ctl"), -1;
     /*

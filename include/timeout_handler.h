@@ -10,8 +10,7 @@
 #include <stdio.h>
 
 struct timeout_handler {
-    struct ribs_context timeout_handler_ctx;
-    char *timeout_handler_stack;
+    struct ribs_context *timeout_handler_ctx;
     struct list timeout_chain;
     time_t timeout;
 };
