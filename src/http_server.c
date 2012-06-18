@@ -89,9 +89,8 @@ int http_server_init(struct http_server *server, size_t context_size) {
     /*
      * idle connection handler
      */
-    server->idle_stack = malloc(SMALL_STACK_SIZE);
-    ribs_makecontext(&server->idle_ctx, &main_ctx, server->idle_stack + SMALL_STACK_SIZE, http_server_idle_handler);
-    server->idle_ctx.data.ptr = server;
+    server->idle_ctx = ribs_context_create(SMALL_STACK_SIZE, http_server_idle_handler);
+    server->idle_ctx->data.ptr = server;
     /*
      * context pool
      */
@@ -145,19 +144,18 @@ int http_server_init(struct http_server *server, size_t context_size) {
     if (0 > listen(lfd, LISTEN_BACKLOG))
         return perror("listen"), -1;
 
-    server->accept_ctx.fd = lfd;
+    server->accept_ctx = ribs_context_create(ACCEPTOR_STACK_SIZE, http_server_accept_connections);
+    server->accept_ctx->fd = lfd;
+    server->accept_ctx->data.ptr = server;
     printf("listening on port: %d, backlog: %d\n", server->port, LISTEN_BACKLOG);
     return 0;
 }
 
 int http_server_init_acceptor(struct http_server *server) {
-    server->accept_stack = malloc(ACCEPTOR_STACK_SIZE);
-    ribs_makecontext(&server->accept_ctx, &main_ctx, server->accept_stack + ACCEPTOR_STACK_SIZE, http_server_accept_connections);
-    int lfd = server->accept_ctx.fd;
-    server->accept_ctx.data.ptr = server;
+    int lfd = server->accept_ctx->fd;
+    epoll_worker_fd_map[lfd].ctx = server->accept_ctx;
     struct epoll_event ev;
     ev.events = EPOLLIN;
-    epoll_worker_fd_map[lfd].ctx = &server->accept_ctx;
     ev.data.fd = lfd;
     if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, lfd, &ev))
         return perror("epoll_ctl"), -1;
@@ -176,7 +174,7 @@ void http_server_accept_connections(void) {
             continue;
 
         struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
-        fd_data->ctx = &server->idle_ctx;
+        fd_data->ctx = server->idle_ctx;
         timeout_handler_add_fd_data(&server->timeout_handler, fd_data);
 
         ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
@@ -412,7 +410,7 @@ void http_server_fiber_main(void) {
     struct http_server *server = (struct http_server *)current_ctx->data.ptr;
     if (ctx->persistent) {
         struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
-        fd_data->ctx = &server->idle_ctx;
+        fd_data->ctx = server->idle_ctx;
         timeout_handler_add_fd_data(&server->timeout_handler, fd_data);
     } else
         close(fd);

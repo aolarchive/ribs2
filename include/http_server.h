@@ -25,10 +25,8 @@ struct http_server {
     struct ctx_pool ctx_pool;
     void (*user_func)();
     /* misc ctx */
-    struct ribs_context accept_ctx;
-    void *accept_stack;
-    struct ribs_context idle_ctx;
-    char *idle_stack;
+    struct ribs_context *accept_ctx;
+    struct ribs_context *idle_ctx;
     struct timeout_handler timeout_handler;
     /* TODO: add initial buffer sizes */
 };

@@ -60,10 +60,7 @@ int main(void) {
     if (epoll_worker_init() < 0)
         exit(EXIT_FAILURE);
 
-    /* need a fiber so clients have a place to return to */
-    ribs_swapcurcontext(ribs_context_create(1024*1024, mysql_fiber));
-
-    epoll_worker_loop();
+    mysql_fiber();
 
     return 0;
 }

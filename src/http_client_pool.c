@@ -25,13 +25,13 @@ static struct list* client_chains = NULL;
 static struct list* client_heads = NULL;
 static struct list free_list = LIST_INITIALIZER(free_list);
 uint32_t next_avail_head = 0;
-static struct ribs_context idle_ctx;
+static struct ribs_context *idle_ctx;
 static struct hashtable ht_persistent_clients = HASHTABLE_INITIALIZER;
 
 void http_client_free(struct http_client_pool *client_pool, struct http_client_context *cctx) {
     if (cctx->persistent) {
         int fd = RIBS_RESERVED_TO_CONTEXT(cctx)->fd;
-        epoll_worker_set_fd_ctx(fd, &idle_ctx);
+        epoll_worker_set_fd_ctx(fd, idle_ctx);
         uint32_t ofs = hashtable_lookup(&ht_persistent_clients, &cctx->key, sizeof(struct http_client_key));
         struct list *head;
         if (0 == ofs) {
@@ -87,8 +87,7 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
         for (;tmp != tmp_end; ++tmp)
             list_insert_tail(&free_list, tmp);
 
-        void* idle_stack = malloc(SMALL_STACK_SIZE);
-        ribs_makecontext(&idle_ctx, &main_ctx, idle_stack + SMALL_STACK_SIZE, http_client_idle_handler);
+        idle_ctx = ribs_context_create(SMALL_STACK_SIZE, http_client_idle_handler);
 
         hashtable_init(&ht_persistent_clients, rlim.rlim_cur);
     }
