@@ -6,7 +6,7 @@
 #include "list.h"
 #include "mime_types.h"
 
-struct ribs_context ctx1, ctx2;
+struct ribs_context *ctx1, *ctx2;
 
 void fiber1()
 {
@@ -15,7 +15,7 @@ void fiber1()
    int i;
    for (i = 0; i < 10; ++i)
    {
-      ribs_swapcurcontext(&ctx2);
+      ribs_swapcurcontext(ctx2);
       printf("back in fiber 1: %d  %d\n", a, i);
    }
 
@@ -27,7 +27,7 @@ void fiber2()
    int i;
    for (i = 0; i < 10; ++i)
    {
-      ribs_swapcurcontext(&ctx1);
+      ribs_swapcurcontext(ctx1);
       printf("back in fiber 2: %d\n", i);
    }
 }
@@ -110,15 +110,13 @@ int main(void) {
     REPORT_TIME();
 
    const unsigned STACK_SIZE = 65536;
-   char stk1[STACK_SIZE];
-   char stk2[STACK_SIZE];
 
-   ribs_makecontext(&ctx1, current_ctx, stk1 + STACK_SIZE, fiber1);
-   ribs_makecontext(&ctx2, current_ctx, stk2 + STACK_SIZE, fiber2);
+   ctx1 = ribs_context_create(STACK_SIZE, fiber1);
+   ctx2 = ribs_context_create(STACK_SIZE, fiber2);
 
    printf("in main\n");
 
-   ribs_swapcurcontext(&ctx1);
+   ribs_swapcurcontext(ctx1);
    printf("back in main\n");
 
    return 0;

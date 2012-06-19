@@ -263,7 +263,7 @@ struct http_client_context *http_client_pool_create_client(struct http_client_po
     new_ctx->data.ptr = http_client_pool;
     struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + cfd;
     fd_data->ctx = new_ctx;
-    ribs_makecontext(new_ctx, rctx ? rctx : current_ctx, new_ctx, http_client_fiber_main);
+    ribs_makecontext(new_ctx, rctx ? rctx : current_ctx, http_client_fiber_main);
     struct http_client_context *cctx = (struct http_client_context *)new_ctx->reserved;
     cctx->key = (struct http_client_key){ .addr = addr, .port = port };
     vmbuf_init(&cctx->request, 4096);
