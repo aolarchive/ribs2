@@ -9,15 +9,13 @@ int ribs_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen, int
     int flags = fcntl(sockfd, F_GETFL);
     if (0 > fcntl(sockfd, F_SETFL, flags | O_NONBLOCK))
         return perror("mysql_client: fcntl"), -1;
-    struct epoll_event ev;
-    ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
-    ev.data.fd = sockfd;
 
     int res = connect(sockfd, addr, addrlen);
     if (res < 0 && errno != EAGAIN && errno != EINPROGRESS) {
         perror("mysql_client: connect");
         return res;
     }
+    struct epoll_event ev = { .events = EPOLLIN | EPOLLOUT | EPOLLET, .data.fd = sockfd };
     if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, sockfd, &ev))
         return perror("mysql_client: epoll_ctl"), -1;
 
