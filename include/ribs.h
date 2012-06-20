@@ -7,5 +7,6 @@
 #include "ctx_pool.h"
 #include "hashtable.h"
 #include "epoll_worker.h"
+#include "logger.h"
 
 #endif // _RIBS__H_

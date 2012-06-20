@@ -8,6 +8,7 @@
 #include <sys/time.h>
 #include <sys/timerfd.h>
 #include <stdio.h>
+#include "logger.h"
 
 struct timeout_handler {
     struct ribs_context *timeout_handler_ctx;

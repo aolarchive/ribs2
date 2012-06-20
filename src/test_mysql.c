@@ -2,12 +2,12 @@
 #include "mysql.h"
 
 void report_error(MYSQL *mysql) {
-    printf("ERROR: %s\n", mysql_error(mysql));
+    LOGGER_ERROR("%s", mysql_error(mysql));
     exit(EXIT_FAILURE);
 }
 
 void mysql_fiber() {
-    printf("here\n");
+    LOGGER_INFO("in %s", __FUNCTION__);
     MYSQL mysql;
     MYSQL_STMT *stmt = NULL;
     mysql_init(&mysql);
@@ -45,13 +45,13 @@ void mysql_fiber() {
 
     // bind
     if (0 != mysql_stmt_bind_result(stmt, bind)) {
-        printf("ERROR: %s\n", mysql_stmt_error(stmt));
+        LOGGER_ERROR("%s", mysql_stmt_error(stmt));
         return report_error(&mysql);
     }
 
     int err;
     while (0 == (err = mysql_stmt_fetch(stmt))) {
-        printf("%.*s\n", (int)bind[0].buffer_length, (char *)bind[0].buffer);
+        LOGGER_ERROR("%.*s", (int)bind[0].buffer_length, (char *)bind[0].buffer);
     }
     exit(EXIT_SUCCESS);
 }

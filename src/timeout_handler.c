@@ -21,11 +21,11 @@ static void expiration_handler(void) {
                 timersub(&fd_data->timestamp, &ts, &now);
                 struct itimerspec when = {{0,0},{now.tv_sec,now.tv_usec*1000}};
                 if (0 > timerfd_settime(timeout_handler->timeout_handler_ctx->fd, 0, &when, NULL))
-                    perror("timerfd_settime");
+                    LOGGER_PERROR("timerfd_settime");
                 break;
             }
             if (0 > shutdown(fd_data - epoll_worker_fd_map, SHUT_RDWR))
-                perror("shutdown");
+                LOGGER_PERROR("shutdown");
         }
     }
 }
@@ -39,13 +39,13 @@ int timeout_handler_init(struct timeout_handler *timeout_handler) {
     timeout_handler->timeout_handler_ctx->data.ptr = timeout_handler;
     timeout_handler->timeout_handler_ctx->fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
     if (0 > timeout_handler->timeout_handler_ctx->fd)
-        return perror("timerfd_create"), -1;
+        return LOGGER_PERROR("timerfd_create"), -1;
     struct epoll_event ev;
     ev.events = EPOLLIN;
     epoll_worker_fd_map[timeout_handler->timeout_handler_ctx->fd].ctx = timeout_handler->timeout_handler_ctx;
     ev.data.fd = timeout_handler->timeout_handler_ctx->fd;
     if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev))
-        return perror("epoll_ctl"), -1;
+        return LOGGER_PERROR("epoll_ctl"), -1;
     /*
      * timeout chain
      */

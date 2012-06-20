@@ -20,6 +20,7 @@
 #include <sys/sendfile.h>
 #include <sys/timerfd.h>
 #include "mime_types.h"
+#include "logger.h"
 
 #define ACCEPTOR_STACK_SIZE 8192
 #define MIN_HTTP_REQ_SIZE 5 // method(3) + space(1) + URI(1) + optional VER...
@@ -85,7 +86,7 @@ static void http_server_idle_handler(void) {
 
 int http_server_init(struct http_server *server, size_t context_size) {
     if (0 > mime_types_init())
-        return printf("ERROR: failed to initialize mime types\n"), -1;
+        return LOGGER_ERROR("failed to initialize mime types"), -1;
     /*
      * idle connection handler
      */
@@ -96,16 +97,16 @@ int http_server_init(struct http_server *server, size_t context_size) {
      */
     struct rlimit rlim;
     if (0 > getrlimit(RLIMIT_STACK, &rlim))
-        return perror("getrlimit(RLIMIT_STACK)"), -1;
+        return LOGGER_PERROR("getrlimit(RLIMIT_STACK)"), -1;
 
     long total_mem = sysconf(_SC_PHYS_PAGES);
     if (total_mem < 0)
-        return perror("sysconf"), -1;
+        return LOGGER_PERROR("sysconf"), -1;
     total_mem *= getpagesize();
     size_t num_ctx_in_one_map = total_mem / rlim.rlim_cur;
     /* half of total mem to start with so we don't need to enable overcommit */
     num_ctx_in_one_map >>= 1;
-    printf("pool: initial=%zu, grow=%zu\n", num_ctx_in_one_map, num_ctx_in_one_map);
+    LOGGER_INFO("http server pool: initial=%zu, grow=%zu", num_ctx_in_one_map, num_ctx_in_one_map);
     ctx_pool_init(&server->ctx_pool, num_ctx_in_one_map, num_ctx_in_one_map, rlim.rlim_cur, sizeof(struct http_server_context) + context_size);
 
     /*
@@ -120,18 +121,18 @@ int http_server_init(struct http_server *server, size_t context_size) {
     const int option = 1;
     rc = setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
     if (0 > rc)
-        return perror("setsockopt, SO_REUSEADDR"), rc;
+        return LOGGER_PERROR("setsockopt, SO_REUSEADDR"), rc;
 
     rc = setsockopt(lfd, IPPROTO_TCP, TCP_NODELAY, &option, sizeof(option));
     if (0 > rc)
-        return perror("setsockopt, TCP_NODELAY"), rc;
+        return LOGGER_PERROR("setsockopt, TCP_NODELAY"), rc;
 
     struct linger ls;
     ls.l_onoff = 0;
     ls.l_linger = 0;
     rc = setsockopt(lfd, SOL_SOCKET, SO_LINGER, (void *)&ls, sizeof(ls));
     if (0 > rc)
-        return perror("setsockopt, SO_LINGER"), rc;
+        return LOGGER_PERROR("setsockopt, SO_LINGER"), rc;
 
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(struct sockaddr_in));
@@ -139,15 +140,15 @@ int http_server_init(struct http_server *server, size_t context_size) {
     addr.sin_port = htons(server->port);
     addr.sin_addr.s_addr = INADDR_ANY;
     if (0 > bind(lfd, (struct sockaddr *)&addr, sizeof(addr)))
-        return perror("bind"), -1;
+        return LOGGER_PERROR("bind"), -1;
 
     if (0 > listen(lfd, LISTEN_BACKLOG))
-        return perror("listen"), -1;
+        return LOGGER_PERROR("listen"), -1;
 
     server->accept_ctx = ribs_context_create(ACCEPTOR_STACK_SIZE, http_server_accept_connections);
     server->accept_ctx->fd = lfd;
     server->accept_ctx->data.ptr = server;
-    printf("listening on port: %d, backlog: %d\n", server->port, LISTEN_BACKLOG);
+    LOGGER_INFO("listening on port: %d, backlog: %d", server->port, LISTEN_BACKLOG);
     return 0;
 }
 
@@ -158,7 +159,7 @@ int http_server_init_acceptor(struct http_server *server) {
     ev.events = EPOLLIN;
     ev.data.fd = lfd;
     if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, lfd, &ev))
-        return perror("epoll_ctl"), -1;
+        return LOGGER_PERROR("epoll_ctl"), -1;
 
     return timeout_handler_init(&server->timeout_handler);
 }
@@ -180,7 +181,7 @@ void http_server_accept_connections(void) {
         ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
         ev.data.fd = fd;
         if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, fd, &ev))
-            perror("epoll_ctl");
+            LOGGER_PERROR("epoll_ctl");
     }
 }
 
@@ -447,7 +448,7 @@ int http_server_sendfile(const char *filename) {
         return -2;
     struct stat st;
     if (0 > fstat(ffd, &st)) {
-        perror(filename);
+        LOGGER_PERROR(filename);
         close(ffd);
         return -2;
     }
@@ -462,7 +463,7 @@ int http_server_sendfile(const char *filename) {
     http_server_header_close();
     int option = 1;
     if (0 > setsockopt(fd, IPPROTO_TCP, TCP_CORK, &option, sizeof(option)))
-        perror("TCP_CORK set");
+        LOGGER_PERROR("TCP_CORK set");
     http_server_write();
     off_t ofs = 0;
     ssize_t res;
@@ -472,7 +473,7 @@ int http_server_sendfile(const char *filename) {
         if (res < 0) {
             if (EAGAIN == errno)
                 continue;
-            perror(filename);
+            LOGGER_PERROR(filename);
             ctx->persistent = 0;
             ret = -1;
             break;
@@ -487,7 +488,7 @@ int http_server_sendfile(const char *filename) {
     if (ctx->persistent) {
         option = 0;
         if (0 > setsockopt(fd, IPPROTO_TCP, TCP_CORK, &option, sizeof(option)))
-            perror("TCP_CORK release");
+            LOGGER_PERROR("TCP_CORK release");
     }
     return ret;
 }

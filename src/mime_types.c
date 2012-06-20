@@ -5,6 +5,7 @@
 #include <ctype.h>
 #include "hashtable.h"
 #include "sstr.h"
+#include "logger.h"
 
 SSTRL(MIME_TYPES, "/etc/mime.types");
 SSTRL(MIME_DELIMS, "\t ");
@@ -14,14 +15,14 @@ static struct hashtable ht_mime_types = HASHTABLE_INITIALIZER;
 int mime_types_init(void) {
     if (hashtable_get_size(&ht_mime_types))
         return 1;
-    printf("initializing mime types\n");
+    LOGGER_INFO("initializing mime types");
     int fd = open(MIME_TYPES, O_RDONLY);
     struct stat st;
     if (0 > fstat(fd, &st))
-        return perror("mime_types fstat"), close(fd), -1;
+        return LOGGER_PERROR("mime_types fstat"), close(fd), -1;
     void *mem = mmap(NULL, st.st_size + 1, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
     if (MAP_FAILED == mem)
-        return perror("mime_types mmap"), close(fd), -1;
+        return LOGGER_PERROR("mime_types mmap"), close(fd), -1;
 
     hashtable_init(&ht_mime_types, 4096);
     char *content = (char *)mem;

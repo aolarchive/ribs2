@@ -1,6 +1,7 @@
 #include "context.h"
 #include <stdint.h>
 #include <stdio.h>
+#include "logger.h"
 
 struct ribs_context main_ctx;
 struct ribs_context *current_ctx = &main_ctx;
@@ -25,7 +26,7 @@ struct ribs_context *ribs_context_create(size_t stack_size, void (*func)(void)) 
     void *stack;
     stack = malloc(stack_size + sizeof(struct ribs_context));
     if (!stack)
-	return perror("malloc stack"), NULL;
+	return LOGGER_PERROR("malloc stack"), NULL;
     stack += stack_size;
     struct ribs_context *ctx = (struct ribs_context *)stack;
     ribs_makecontext(ctx, current_ctx, func);

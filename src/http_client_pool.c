@@ -73,17 +73,17 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
     if (!client_chains) {
         struct rlimit rlim;
         if (0 > getrlimit(RLIMIT_NOFILE, &rlim))
-            return perror("getrlimit(RLIMIT_NOFILE)"), -1;
+            return LOGGER_PERROR("getrlimit(RLIMIT_NOFILE)"), -1;
 
         client_chains = calloc(rlim.rlim_cur, sizeof(struct list));
         if (!client_chains)
-            return perror("calloc client_chains"), -1;
+            return LOGGER_PERROR("calloc client_chains"), -1;
 
         /* storage for multiple client chains */
         client_heads = calloc(rlim.rlim_cur, sizeof(struct list));
         struct list *tmp = client_heads, *tmp_end = tmp + rlim.rlim_cur;
         if (!client_heads)
-            return perror("calloc client_heads"), -1;
+            return LOGGER_PERROR("calloc client_heads"), -1;
         for (;tmp != tmp_end; ++tmp)
             list_insert_tail(&free_list, tmp);
 
@@ -108,7 +108,7 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
             CLIENT_ERROR(); /* partial response */          \
         http_client_yield();                                \
         if ((res = vmbuf_read(&ctx->response, fd)) < 0) {   \
-            perror("read");                                 \
+            LOGGER_PERROR("read");                                 \
             CLIENT_ERROR();                                 \
         }                                                   \
         extra;                                              \
@@ -143,7 +143,7 @@ void http_client_fiber_main(void) {
     int res;
     for (; (res = vmbuf_write(&ctx->request, fd)) == 0; http_client_yield());
     if (0 > res) {
-        perror("write");
+        LOGGER_PERROR("write");
         CLIENT_ERROR();
     }
     /*
@@ -241,14 +241,14 @@ struct http_client_context *http_client_pool_create_client(struct http_client_po
     } else {
         cfd = socket(PF_INET, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
         if (0 > cfd)
-            return perror("socket"), NULL;
+            return LOGGER_PERROR("socket"), NULL;
 
         const int option = 1;
         if (0 > setsockopt(cfd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)))
-            return perror("setsockopt SO_REUSEADDR"), close(cfd), NULL;
+            return LOGGER_PERROR("setsockopt SO_REUSEADDR"), close(cfd), NULL;
 
         if (0 > setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, &option, sizeof(option)))
-            return perror("setsockopt TCP_NODELAY"), close(cfd), NULL;
+            return LOGGER_PERROR("setsockopt TCP_NODELAY"), close(cfd), NULL;
 
         struct sockaddr_in saddr = { .sin_family = AF_INET, .sin_port = htons(port), .sin_addr = addr };
         connect(cfd, (struct sockaddr *)&saddr, sizeof(saddr));
@@ -256,7 +256,7 @@ struct http_client_context *http_client_pool_create_client(struct http_client_po
         ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
         ev.data.fd = cfd;
         if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, cfd, &ev))
-            return perror("epoll_ctl"), close(cfd), NULL;
+            return LOGGER_PERROR("epoll_ctl"), close(cfd), NULL;
     }
     struct ribs_context *new_ctx = ctx_pool_get(&http_client_pool->ctx_pool);
     new_ctx->fd = cfd;

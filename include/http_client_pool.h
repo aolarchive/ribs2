@@ -5,6 +5,7 @@
 #include "ctx_pool.h"
 #include "vmbuf.h"
 #include "timeout_handler.h"
+#include "logger.h"
 #include <netinet/in.h>
 
 struct http_client_context {

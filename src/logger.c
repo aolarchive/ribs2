@@ -1,0 +1,114 @@
+#include "logger.h"
+#include "vmbuf.h"
+#include <string.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <fcntl.h>
+/*
+  TODO: move to daemonize or somewhere else...
+int logger_create(const char *logfile) {
+    if (NULL == logfile)
+        return -1;
+    int fd = -1;
+    if (logfile[0] == '|') {
+        // popen
+        ++logfile;
+        FILE *fp = popen(logfile, "w");
+        if (NULL != fp)
+            fd = fileno(fp);
+    } else {
+        // open
+        fd = open(logfile, O_CREAT | O_WRONLY | O_APPEND, 0644);
+    }
+    return fd;
+}
+*/
+
+const char *MC_INFO  = "INFO ";
+const char *MC_ERROR = "ERROR";
+
+static struct vmbuf log_buf = VMBUF_INITIALIZER;
+
+static void begin_log_line(const char *msg_class) {
+    struct tm tm, *tmp;
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    tmp = localtime_r(&tv.tv_sec, &tm);
+    vmbuf_init(&log_buf, 4096);
+    vmbuf_strftime(&log_buf, "%Y-%m-%d %H:%M:%S", tmp);
+    vmbuf_sprintf(&log_buf, ".%03d.%03d %s ", tv.tv_usec / 1000, tv.tv_usec % 1000, msg_class);
+}
+
+static inline void end_log_line(int fd) {
+    *vmbuf_wloc(&log_buf) = '\n';
+    vmbuf_wseek(&log_buf, 1);
+    vmbuf_write(&log_buf, fd);
+}
+
+void logger_log(const char *format, ...) {
+    va_list ap;
+    va_start(ap, format);
+    logger_vlog(STDOUT_FILENO, format, MC_INFO, ap);
+    va_end(ap);
+}
+
+void logger_log_at(const char *filename, unsigned int linenum, const char *format, ...) {
+    va_list ap;
+    va_start(ap, format);
+    logger_vlog_at(STDOUT_FILENO, filename, linenum, format, MC_INFO, ap);
+    va_end(ap);
+}
+
+void logger_error(const char *format, ...) {
+    va_list ap;
+    va_start(ap, format);
+    logger_vlog(STDERR_FILENO, format, MC_ERROR, ap);
+    va_end(ap);
+}
+
+void logger_error_at(const char *filename, unsigned int linenum, const char *format, ...) {
+    va_list ap;
+    va_start(ap, format);
+    logger_vlog_at(STDERR_FILENO, filename, linenum, format, MC_ERROR, ap);
+    va_end(ap);
+}
+
+void logger_perror(const char *format, ...) {
+    begin_log_line(MC_ERROR);
+    va_list ap;
+    va_start(ap, format);
+
+    char tmp[512];
+    vmbuf_vsprintf(&log_buf, format, ap);
+    vmbuf_sprintf(&log_buf, " (%s)", strerror_r(errno, tmp, 512));
+    va_end(ap);
+    end_log_line(STDERR_FILENO);
+}
+
+void logger_perror_at(const char *filename, unsigned int linenum, const char *format, ...) {
+    begin_log_line(MC_ERROR);
+    va_list ap;
+    va_start(ap, format);
+
+    vmbuf_sprintf(&log_buf, "[%s:%u]: ", filename, linenum);
+    vmbuf_vsprintf(&log_buf, format, ap);
+    char tmp[512];
+    vmbuf_sprintf(&log_buf, " (%s)", strerror_r(errno, tmp, 512));
+    va_end(ap);
+    end_log_line(STDERR_FILENO);
+}
+
+void logger_vlog(int fd, const char *format, const char *msg_class, va_list ap) {
+    begin_log_line(msg_class);
+    vmbuf_vsprintf(&log_buf, format, ap);
+    end_log_line(fd);
+}
+
+void logger_vlog_at(int fd, const char *filename, unsigned int linenum, const char *format, const char *msg_class, va_list ap) {
+    begin_log_line(msg_class);
+    vmbuf_sprintf(&log_buf, "[%s:%u]: ", filename, linenum);
+    vmbuf_vsprintf(&log_buf, format, ap);
+    end_log_line(fd);
+}
