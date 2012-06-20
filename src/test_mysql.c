@@ -1,5 +1,5 @@
 #include "ribs.h"
-#include "mysql.h"
+#include <mysql/mysql.h>
 
 void report_error(MYSQL *mysql) {
     LOGGER_ERROR("%s", mysql_error(mysql));

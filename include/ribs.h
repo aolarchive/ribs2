@@ -8,5 +8,8 @@
 #include "hashtable.h"
 #include "epoll_worker.h"
 #include "logger.h"
+#include "daemonize.h"
+#include "http_server.h"
+#include "http_client_pool.h"
 
 #endif // _RIBS__H_

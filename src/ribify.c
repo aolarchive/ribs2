@@ -4,13 +4,17 @@
 #include <fcntl.h>
 #include <errno.h>
 
+int __real_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+ssize_t __real_read(int fd, void *buf, size_t count);
+ssize_t __real_write(int fd, const void *buf, size_t count);
+
 int ribs_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen, int timeout) {
     (void)timeout;
     int flags = fcntl(sockfd, F_GETFL);
     if (0 > fcntl(sockfd, F_SETFL, flags | O_NONBLOCK))
         return LOGGER_PERROR("mysql_client: fcntl"), -1;
 
-    int res = connect(sockfd, addr, addrlen);
+    int res = __real_connect(sockfd, addr, addrlen);
     if (res < 0 && errno != EAGAIN && errno != EINPROGRESS) {
         LOGGER_PERROR("mysql_client: connect");
         return res;
@@ -22,10 +26,14 @@ int ribs_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen, int
     return 0;
 }
 
+int __wrap_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+    return ribs_connect(sockfd, addr, addrlen, 0);
+}
+
 ssize_t ribs_read(int fd, void *buf, size_t count) {
     int res;
     epoll_worker_fd_map[fd].ctx = current_ctx;
-    while ((res = read(fd, buf, count)) < 0) {
+    while ((res = __real_read(fd, buf, count)) < 0) {
         if (errno != EAGAIN) {
             LOGGER_PERROR("read");
             break;
@@ -38,10 +46,14 @@ ssize_t ribs_read(int fd, void *buf, size_t count) {
     return res;
 }
 
+ssize_t __wrap_read(int fd, void *buf, size_t count) {
+    return ribs_read(fd, buf, count);
+}
+
 ssize_t ribs_write(int fd, const void *buf, size_t count) {
     int res;
     epoll_worker_fd_map[fd].ctx = current_ctx;
-    while ((res = write(fd, buf, count)) < 0) {
+    while ((res = __real_write(fd, buf, count)) < 0) {
         if (errno != EAGAIN) {
             LOGGER_PERROR("write\n");
             break;
@@ -53,3 +65,9 @@ ssize_t ribs_write(int fd, const void *buf, size_t count) {
     epoll_worker_fd_map[fd].ctx = &main_ctx;
     return res;
 }
+
+ssize_t __wrap_write(int fd, const void *buf, size_t count) {
+    return ribs_write(fd, buf, count);
+}
+
+
