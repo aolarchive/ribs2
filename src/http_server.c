@@ -84,6 +84,8 @@ static void http_server_idle_handler(void) {
     }
 }
 
+static void http_server_accept_connections(void);
+
 int http_server_init(struct http_server *server, size_t context_size) {
     if (0 > mime_types_init())
         return LOGGER_ERROR("failed to initialize mime types"), -1;
@@ -164,7 +166,7 @@ int http_server_init_acceptor(struct http_server *server) {
     return timeout_handler_init(&server->timeout_handler);
 }
 
-void http_server_accept_connections(void) {
+static void http_server_accept_connections(void) {
     struct http_server *server = (struct http_server *)current_ctx->data.ptr;
     struct epoll_event ev;
     for (;; yield()) {

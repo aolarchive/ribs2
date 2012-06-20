@@ -19,10 +19,10 @@ int ribs_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen, int
         LOGGER_PERROR("mysql_client: connect");
         return res;
     }
+
     struct epoll_event ev = { .events = EPOLLIN | EPOLLOUT | EPOLLET, .data.fd = sockfd };
     if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, sockfd, &ev))
         return LOGGER_PERROR("mysql_client: epoll_ctl"), -1;
-
     return 0;
 }
 
@@ -55,7 +55,7 @@ ssize_t ribs_write(int fd, const void *buf, size_t count) {
     epoll_worker_fd_map[fd].ctx = current_ctx;
     while ((res = __real_write(fd, buf, count)) < 0) {
         if (errno != EAGAIN) {
-            LOGGER_PERROR("write\n");
+            LOGGER_PERROR("write");
             break;
         }
         LOGGER_INFO("waiting for write...");

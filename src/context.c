@@ -5,6 +5,7 @@
 
 struct ribs_context main_ctx;
 struct ribs_context *current_ctx = &main_ctx;
+extern void __ribs_context_exit(void);
 
 void ribs_makecontext(struct ribs_context *ctx, struct ribs_context *rctx, void (*func)(void)) {
     /* align stack to 16 bytes, assuming function always does push rbp to align
