@@ -51,7 +51,7 @@ void mysql_fiber() {
 
     int err;
     while (0 == (err = mysql_stmt_fetch(stmt))) {
-        LOGGER_ERROR("%.*s", (int)bind[0].buffer_length, (char *)bind[0].buffer);
+        LOGGER_INFO("%.*s", (int)bind[0].buffer_length, (char *)bind[0].buffer);
     }
     exit(EXIT_SUCCESS);
 }
