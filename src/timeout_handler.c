@@ -9,7 +9,7 @@ static void expiration_handler(void) {
     struct timeval when = {timeout_handler->timeout/1000,(timeout_handler->timeout%1000)*1000};
     int fd = current_ctx->fd;
     for (;;yield()) {
-        if (sizeof(num_exp) != read(fd, &num_exp, sizeof(num_exp)))
+        if (sizeof(num_exp) != __real_read(fd, &num_exp, sizeof(num_exp)))
             continue;
         struct timeval now, ts;
         gettimeofday(&now, NULL);

@@ -538,6 +538,6 @@ int http_server_generate_dir_list(const char *URI) {
     }
     vmbuf_strcpy(payload, "<tr><td colspan=3><hr></td></tr></table>");
     vmbuf_sprintf(payload, "<address>RIBS 2.0 Port %hu</address></body>", server->port);
-    vmbuf_strcpy(payload, "</body>");
+    vmbuf_strcpy(payload, "</html>");
     return error;
 }

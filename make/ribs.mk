@@ -7,7 +7,7 @@ else
 OBJ_DIR=../obj/$(OBJ_SUB_DIR)
 endif
 
-LDFLAGS+= -lrt -L../lib $(LIBS:%=-l%)
+LDFLAGS+= -lrt -L../lib $(LIBS:%=-l%) -Wl,-wrap=connect,-wrap=write,-wrap=read,-wrap=fcntl
 CFLAGS+= $(OPTFLAGS) -ggdb3 -W -Wall -Werror
 
 OBJ=$(SRC:%.c=$(OBJ_DIR)/%.o) $(ASM:%.S=$(OBJ_DIR)/%.o) 

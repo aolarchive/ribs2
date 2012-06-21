@@ -251,7 +251,7 @@ struct http_client_context *http_client_pool_create_client(struct http_client_po
             return LOGGER_PERROR("setsockopt TCP_NODELAY"), close(cfd), NULL;
 
         struct sockaddr_in saddr = { .sin_family = AF_INET, .sin_port = htons(port), .sin_addr = addr };
-        connect(cfd, (struct sockaddr *)&saddr, sizeof(saddr));
+        __real_connect(cfd, (struct sockaddr *)&saddr, sizeof(saddr));
         struct epoll_event ev;
         ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
         ev.data.fd = cfd;
