@@ -7,14 +7,12 @@
 #include <stdarg.h>
 
 int __wrap_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
-    LOGGER_INFO("ribify: connect");
     int flags=__real_fcntl(sockfd, F_GETFL);
     if (0 > __real_fcntl(sockfd, F_SETFL, flags | O_NONBLOCK))
         return LOGGER_PERROR("mysql_client: fcntl"), -1;
 
     int res = __real_connect(sockfd, addr, addrlen);
-    if (res < 0 && errno != EAGAIN && errno != EINPROGRESS) {
-        LOGGER_PERROR("mysql_client: connect");
+    if (res < 0 && errno != EINPROGRESS) {
         return res;
     }
 
@@ -41,17 +39,11 @@ int __wrap_fcntl (int fd, int cmd, ...) {
 ssize_t __wrap_read(int fd, void *buf, size_t count) {
     int res;
 
-    LOGGER_INFO("ribify: read");
-
     epoll_worker_fd_map[fd].ctx = current_ctx;
     while ((res = __real_read(fd, buf, count)) < 0) {
-        if (errno != EAGAIN) {
-            LOGGER_PERROR("read");
+        if (errno != EAGAIN)
             break;
-        }
-        LOGGER_INFO("waiting for read...");
         yield();
-        LOGGER_INFO("waiting for read...done");
     }
     epoll_worker_fd_map[fd].ctx = &main_ctx;
     return res;
@@ -59,17 +51,12 @@ ssize_t __wrap_read(int fd, void *buf, size_t count) {
 
 ssize_t __wrap_write(int fd, const void *buf, size_t count) {
     int res;
-    LOGGER_INFO("ribify: write");
 
     epoll_worker_fd_map[fd].ctx = current_ctx;
     while ((res = __real_write(fd, buf, count)) < 0) {
-        if (errno != EAGAIN) {
-            LOGGER_PERROR("write");
+        if (errno != EAGAIN)
             break;
-        }
-        LOGGER_INFO("waiting for write...");
         yield();
-        LOGGER_INFO("waiting for write...done");
     }
     epoll_worker_fd_map[fd].ctx = &main_ctx;
     return res;
