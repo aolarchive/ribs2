@@ -22,7 +22,7 @@ int __wrap_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     return 0;
 }
 
-int __wrap_fcntl (int fd, int cmd, ...) {
+int __wrap_fcntl(int fd, int cmd, ...) {
     va_list ap;
     long arg;
 
