@@ -66,6 +66,7 @@ static void http_client_idle_handler(void) {
 }
 
 int http_client_pool_init(struct http_client_pool *http_client_pool, size_t initial, size_t grow) {
+    LOGGER_INFO("http client pool: initial=%zu, grow=%zu", initial, grow);
     if (0 > ctx_pool_init(&http_client_pool->ctx_pool, initial, grow, CLIENT_STACK_SIZE, sizeof(struct http_client_context)))
         return -1;
 
