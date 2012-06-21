@@ -24,6 +24,7 @@
 
 #define ACCEPTOR_STACK_SIZE 8192
 #define MIN_HTTP_REQ_SIZE 5 // method(3) + space(1) + URI(1) + optional VER...
+#define DEFAULT_MAX_REQ_SIZE 1024*1024*1024
 
 /* methods */
 SSTRL(HEAD, "HEAD " );
@@ -47,6 +48,7 @@ SSTR(HTTP_STATUS_200, "200 OK");
 /* 4xx */
 SSTR(HTTP_STATUS_404, "404 Not Found");
 SSTRL(HTTP_STATUS_411, "411 Length Required");
+SSTRL(HTTP_STATUS_413, "413 Request Entity Too Large");
 /* 5xx */
 SSTR(HTTP_STATUS_500, "500 Internal Server Error");
 SSTRL(HTTP_STATUS_501, "501 Not Implemented");
@@ -97,19 +99,24 @@ int http_server_init(struct http_server *server, size_t context_size) {
     /*
      * context pool
      */
-    struct rlimit rlim;
-    if (0 > getrlimit(RLIMIT_STACK, &rlim))
-        return LOGGER_PERROR("getrlimit(RLIMIT_STACK)"), -1;
+    if (0 == server->stack_size || 0 == server->num_stacks) {
+        struct rlimit rlim;
+        if (0 > getrlimit(RLIMIT_STACK, &rlim))
+            return LOGGER_PERROR("getrlimit(RLIMIT_STACK)"), -1;
 
-    long total_mem = sysconf(_SC_PHYS_PAGES);
-    if (total_mem < 0)
-        return LOGGER_PERROR("sysconf"), -1;
-    total_mem *= getpagesize();
-    size_t num_ctx_in_one_map = total_mem / rlim.rlim_cur;
-    /* half of total mem to start with so we don't need to enable overcommit */
-    num_ctx_in_one_map >>= 1;
-    LOGGER_INFO("http server pool: initial=%zu, grow=%zu", num_ctx_in_one_map, num_ctx_in_one_map);
-    ctx_pool_init(&server->ctx_pool, num_ctx_in_one_map, num_ctx_in_one_map, rlim.rlim_cur, sizeof(struct http_server_context) + context_size);
+        long total_mem = sysconf(_SC_PHYS_PAGES);
+        if (total_mem < 0)
+            return LOGGER_PERROR("sysconf"), -1;
+        total_mem *= getpagesize();
+        size_t num_ctx_in_one_map = total_mem / rlim.rlim_cur;
+        /* half of total mem to start with so we don't need to enable overcommit */
+        num_ctx_in_one_map >>= 1;
+        LOGGER_INFO("http server pool: initial=%zu, grow=%zu", num_ctx_in_one_map, num_ctx_in_one_map);
+        ctx_pool_init(&server->ctx_pool, num_ctx_in_one_map, num_ctx_in_one_map, rlim.rlim_cur, sizeof(struct http_server_context) + context_size);
+    } else {
+        ctx_pool_init(&server->ctx_pool, server->num_stacks, server->num_stacks, server->stack_size, sizeof(struct http_server_context) + context_size);
+    }
+
 
     /*
      * listen socket
@@ -151,6 +158,9 @@ int http_server_init(struct http_server *server, size_t context_size) {
     server->accept_ctx->fd = lfd;
     server->accept_ctx->data.ptr = server;
     LOGGER_INFO("listening on port: %d, backlog: %d", server->port, LISTEN_BACKLOG);
+
+    if (server->max_req_size == 0)
+        server->max_req_size = DEFAULT_MAX_REQ_SIZE;
     return 0;
 }
 
@@ -245,7 +255,15 @@ void http_server_header_content_length() {
     if (0 >= res) {                                                     \
         close(fd); /* remote side closed or other error occured */      \
         return;                                                         \
+    }                                                                   \
+    if (vmbuf_wlocpos(&ctx->request) > max_req_size) {                  \
+        ctx->persistent = 0;                                            \
+        http_server_response(HTTP_STATUS_413, HTTP_CONTENT_TYPE_TEXT_PLAIN); \
+        http_server_write();                                            \
+        close(fd);                                                      \
+        return;                                                         \
     }
+
 
 static inline void http_server_yield() {
     struct http_server *server = (struct http_server *)current_ctx->data.ptr;
@@ -291,6 +309,7 @@ inline void http_server_write() {
 
 void http_server_fiber_main(void) {
     struct http_server_context *ctx = http_server_get_context();
+    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
     int fd = current_ctx->fd;
 
     char *URI;
@@ -300,15 +319,11 @@ void http_server_fiber_main(void) {
     int res;
     ctx->persistent = 0;
 
-    vmbuf_init(&ctx->request, 4096);
-    vmbuf_init(&ctx->header, 4096);
-    vmbuf_init(&ctx->payload, 64*1024);
+    vmbuf_init(&ctx->request, server->init_request_size);
+    vmbuf_init(&ctx->header, server->init_header_size);
+    vmbuf_init(&ctx->payload, server->init_payload_size);
+    size_t max_req_size = server->max_req_size;
 
-    /*
-      TODO:
-      if (inbuf.wlocpos() > max_req_size)
-      return response(HTTP_STATUS_413, HTTP_CONTENT_TYPE_TEXT_PLAIN);
-    */
     for (;; http_server_yield()) {
         READ_FROM_SOCKET();
         if (vmbuf_wlocpos(&ctx->request) > MIN_HTTP_REQ_SIZE)
@@ -410,7 +425,6 @@ void http_server_fiber_main(void) {
         http_server_write();
     }
 
-    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
     if (ctx->persistent) {
         struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
         fd_data->ctx = server->idle_ctx;

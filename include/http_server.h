@@ -28,8 +28,17 @@ struct http_server {
     struct ribs_context *accept_ctx;
     struct ribs_context *idle_ctx;
     struct timeout_handler timeout_handler;
-    /* TODO: add initial buffer sizes */
+    size_t stack_size; /* set to zero for auto */
+    size_t num_stacks; /* set to zero for auto */
+    size_t init_request_size;
+    size_t init_header_size;
+    size_t init_payload_size;
+    size_t max_req_size;
 };
+
+#define HTTP_SERVER_INIT_DEFAULTS .stack_size = 0, .num_stacks = 0, .init_request_size = 8*1024, .init_header_size = 8*1024, .init_payload_size = 8*1024, .max_req_size = 0
+#define HTTP_SERVER_INITIALIZER { HTTP_SERVER_INIT_DEFAULTS }
+
 
 SSTREXTRN(HTTP_STATUS_200);
 SSTREXTRN(HTTP_STATUS_404);
