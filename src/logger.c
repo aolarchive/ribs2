@@ -26,8 +26,8 @@ int logger_create(const char *logfile) {
 }
 */
 
-const char *MC_INFO  = "INFO ";
-const char *MC_ERROR = "ERROR";
+static const char *MC_INFO  = "INFO ";
+static const char *MC_ERROR = "ERROR";
 
 static struct vmbuf log_buf = VMBUF_INITIALIZER;
 

@@ -1,7 +1,9 @@
 #ifndef _RIBS_DEFS__H_
 #define _RIBS_DEFS__H_
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 
 #include <stddef.h>
 #include <unistd.h>

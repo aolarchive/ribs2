@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include "http_server.h"
 #include "uri_decode.h"
 #include <sys/types.h>
