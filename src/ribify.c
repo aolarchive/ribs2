@@ -6,12 +6,13 @@
 #include <sys/socket.h>
 #include <stdarg.h>
 
-int __wrap_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
-    int flags=__real_fcntl(sockfd, F_GETFL);
-    if (0 > __real_fcntl(sockfd, F_SETFL, flags | O_NONBLOCK))
+int ribs_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+    LOGGER_INFO("connect");
+    int flags=fcntl(sockfd, F_GETFL);
+    if (0 > fcntl(sockfd, F_SETFL, flags | O_NONBLOCK))
         return LOGGER_PERROR("mysql_client: fcntl"), -1;
 
-    int res = __real_connect(sockfd, addr, addrlen);
+    int res = connect(sockfd, addr, addrlen);
     if (res < 0 && errno != EINPROGRESS) {
         return res;
     }
@@ -22,7 +23,8 @@ int __wrap_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     return 0;
 }
 
-int __wrap_fcntl(int fd, int cmd, ...) {
+int ribs_fcntl(int fd, int cmd, ...) {
+    LOGGER_INFO("fcntl");
     va_list ap;
     long arg;
 
@@ -33,29 +35,33 @@ int __wrap_fcntl(int fd, int cmd, ...) {
     if (F_SETFL == cmd)
         arg |= O_NONBLOCK;
 
-    return __real_fcntl(fd, cmd, arg);
+    return fcntl(fd, cmd, arg);
 }
 
-ssize_t __wrap_read(int fd, void *buf, size_t count) {
+ssize_t ribs_read(int fd, void *buf, size_t count) {
+    LOGGER_INFO("read");
     int res;
 
     epoll_worker_fd_map[fd].ctx = current_ctx;
-    while ((res = __real_read(fd, buf, count)) < 0) {
+    while ((res = read(fd, buf, count)) < 0) {
         if (errno != EAGAIN)
             break;
+        LOGGER_INFO("yield");
         yield();
     }
     epoll_worker_fd_map[fd].ctx = &main_ctx;
     return res;
 }
 
-ssize_t __wrap_write(int fd, const void *buf, size_t count) {
+ssize_t ribs_write(int fd, const void *buf, size_t count) {
+    LOGGER_INFO("write");
     int res;
 
     epoll_worker_fd_map[fd].ctx = current_ctx;
-    while ((res = __real_write(fd, buf, count)) < 0) {
+    while ((res = write(fd, buf, count)) < 0) {
         if (errno != EAGAIN)
             break;
+        LOGGER_INFO("yield");
         yield();
     }
     epoll_worker_fd_map[fd].ctx = &main_ctx;

@@ -16,9 +16,4 @@
 #define likely(x)     __builtin_expect((x),1)
 #define unlikely(x)   __builtin_expect((x),0)
 
-int __real_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
-ssize_t __real_read(int fd, void *buf, size_t count);
-ssize_t __real_write(int fd, const void *buf, size_t count);
-int __real_fcntl (int fd, int cmd, ...);
-
 #endif // _RIBS_DEFS__H_

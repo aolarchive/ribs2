@@ -232,7 +232,7 @@ _RIBS_INLINE_ void vmbuf_remove_last_if(struct vmbuf *vmb, char c) {
 _RIBS_INLINE_ int vmbuf_read(struct vmbuf *vmb, int fd) {
     ssize_t res;
     ssize_t wavail;
-    while (0 < (res = __real_read(fd, vmbuf_wloc(vmb), wavail = vmbuf_wavail(vmb)))) {
+    while (0 < (res = read(fd, vmbuf_wloc(vmb), wavail = vmbuf_wavail(vmb)))) {
         if (0 > vmbuf_wseek(vmb, res))
             return -1;
         if (res < wavail)
@@ -247,7 +247,7 @@ _RIBS_INLINE_ int vmbuf_write(struct vmbuf *vmb, int fd) {
     ssize_t res;
     size_t rav;
     while ((rav = vmbuf_ravail(vmb)) > 0) {
-        res = __real_write(fd, vmbuf_rloc(vmb), vmbuf_ravail(vmb));
+        res = write(fd, vmbuf_rloc(vmb), vmbuf_ravail(vmb));
         if (res < 0)
             return (EAGAIN == errno ? 0 : -1);
         else if (res > 0)

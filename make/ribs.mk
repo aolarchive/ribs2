@@ -7,13 +7,17 @@ else
 OBJ_DIR=../obj/$(OBJ_SUB_DIR)
 endif
 
-LDFLAGS+= -lrt -L../lib $(LIBS:%=-l%) -Wl,-wrap=connect,-wrap=write,-wrap=read,-wrap=fcntl
+LDFLAGS+= -lrt -L../lib $(LIBS:%=-l%) 
 CFLAGS+= $(OPTFLAGS) -ggdb3 -W -Wall -Werror
+
+RIBIFIED=$(notdir $(RIBIFY))
+RIBIFYFLAGS+= --redefine-sym write=ribs_write --redefine-sym read=ribs_read --redefine-sym connect=ribs_connect --redefine-sym fcntl=ribs_fcntl
+RIBIFIED_TARGET=$(RIBIFIED:%=../ribified/%)
 
 OBJ=$(SRC:%.c=$(OBJ_DIR)/%.o) $(ASM:%.S=$(OBJ_DIR)/%.o) 
 DEP=$(SRC:%.c=$(OBJ_DIR)/%.d)
 
-DIRS=$(OBJ_DIR)/.dir ../bin/.dir ../lib/.dir
+DIRS=$(OBJ_DIR)/.dir ../bin/.dir ../lib/.dir ../ribified/.dir
 
 ifeq ($(TARGET:%.a=%).a,$(TARGET))
 LIB_OBJ:=$(OBJ)
@@ -25,20 +29,20 @@ endif
 all: $(TARGET_FILE)
 
 $(DIRS):
-	@echo "  (MKDIR) -p $(@:%/.dir=%)"
+	@echo "  (MKDIR)  -p $(@:%/.dir=%)"
 	@-mkdir -p $(@:%/.dir=%)
 	@touch $@
 
 $(OBJ_DIR)/%.o: %.c $(OBJ_DIR)/%.d
-	@echo "  (C)    $*.c  [ -c $(CFLAGS) $*.c -o $(OBJ_DIR)/$*.o ]"
+	@echo "  (C)      $*.c  [ -c $(CFLAGS) $*.c -o $(OBJ_DIR)/$*.o ]"
 	@$(CC) -c $(CFLAGS) $*.c -o $(OBJ_DIR)/$*.o
 
 $(OBJ_DIR)/%.o: %.S
-	@echo "  (ASM)  $*.S  [ -c $(CFLAGS) $*.S -o $(OBJ_DIR)/$*.o ]"
+	@echo "  (ASM)    $*.S  [ -c $(CFLAGS) $*.S -o $(OBJ_DIR)/$*.o ]"
 	@$(CC) -c $(CFLAGS) $*.S -o $(OBJ_DIR)/$*.o
 
 $(OBJ_DIR)/%.d: %.c
-	@echo "  (DEP)  $*.c"
+	@echo "  (DEP)    $*.c"
 	@$(CC) -MM $(CFLAGS) $(INCLUDES) $*.c | sed -e 's|.*:|$(OBJ_DIR)/$*.o:|' > $@
 
 $(OBJ): $(DIRS)
@@ -46,15 +50,19 @@ $(OBJ): $(DIRS)
 $(DEP): $(DIRS)
 
 ../lib/%: $(LIB_OBJ)
-	@echo "  (AR)   $(@:../lib/%=%)  [ rcs $@ $^ ]"
+	@echo "  (AR)     $(@:../lib/%=%)  [ rcs $@ $^ ]"
 	@ar rcs $@ $^
 
-../bin/%: $(OBJ) $(LIBS:%=../lib/lib%.a)
-	@echo "  (LD)   $(@:../bin/%=%)  [ -o $@ $(OBJ) $(LDFLAGS) ]"
+$(RIBIFIED_TARGET): $(RIBIFY)
+	@echo "  (RIBIFY) $(@:../ribified/%=%) [ $^ $@ $(RIBIFYFLAGS) ]"
+	@objcopy $^ $@ $(RIBIFYFLAGS)
+
+../bin/%: $(OBJ) $(LIBS:%=../lib/lib%.a) $(RIBIFIED_TARGET)
+	@echo "  (LD)     $(@:../bin/%=%)  [ -o $@ $(OBJ) $(LDFLAGS) ]"
 	@$(CC) -o $@ $(OBJ) $(LDFLAGS)
 
 $(DIRS:%=RM_%):
-	@echo "  (RM)   $(@:RM_%/.dir=%)/*"
+	@echo "  (RM)     $(@:RM_%/.dir=%)/*"
 	@-rm -f $(@:RM_%/.dir=%)/*
 
 clean: $(DIRS:%=RM_%)
