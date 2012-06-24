@@ -10,9 +10,7 @@ endif
 LDFLAGS+= -lrt -L../lib $(LIBS:%=-l%) 
 CFLAGS+= $(OPTFLAGS) -ggdb3 -W -Wall -Werror
 
-RIBIFIED=$(notdir $(RIBIFY))
 RIBIFYFLAGS+= --redefine-sym write=ribs_write --redefine-sym read=ribs_read --redefine-sym connect=ribs_connect --redefine-sym fcntl=ribs_fcntl
-RIBIFIED_TARGET=$(RIBIFIED:%=../ribified/%)
 
 OBJ=$(SRC:%.c=$(OBJ_DIR)/%.o) $(ASM:%.S=$(OBJ_DIR)/%.o) 
 DEP=$(SRC:%.c=$(OBJ_DIR)/%.d)
@@ -53,11 +51,13 @@ $(DEP): $(DIRS)
 	@echo "  (AR)     $(@:../lib/%=%)  [ rcs $@ $^ ]"
 	@ar rcs $@ $^
 
-$(RIBIFIED_TARGET): $(RIBIFY)
-	@echo "  (RIBIFY) $(@:../ribified/%=%) [ $^ $@ $(RIBIFYFLAGS) ]"
-	@objcopy $^ $@ $(RIBIFYFLAGS)
+.PRECIOUS: $(RIBIFY:%=../ribified/%)
 
-../bin/%: $(OBJ) $(LIBS:%=../lib/lib%.a) $(RIBIFIED_TARGET)
+../ribified/%:
+	@echo "  (RIBIFY) $(@:../ribified/%=%) [ $@ $(RIBIFYFLAGS) ]"
+	@objcopy $(shell find /usr/lib -name $(@:../ribified/%=%)) $@ $(RIBIFYFLAGS)
+
+../bin/%: $(OBJ) $(LIBS:%=../lib/lib%.a) $(RIBIFY:%=../ribified/%)
 	@echo "  (LD)     $(@:../bin/%=%)  [ -o $@ $(OBJ) $(LDFLAGS) ]"
 	@$(CC) -o $@ $(OBJ) $(LDFLAGS)
 
