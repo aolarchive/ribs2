@@ -179,18 +179,18 @@ int ribs_getaddrinfo(const char *node, const char *service,
     LOGGER_INFO("getaddrinfo_a: %d", res);
     if (!res) {
         epoll_worker_fd_map[efd].ctx = current_ctx;
- 
+
         LOGGER_INFO("yield");
         yield();
         res = gai_error(cb_p[0]);
         *results = cb.ar_result;
         LOGGER_INFO("gai_error: %d", res);
- 
+
         char host[NI_MAXHOST];
         struct addrinfo *resi;
- 
+
         LOGGER_INFO(" %s: ", cb_p[0]->ar_name);
- 
+
         if (!res) {
              resi = cb_p[0]->ar_result;
 
