@@ -11,7 +11,7 @@ void mysql_fiber() {
     MYSQL mysql;
     MYSQL_STMT *stmt = NULL;
     mysql_init(&mysql);
-    if (NULL == mysql_real_connect(&mysql, "192.168.32.254", "ribs", "12345", "ribs_test", 3306, NULL, 0))
+    if (NULL == mysql_real_connect(&mysql, "127.0.0.1", "ribs", "12345", "ribs_test", 3306, NULL, 0))
         report_error(&mysql);
     my_bool b_flag = 0;
     if (0 != mysql_options(&mysql, MYSQL_REPORT_DATA_TRUNCATION, (const char *)&b_flag))
