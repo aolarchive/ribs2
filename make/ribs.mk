@@ -7,7 +7,7 @@ else
 OBJ_DIR=../obj/$(OBJ_SUB_DIR)
 endif
 
-LDFLAGS+=-L../lib $(LIBS:%=-l%) 
+LDFLAGS+=-L../lib $(LIBS:%=-l%) -lanl
 CFLAGS+=$(OPTFLAGS) -ggdb3 -W -Wall -Werror
 
 RIBIFYFLAGS+= \
@@ -22,7 +22,7 @@ RIBIFYFLAGS+= \
 --redefine-sym writev=ribs_writev \
 --redefine-sym getaddrinfo=ribs_getaddrinfo
 
-OBJ=$(SRC:%.c=$(OBJ_DIR)/%.o) $(ASM:%.S=$(OBJ_DIR)/%.o) 
+OBJ=$(SRC:%.c=$(OBJ_DIR)/%.o) $(ASM:%.S=$(OBJ_DIR)/%.o)
 DEP=$(SRC:%.c=$(OBJ_DIR)/%.d)
 
 DIRS=$(OBJ_DIR)/.dir ../bin/.dir ../lib/.dir ../ribified/.dir
@@ -68,8 +68,7 @@ $(DEP): $(DIRS)
 	@objcopy $(shell find /usr/lib -name $(@:../ribified/%=%)) $@ $(RIBIFYFLAGS)
 
 ../bin/%: $(OBJ) $(LIBS:%=../lib/lib%.a) $(RIBIFY:%=../ribified/%)
-	@echo "  (LD)     $(@:../bin/%=%)  [ $(CC) -o $@ $(OBJ) $(LDFLAGS) ]"
-	@echo "$(CC) -o $@ $(OBJ) $(LDFLAGS)"
+	@echo "  (LD)     $(@:../bin/%=%)  [ -o $@ $(OBJ) $(LDFLAGS) ]"
 	@$(CC) -o $@ $(OBJ) $(LDFLAGS)
 
 $(DIRS:%=RM_%):
