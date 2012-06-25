@@ -7,10 +7,20 @@ else
 OBJ_DIR=../obj/$(OBJ_SUB_DIR)
 endif
 
-LDFLAGS+= -lrt -L../lib $(LIBS:%=-l%) 
-CFLAGS+= $(OPTFLAGS) -ggdb3 -W -Wall -Werror
+LDFLAGS+=-L../lib $(LIBS:%=-l%) 
+CFLAGS+=$(OPTFLAGS) -ggdb3 -W -Wall -Werror
 
-RIBIFYFLAGS+= --redefine-sym write=ribs_write --redefine-sym read=ribs_read --redefine-sym connect=ribs_connect --redefine-sym fcntl=ribs_fcntl
+RIBIFYFLAGS+= \
+--redefine-sym write=ribs_write \
+--redefine-sym read=ribs_read \
+--redefine-sym connect=ribs_connect \
+--redefine-sym fcntl=ribs_fcntl \
+--redefine-sym recvfrom=ribs_recvfrom \
+--redefine-sym send=ribs_send \
+--redefine-sym recv=ribs_recv \
+--redefine-sym readv=ribs_readv \
+--redefine-sym writev=ribs_writev \
+--redefine-sym getaddrinfo=ribs_getaddrinfo
 
 OBJ=$(SRC:%.c=$(OBJ_DIR)/%.o) $(ASM:%.S=$(OBJ_DIR)/%.o) 
 DEP=$(SRC:%.c=$(OBJ_DIR)/%.d)
@@ -58,7 +68,8 @@ $(DEP): $(DIRS)
 	@objcopy $(shell find /usr/lib -name $(@:../ribified/%=%)) $@ $(RIBIFYFLAGS)
 
 ../bin/%: $(OBJ) $(LIBS:%=../lib/lib%.a) $(RIBIFY:%=../ribified/%)
-	@echo "  (LD)     $(@:../bin/%=%)  [ -o $@ $(OBJ) $(LDFLAGS) ]"
+	@echo "  (LD)     $(@:../bin/%=%)  [ $(CC) -o $@ $(OBJ) $(LDFLAGS) ]"
+	@echo "$(CC) -o $@ $(OBJ) $(LDFLAGS)"
 	@$(CC) -o $@ $(OBJ) $(LDFLAGS)
 
 $(DIRS:%=RM_%):
