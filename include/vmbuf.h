@@ -28,9 +28,6 @@
 #include <string.h>
 #include <time.h>
 
-#define CAT(X,Y) X##_##Y
-#define TEMPLATE(X,Y) CAT(X,Y)
-
 #define PAGEMASK 4095
 #define PAGESIZE 4096
 

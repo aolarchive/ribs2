@@ -5,6 +5,7 @@
 #include <sys/time.h>
 #include "list.h"
 #include "mime_types.h"
+#include "ds.h"
 
 struct ribs_context *ctx1, *ctx2;
 
@@ -48,6 +49,19 @@ struct my_struct {
 };
 
 int main(void) {
+    DS_FIELD(uint32_t) ds_my_field1 = DS_FIELD_INITIALIZER;
+    int r;
+    for (r = 0; r < 100; ++r) {
+        if (0 > DS_FIELD_INIT(uint32_t, &ds_my_field1, "test.ds"))
+            break;
+        printf("via GET_VAL = %u\n", DS_FIELD_GET_VAL(&ds_my_field1, 1));
+        uint32_t *my_field1 = DS_FIELD_BEGIN(&ds_my_field1);
+        uint32_t *my_field1_end = DS_FIELD_END(&ds_my_field1);
+
+        for (; my_field1 != my_field1_end; ++my_field1)
+            printf("my_field = %u\n", *my_field1);
+    }
+
     if (0 > mime_types_init())
         return printf("ERROR: mime types\n"), 1;
 

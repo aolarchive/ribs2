@@ -20,5 +20,6 @@ void logger_vlog_at(int fd, const char *filename, unsigned int linenum, const ch
 #define LOGGER_ERROR_EXIT(ec, format, ...) { logger_error_at(LOGGER_WHERE, format, ##__VA_ARGS__); exit(ec); }
 #define LOGGER_PERROR(format, ...) logger_perror_at(LOGGER_WHERE, format, ##__VA_ARGS__)
 #define LOGGER_PERROR_EXIT(ec, format, ...) { logger_perror_at(LOGGER_WHERE, format, ##__VA_ARGS__); exit(ec); }
+#define LOGGER_PERROR_FUNC(S) logger_perror_at(LOGGER_WHERE, "%s, %s", S, __FUNCTION__)
 
 #endif // _LOGGER__H_
