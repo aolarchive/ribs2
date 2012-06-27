@@ -9,11 +9,12 @@
 #define _GNU_SOURCE
 #include <netdb.h>
 #include <sys/eventfd.h>
+#include <signal.h>
 
 int ribs_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     int flags=fcntl(sockfd, F_GETFL);
     if (0 > fcntl(sockfd, F_SETFL, flags | O_NONBLOCK))
-        return LOGGER_PERROR("mysql_client: fcntl"), -1;
+        return LOGGER_PERROR("fcntl"), -1;
 
     int res = connect(sockfd, addr, addrlen);
     if (res < 0 && errno != EINPROGRESS) {
@@ -22,7 +23,7 @@ int ribs_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 
     struct epoll_event ev = { .events = EPOLLIN | EPOLLOUT | EPOLLET, .data.fd = sockfd };
     if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, sockfd, &ev))
-        return LOGGER_PERROR("mysql_client: epoll_ctl"), -1;
+        return LOGGER_PERROR("epoll_ctl"), -1;
     return 0;
 }
 
@@ -132,12 +133,6 @@ ssize_t ribs_writev(int fd, const struct iovec *iov, int iovcnt) {
     return res;
 }
 
-static void sig_to_eventfd(union sigval fd) {
-    long i = 1;
-    if (sizeof(i) != write(fd.sival_int, &i, sizeof(i)))
-        LOGGER_PERROR("write");
-}
-
 int ribs_getaddrinfo(const char *node, const char *service,
                      const struct addrinfo *hints,
                      struct addrinfo **results) {
@@ -152,10 +147,9 @@ int ribs_getaddrinfo(const char *node, const char *service,
         return LOGGER_PERROR("epoll_ctl"), close(efd), -1;
 
     struct sigevent sevp;
-    sevp.sigev_notify = SIGEV_THREAD;
-    sevp.sigev_signo = 0;
-    sevp.sigev_value.sival_int = efd;
-    sevp.sigev_notify_function = sig_to_eventfd;
+    sevp.sigev_notify = SIGEV_SIGNAL;
+    sevp.sigev_signo = SIGIO;
+    sevp.sigev_value.sival_ptr = current_ctx;
     sevp.sigev_notify_attributes = NULL;
 
     int res = getaddrinfo_a(GAI_NOWAIT, &cb_p[0], 1, &sevp);

@@ -5,6 +5,7 @@
 #include <sys/resource.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <sys/signalfd.h>
 #include "logger.h"
 
 int ribs_epoll_fd = -1;
@@ -12,6 +13,18 @@ struct epoll_event last_epollev;
 struct epoll_worker_fd_data *epoll_worker_fd_map;
 
 LIST_CREATE(epoll_worker_timeout_chain);
+
+static void sigio_to_context(void) {
+    struct signalfd_siginfo siginfo;
+    while(1) {
+       int res = read(last_epollev.data.fd, &siginfo, sizeof(struct signalfd_siginfo));
+       if (sizeof(struct signalfd_siginfo) != res || NULL == (void *)siginfo.ssi_ptr) {
+           LOGGER_PERROR("sigio_to_ctx got NULL or < 128 bytes: %d", res);
+           yield();
+       } else
+           ribs_swapcurcontext((void *)siginfo.ssi_ptr);
+    }
+}
 
 int epoll_worker_init(void) {
     struct rlimit rlim;
@@ -24,8 +37,24 @@ int epoll_worker_init(void) {
     sigset_t set;
     sigemptyset(&set);
     sigaddset(&set, SIGPIPE);
+    sigaddset(&set, SIGIO);
     if (-1 == sigprocmask(SIG_BLOCK, &set, NULL))
         return LOGGER_PERROR("sigprocmask"), -1;
+
+    sigdelset(&set, SIGPIPE);
+    int sfd = signalfd(-1, &set, SFD_NONBLOCK);
+    if (0 > sfd)
+        return LOGGER_PERROR("signalfd"), -1;
+
+    struct epoll_event ev = { .events = EPOLLIN, .data.fd = sfd };
+    if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, sfd, &ev))
+        return LOGGER_PERROR("epoll_ctl"), -1;
+
+    void *ctx=ribs_context_create(4096, sigio_to_context);
+    if (NULL == ctx)
+        return LOGGER_PERROR("ribs_context_create"), -1;
+
+    epoll_worker_fd_map[sfd].ctx=ctx;
     return 0;
 }
 
