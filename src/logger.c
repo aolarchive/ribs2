@@ -75,6 +75,13 @@ void logger_error_at(const char *filename, unsigned int linenum, const char *for
     va_end(ap);
 }
 
+void logger_error_func_at(const char *filename, unsigned int linenum, const char *funcname, const char *format, ...) {
+    va_list ap;
+    va_start(ap, format);
+    logger_vlog_func_at(STDERR_FILENO, filename, linenum, funcname, format, MC_ERROR, ap);
+    va_end(ap);
+}
+
 void logger_perror(const char *format, ...) {
     begin_log_line(MC_ERROR);
     va_list ap;
@@ -100,6 +107,20 @@ void logger_perror_at(const char *filename, unsigned int linenum, const char *fo
     end_log_line(STDERR_FILENO);
 }
 
+void logger_perror_func_at(const char *filename, unsigned int linenum, const char *funcname, const char *format, ...) {
+    begin_log_line(MC_ERROR);
+    va_list ap;
+    va_start(ap, format);
+
+    vmbuf_sprintf(&log_buf, "[%s:%u] %s(): ", filename, linenum, funcname);
+    vmbuf_vsprintf(&log_buf, format, ap);
+    char tmp[512];
+    vmbuf_sprintf(&log_buf, " (%s)", strerror_r(errno, tmp, 512));
+    va_end(ap);
+    end_log_line(STDERR_FILENO);
+}
+
+
 void logger_vlog(int fd, const char *format, const char *msg_class, va_list ap) {
     begin_log_line(msg_class);
     vmbuf_vsprintf(&log_buf, format, ap);
@@ -109,6 +130,13 @@ void logger_vlog(int fd, const char *format, const char *msg_class, va_list ap) 
 void logger_vlog_at(int fd, const char *filename, unsigned int linenum, const char *format, const char *msg_class, va_list ap) {
     begin_log_line(msg_class);
     vmbuf_sprintf(&log_buf, "[%s:%u]: ", filename, linenum);
+    vmbuf_vsprintf(&log_buf, format, ap);
+    end_log_line(fd);
+}
+
+void logger_vlog_func_at(int fd, const char *filename, unsigned int linenum, const char *funcname, const char *format, const char *msg_class, va_list ap) {
+    begin_log_line(msg_class);
+    vmbuf_sprintf(&log_buf, "[%s:%u] %s(): ", filename, linenum, funcname);
     vmbuf_vsprintf(&log_buf, format, ap);
     end_log_line(fd);
 }
