@@ -9,6 +9,7 @@ endif
 
 LDFLAGS+=-L../lib $(LIBS:%=-l%) -lanl
 CFLAGS+=$(OPTFLAGS) -ggdb3 -W -Wall -Werror
+ASFLAGS+=-g
 
 RIBIFYFLAGS+= \
 --redefine-sym write=ribs_write \
@@ -47,7 +48,7 @@ $(OBJ_DIR)/%.o: %.c $(OBJ_DIR)/%.d
 
 $(OBJ_DIR)/%.o: %.S
 	@echo "  (ASM)    $*.S  [ -c $(CFLAGS) $*.S -o $(OBJ_DIR)/$*.o ]"
-	@$(CC) -c $(CFLAGS) $*.S -o $(OBJ_DIR)/$*.o
+	@$(AS) $(ASFLAGS) $*.S -o $(OBJ_DIR)/$*.o
 
 $(OBJ_DIR)/%.d: %.c
 	@echo "  (DEP)    $*.c"
@@ -59,7 +60,7 @@ $(DEP): $(DIRS)
 
 ../lib/%: $(LIB_OBJ)
 	@echo "  (AR)     $(@:../lib/%=%)  [ rcs $@ $^ ]"
-	@ar rcs $@ $^
+	@$(AR) rcs $@ $^
 
 .PRECIOUS: $(RIBIFY:%=../ribified/%)
 
@@ -73,7 +74,7 @@ $(DEP): $(DIRS)
 
 $(DIRS:%=RM_%):
 	@echo "  (RM)     $(@:RM_%/.dir=%)/*"
-	@-rm -f $(@:RM_%/.dir=%)/*
+	@-$(RM) $(@:RM_%/.dir=%)/*
 
 clean: $(DIRS:%=RM_%)
 
