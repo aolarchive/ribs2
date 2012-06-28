@@ -16,9 +16,15 @@ static int report_stmt_error(struct mysql_helper *mysql_helper) {
     return -1;
 }
 
-int mysql_helper_select(struct mysql_helper *mysql_helper, const char *host, const char *user, const char *pass, const char *db, unsigned int port, const char *query, size_t query_len, const char *fields, ...) {
+int mysql_helper_select(struct mysql_helper *mysql_helper, const char *query, size_t query_len, const char *fields, ...) {
     mysql_init(&mysql_helper->mysql);
-    if (NULL == mysql_real_connect(&mysql_helper->mysql, host, user, pass, db, port, NULL, 0))
+    if (NULL == mysql_real_connect(&mysql_helper->mysql,
+                                   mysql_helper->host,
+                                   mysql_helper->user,
+                                   mysql_helper->pass,
+                                   mysql_helper->db,
+                                   mysql_helper->port,
+                                   NULL, 0))
         return report_error(mysql_helper);
         my_bool b_flag = 0;
     if (0 != mysql_options(&mysql_helper->mysql, MYSQL_REPORT_DATA_TRUNCATION, (const char *)&b_flag))
