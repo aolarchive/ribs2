@@ -1,5 +1,4 @@
 #include "http_server.h"
-#include "uri_decode.h"
 #include <sys/types.h>
 #include <dirent.h>
 #include <sys/socket.h>
@@ -58,7 +57,7 @@ SSTR(HTTP_CONTENT_TYPE_TEXT_HTML, "text/html");
 
 #define SMALL_STACK_SIZE 4096
 
-static void http_server_process_request(char *URI, char *headers);
+static void http_server_process_request(char *uri, size_t uri_len, char *headers);
 
 static void http_server_fiber_main_wrapper(void) {
     http_server_fiber_main();
@@ -355,7 +354,7 @@ void http_server_fiber_main(void) {
             ctx->content_len = 0;
 
             /* minimal parsing and call user function */
-            http_server_process_request(URI, headers);
+            http_server_process_request(URI, p - URI + 1, headers);
         } else if (0 == SSTRNCMP(POST, vmbuf_data(&ctx->request)) || 0 == SSTRNCMP(PUT, vmbuf_data(&ctx->request))) {
             /* POST or PUT */
             for (;;) {
@@ -412,7 +411,7 @@ void http_server_fiber_main(void) {
             ctx->content_len = content_length;
 
             /* minimal parsing and call user function */
-            http_server_process_request(URI, headers);
+            http_server_process_request(URI, p - URI + 1, headers);
         } else {
             http_server_response(HTTP_STATUS_501, HTTP_CONTENT_TYPE_TEXT_PLAIN);
             break;
@@ -432,22 +431,22 @@ void http_server_fiber_main(void) {
         close(fd);
 }
 
-static void http_server_process_request(char *URI, char *headers) {
+static void http_server_process_request(char *uri, size_t uri_len, char *headers) {
     struct http_server_context *ctx = http_server_get_context();
     struct http_server *server = (struct http_server *)current_ctx->data.ptr;
     ctx->headers = headers;
-    char *query = strchrnul(URI, '?');
+    char *query = strchrnul(uri, '?');
     if (*query)
         *query++ = 0;
     ctx->query = query;
     static const char HTTP[] = "http://";
-    if (0 == SSTRNCMP(HTTP, URI)) {
-        URI += SSTRLEN(HTTP);
-        URI = strchrnul(URI, '/');
+    if (0 == SSTRNCMP(HTTP, uri)) {
+        uri += SSTRLEN(HTTP);
+        uri = strchrnul(uri, '/');
     }
-    http_uri_decode(URI);
-    ctx->URI = URI;
-
+    vmbuf_resize_if_less(&ctx->request, uri_len); /* prepare space for decoded URI */
+    ctx->uri = uri;
+    ctx->decoded_uri = NULL;
     epoll_worker_ignore_events();
     server->user_func();
 }
@@ -554,3 +553,5 @@ int http_server_generate_dir_list(const char *URI) {
     vmbuf_strcpy(payload, "</html>");
     return error;
 }
+
+

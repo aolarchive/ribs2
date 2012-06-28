@@ -95,12 +95,12 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
     return timeout_handler_init(&http_client_pool->timeout_handler);
 }
 
-#define CLIENT_ERROR()                                   \
-    {                                                    \
-        ctx->http_status_code = 500;                     \
-        ctx->persistent = 0;                             \
-        close(fd);                                       \
-        return;                                          \
+#define CLIENT_ERROR()                   \
+    {                                    \
+        ctx->http_status_code = 500;     \
+        ctx->persistent = 0;             \
+        close(fd);                       \
+        return;                          \
     }
 
 #define _READ_MORE_DATA(cond, extra)                        \
@@ -109,7 +109,7 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
             CLIENT_ERROR(); /* partial response */          \
         http_client_yield();                                \
         if ((res = vmbuf_read(&ctx->response, fd)) < 0) {   \
-            LOGGER_PERROR("read");                                 \
+            LOGGER_PERROR("read");                          \
             CLIENT_ERROR();                                 \
         }                                                   \
         extra;                                              \

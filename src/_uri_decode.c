@@ -22,8 +22,8 @@ _RIBS_INLINE_ char hex_val(char **h) {
     return val;
 }
 
-_RIBS_INLINE_ void http_uri_decode(char *uri) {
-    char *p1 = uri, *p2 = p1;
+_RIBS_INLINE_ size_t http_uri_decode(char *uri, char *target) {
+    char *p1 = uri, *p2 = target;
     const char SPACE = ' ';
     while (*p1) {
         switch (*p1) {
@@ -40,4 +40,38 @@ _RIBS_INLINE_ void http_uri_decode(char *uri) {
         }
     }
     *p2 = 0;
+    return p2 - target + 1; /* include \0 */
+}
+
+_RIBS_INLINE_ void http_uri_decode_query_params(char *query_params, struct hashtable *params) {
+    while (*query_params) {
+        int n = 0;
+        char mods[2];
+        char *mods_pos[2];
+        char *p = strchrnul(query_params, '&');
+        if (*p) {
+            mods[n] = *p;
+            mods_pos[n] = p;
+            ++n;
+            *p++ = 0;
+        }
+        char *p2 = strchrnul(query_params, '=');
+        if (*p2) {
+            mods[n] = *p2;
+            mods_pos[n] = p2;
+            ++n;
+            *p2++ = 0;
+        }
+
+        size_t l = strlen(query_params);
+        uint32_t htofs = hashtable_lookup(params, query_params, l);
+        if (!htofs) {
+            htofs = hashtable_insert_new(params, query_params, l, p2 - query_params + 1);
+            http_uri_decode(p2, hashtable_get_val(params, htofs));
+        }
+
+        // restore chars
+        while(n) { --n; *mods_pos[n] = mods[n]; }
+        query_params = p;
+    }
 }

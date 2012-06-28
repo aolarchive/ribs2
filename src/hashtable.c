@@ -28,7 +28,6 @@ struct ht_entry {
 
 int hashtable_init(struct hashtable *ht, uint32_t nel) {
     nel = next_p2(nel);
-    vmbuf_make(&ht->data);
     if (0 > vmbuf_init(&ht->data, sizeof(struct ht_entry) * nel))
         return -1;
     vmbuf_alloczero(&ht->data, sizeof(struct ht_entry) * nel);
