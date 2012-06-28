@@ -6,6 +6,8 @@
 #include "list.h"
 #include "mime_types.h"
 #include "ds.h"
+#define DS_LOADER_CONFIG "../src/test_ds_defs.h"
+#include "ds_loader.h"
 
 struct ribs_context *ctx1, *ctx2;
 
@@ -49,11 +51,17 @@ struct my_struct {
 };
 
 int main(void) {
+    const char **fn = ds_loader_files;
+    for (; *fn; ++fn) {
+        printf("%s\n", *fn);
+    }
+    ds_loader_init(".");
     DS_FIELD(uint32_t) ds_my_field1 = DS_FIELD_INITIALIZER;
     int r;
     for (r = 0; r < 100; ++r) {
         if (0 > DS_FIELD_INIT(uint32_t, &ds_my_field1, "test.ds"))
             break;
+
         printf("via GET_VAL = %u\n", DS_FIELD_GET_VAL(&ds_my_field1, 1));
         uint32_t *my_field1 = DS_FIELD_BEGIN(&ds_my_field1);
         uint32_t *my_field1_end = DS_FIELD_END(&ds_my_field1);
