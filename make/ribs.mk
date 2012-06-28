@@ -26,7 +26,9 @@ RIBIFYFLAGS+= \
 OBJ=$(SRC:%.c=$(OBJ_DIR)/%.o) $(ASM:%.S=$(OBJ_DIR)/%.o)
 DEP=$(SRC:%.c=$(OBJ_DIR)/%.d)
 
-DIRS=$(OBJ_DIR)/.dir ../bin/.dir ../lib/.dir ../ribified/.dir
+DIRS=$(OBJ_DIR)/.dir ../bin/.dir ../lib/.dir
+RIBIFY_DIR=../ribified/.dir
+ALL_DIRS=$(DIRS) $(RIBIFY_DIR)
 
 ifeq ($(TARGET:%.a=%).a,$(TARGET))
 LIB_OBJ:=$(OBJ)
@@ -37,7 +39,7 @@ endif
 
 all: $(TARGET_FILE)
 
-$(DIRS):
+$(ALL_DIRS):
 	@echo "  (MKDIR)  -p $(@:%/.dir=%)"
 	@-mkdir -p $(@:%/.dir=%)
 	@touch $@
@@ -64,7 +66,7 @@ $(DEP): $(DIRS)
 
 .PRECIOUS: $(RIBIFY:%=../ribified/%)
 
-../ribified/%:
+../ribified/%: $(RIBIFY_DIR)
 	@echo "  (RIBIFY) $(@:../ribified/%=%) [ $@ $(RIBIFYFLAGS) ]"
 	@objcopy $(shell find /usr/lib -name $(@:../ribified/%=%)) $@ $(RIBIFYFLAGS)
 
@@ -72,11 +74,11 @@ $(DEP): $(DIRS)
 	@echo "  (LD)     $(@:../bin/%=%)  [ -o $@ $(OBJ) $(LDFLAGS) ]"
 	@$(CC) -o $@ $(OBJ) $(LDFLAGS)
 
-$(DIRS:%=RM_%):
+$(ALL_DIRS:%=RM_%):
 	@echo "  (RM)     $(@:RM_%/.dir=%)/*"
 	@-$(RM) $(@:RM_%/.dir=%)/*
 
-clean: $(DIRS:%=RM_%)
+clean: $(ALL_DIRS:%=RM_%)
 
 etags:
 	@echo "  (ETAGS)"
