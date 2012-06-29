@@ -16,7 +16,7 @@ static int report_stmt_error(struct mysql_helper *mysql_helper) {
     return -1;
 }
 
-int mysql_helper_select(struct mysql_helper *mysql_helper, const char *query, size_t query_len, const char *fields, ...) {
+int mysql_helper_connect(struct mysql_helper *mysql_helper) {
     mysql_init(&mysql_helper->mysql);
     if (NULL == mysql_real_connect(&mysql_helper->mysql,
                                    mysql_helper->host,
@@ -26,10 +26,20 @@ int mysql_helper_select(struct mysql_helper *mysql_helper, const char *query, si
                                    mysql_helper->port,
                                    NULL, 0))
         return report_error(mysql_helper);
-        my_bool b_flag = 0;
+    my_bool b_flag = 0;
     if (0 != mysql_options(&mysql_helper->mysql, MYSQL_REPORT_DATA_TRUNCATION, (const char *)&b_flag))
         return report_error(mysql_helper);
+    return 0;
+}
 
+int mysql_helper_execute(struct mysql_helper *mysql_helper, const char *query, unsigned long *affected_rows) {
+    if (0 != mysql_query(&mysql_helper->mysql, query))
+        return report_error(mysql_helper);
+    *affected_rows = (unsigned long)mysql_affected_rows(&mysql_helper->mysql);
+    return 0;
+}
+
+int mysql_helper_select(struct mysql_helper *mysql_helper, const char *query, size_t query_len, const char *fields, ...) {
     mysql_helper->stmt = mysql_stmt_init(&mysql_helper->mysql);
     if (!mysql_helper->stmt)
         return report_error(mysql_helper);
