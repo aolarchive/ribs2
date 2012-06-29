@@ -4,6 +4,8 @@
 #include "ribs_defs.h"
 #include <sys/epoll.h>
 
+#define SMALL_STACK_SIZE 4096
+
 struct ribs_context {
     long rbx; /* 0   */
     long rbp; /* 8   */

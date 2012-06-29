@@ -50,7 +50,7 @@ int epoll_worker_init(void) {
     if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, sfd, &ev))
         return LOGGER_PERROR("epoll_ctl"), -1;
 
-    void *ctx=ribs_context_create(4096, sigio_to_context);
+    void *ctx=ribs_context_create(SMALL_STACK_SIZE, sigio_to_context);
     if (NULL == ctx)
         return LOGGER_PERROR("ribs_context_create"), -1;
 

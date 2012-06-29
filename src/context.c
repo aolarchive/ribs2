@@ -9,7 +9,7 @@ extern void __ribs_context_exit(void);
 
 void ribs_makecontext(struct ribs_context *ctx, struct ribs_context *rctx, void (*func)(void)) {
     /* align stack to 16 bytes, assuming function always does push rbp to align
-       __ribs_context_exit doesn't need to be aligned since it doesn't rely on stack alignment
+       func doesn't need to be aligned since it doesn't rely on stack alignment
        (needed when using SSE instructions)
     */
     void *sp = (unsigned long int *) ((((uintptr_t) ctx) & -16L) - 8);

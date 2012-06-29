@@ -1,8 +1,6 @@
 #include "timeout_handler.h"
 #include <sys/socket.h>
 
-#define SMALL_STACK_SIZE 4096
-
 static void expiration_handler(void) {
     uint64_t num_exp;
     struct timeout_handler *timeout_handler = (struct timeout_handler *)current_ctx->data.ptr;

@@ -55,8 +55,6 @@ SSTRL(HTTP_STATUS_503, "503 Service Unavailable");
 SSTR(HTTP_CONTENT_TYPE_TEXT_PLAIN, "text/plain");
 SSTR(HTTP_CONTENT_TYPE_TEXT_HTML, "text/html");
 
-#define SMALL_STACK_SIZE 4096
-
 static void http_server_process_request(char *uri, size_t uri_len, char *headers);
 
 static void http_server_fiber_main_wrapper(void) {

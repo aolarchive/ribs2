@@ -19,8 +19,6 @@ SSTRL(TRANSFER_ENCODING, "\r\nTransfer-Encoding: ");
 SSTRL(CONNECTION, "\r\nConnection: ");
 SSTRL(CONNECTION_CLOSE, "close");
 
-#define SMALL_STACK_SIZE 4096
-
 static struct list* client_chains = NULL;
 static struct list* client_heads = NULL;
 static struct list free_list = LIST_INITIALIZER(free_list);
