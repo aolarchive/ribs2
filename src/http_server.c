@@ -87,6 +87,7 @@ static void http_server_accept_connections(void);
 int http_server_init(struct http_server *server, size_t context_size) {
     if (0 > mime_types_init())
         return LOGGER_ERROR("failed to initialize mime types"), -1;
+    http_headers_init();
     /*
      * idle connection handler
      */

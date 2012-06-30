@@ -11,5 +11,6 @@
 #include "daemonize.h"
 #include "http_server.h"
 #include "http_client_pool.h"
+#include "http_headers.h"
 
 #endif // _RIBS__H_

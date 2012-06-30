@@ -8,6 +8,7 @@
 #include "timeout_handler.h"
 #include "hashtable.h"
 #include "uri_decode.h"
+#include "http_headers.h"
 
 struct http_server_context {
     struct vmbuf request;
