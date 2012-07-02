@@ -54,7 +54,7 @@ int epoll_worker_init(void) {
     if (NULL == ctx)
         return LOGGER_PERROR("ribs_context_create"), -1;
 
-    epoll_worker_fd_map[sfd].ctx=ctx;
+    epoll_worker_set_fd_ctx(sfd, ctx);
     return 0;
 }
 
@@ -64,5 +64,5 @@ void epoll_worker_loop(void) {
 
 inline void yield(void) {
    while(0 >= epoll_wait(ribs_epoll_fd, &last_epollev, 1, -1));
-   ribs_swapcurcontext(epoll_worker_fd_map[last_epollev.data.fd].ctx);
+   ribs_swapcurcontext(epoll_worker_get_last_context());
 }

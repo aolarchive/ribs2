@@ -44,26 +44,26 @@ int ribs_fcntl(int fd, int cmd, ...) {
 ssize_t ribs_read(int fd, void *buf, size_t count) {
     int res;
 
-    epoll_worker_fd_map[fd].ctx = current_ctx;
+    epoll_worker_set_fd_ctx(fd, current_ctx);
     while ((res = read(fd, buf, count)) < 0) {
         if (errno != EAGAIN)
             break;
         yield();
     }
-    epoll_worker_fd_map[fd].ctx = &main_ctx;
+    epoll_worker_set_fd_ctx(fd, &main_ctx);
     return res;
 }
 
 ssize_t ribs_write(int fd, const void *buf, size_t count) {
     int res;
 
-    epoll_worker_fd_map[fd].ctx = current_ctx;
+    epoll_worker_set_fd_ctx(fd, current_ctx);
     while ((res = write(fd, buf, count)) < 0) {
         if (errno != EAGAIN)
             break;
         yield();
     }
-    epoll_worker_fd_map[fd].ctx = &main_ctx;
+    epoll_worker_set_fd_ctx(fd, &main_ctx);
     return res;
 }
 
@@ -71,65 +71,65 @@ ssize_t ribs_recvfrom(int sockfd, void *buf, size_t len, int flags,
                       struct sockaddr *src_addr, socklen_t *addrlen) {
     int res;
 
-    epoll_worker_fd_map[sockfd].ctx = current_ctx;
+    epoll_worker_set_fd_ctx(sockfd, current_ctx);
     while ((res = recvfrom(sockfd, buf, len, flags, src_addr, addrlen)) < 0) {
         if (errno != EAGAIN)
             break;
         yield();
     }
-    epoll_worker_fd_map[sockfd].ctx = &main_ctx;
+    epoll_worker_set_fd_ctx(sockfd, &main_ctx);
     return res;
 }
 
 ssize_t ribs_send(int sockfd, const void *buf, size_t len, int flags) {
     int res;
 
-    epoll_worker_fd_map[sockfd].ctx = current_ctx;
+    epoll_worker_set_fd_ctx(sockfd, current_ctx);
     while ((res = send(sockfd, buf, len, flags)) < 0) {
         if (errno != EAGAIN)
             break;
         yield();
     }
-    epoll_worker_fd_map[sockfd].ctx = &main_ctx;
+    epoll_worker_set_fd_ctx(sockfd, &main_ctx);
     return res;
 }
 
 ssize_t ribs_recv(int sockfd, void *buf, size_t len, int flags) {
     int res;
 
-    epoll_worker_fd_map[sockfd].ctx = current_ctx;
+    epoll_worker_set_fd_ctx(sockfd, current_ctx);
     while ((res = recv(sockfd, buf, len, flags)) < 0) {
         if (errno != EAGAIN)
             break;
         yield();
     }
-    epoll_worker_fd_map[sockfd].ctx = &main_ctx;
+    epoll_worker_set_fd_ctx(sockfd, &main_ctx);
     return res;
 }
 
 ssize_t ribs_readv(int fd, const struct iovec *iov, int iovcnt) {
     int res;
 
-    epoll_worker_fd_map[fd].ctx = current_ctx;
+    epoll_worker_set_fd_ctx(fd, current_ctx);
     while ((res = readv(fd, iov, iovcnt)) < 0) {
         if (errno != EAGAIN)
             break;
         yield();
     }
-    epoll_worker_fd_map[fd].ctx = &main_ctx;
+    epoll_worker_set_fd_ctx(fd, &main_ctx);
     return res;
 }
 
 ssize_t ribs_writev(int fd, const struct iovec *iov, int iovcnt) {
     int res;
 
-    epoll_worker_fd_map[fd].ctx = current_ctx;
+    epoll_worker_set_fd_ctx(fd, current_ctx);
     while ((res = writev(fd, iov, iovcnt)) < 0) {
         if (errno != EAGAIN)
             break;
         yield();
     }
-    epoll_worker_fd_map[fd].ctx = &main_ctx;
+    epoll_worker_set_fd_ctx(fd, &main_ctx);
     return res;
 }
 

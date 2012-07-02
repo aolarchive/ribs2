@@ -8,7 +8,7 @@
 #include "sstr.h"
 #include "list.h"
 
-#define CLIENT_STACK_SIZE  65536
+#define CLIENT_STACK_SIZE 65536
 
 SSTRL(CRLFCRLF, "\r\n\r\n");
 SSTRL(CRLF, "\r\n");
