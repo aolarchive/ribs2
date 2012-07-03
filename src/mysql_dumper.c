@@ -33,7 +33,7 @@
 #define IS_UNSIGNED(f)  ((f) & UNSIGNED_FLAG)
 
 static int report_error(MYSQL *mysql) {
-    LOGGER_ERROR("%s", mysql_error(mysql));
+    LOGGER_ERROR("(%d) %s", mysql_errno(mysql), mysql_error(mysql));
     mysql_close(mysql);
     return -1;
 }

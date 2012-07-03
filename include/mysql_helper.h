@@ -25,6 +25,7 @@
 #include <mysql/mysql.h>
 #include "vmbuf.h"
 
+
 struct mysql_login_info {
     const char *host;
     const char *user;
@@ -44,6 +45,7 @@ struct mysql_helper {
     int8_t *is_str;
 
     int num_fields;
+    int8_t is_connected;
 };
 
 int mysql_helper_connect(struct mysql_helper *mysql_helper, struct mysql_login_info *login_info);

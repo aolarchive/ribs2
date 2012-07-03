@@ -17,28 +17,24 @@
     You should have received a copy of the GNU Lesser General Public License
     along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef _RIBS_DEFS__H_
-#define _RIBS_DEFS__H_
+#ifndef _MYSQL_POOL__H_
+#define _MYSQL_POOL__H_
 
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
+#include "ribs_defs.h"
+#include "vmbuf.h"
+#include "mysql_helper.h"
+#include "list.h"
 
-#include <stddef.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <sys/types.h>
-#include <sys/socket.h>
+#define POOL_HT_SIZE 64
 
+struct mysql_pool_entry
+{
+    struct mysql_helper helper;
+    struct list l;
+};
 
-#define _RIBS_INLINE_ static inline
+int mysql_pool_init(uint32_t ht_size);
+int mysql_pool_get(struct mysql_login_info *info, struct mysql_pool_entry **mysql);
+int mysql_pool_free(struct mysql_login_info *info, struct mysql_pool_entry *mysql);
 
-#define likely(x)     __builtin_expect((x),1)
-#define unlikely(x)   __builtin_expect((x),0)
-
-#ifndef UNUSED
-#define UNUSED(x) ((void)(x))
-#endif
-
-#endif // _RIBS_DEFS__H_
+#endif //_MYSQL_POOL__H_
