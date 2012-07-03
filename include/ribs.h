@@ -12,5 +12,6 @@
 #include "http_server.h"
 #include "http_client_pool.h"
 #include "http_headers.h"
+#include "http_cookies.h"
 
 #endif // _RIBS__H_

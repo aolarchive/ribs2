@@ -17,8 +17,8 @@
     You should have received a copy of the GNU Lesser General Public License
     along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef _VM_BUF__H_
-#define _VM_BUF__H_
+#ifndef _VMBUF__H_
+#define _VMBUF__H_
 
 #include "ribs_defs.h"
 #include <sys/mman.h>
@@ -103,4 +103,4 @@ _RIBS_INLINE_ int vmbuf_strftime(struct vmbuf *vmb, const char *format, const st
 
 #include "../src/_vmbuf.c"
 
-#endif // _VM_BUF__H_
+#endif // _VMBUF__H_

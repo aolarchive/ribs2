@@ -11,6 +11,7 @@ struct hashtable {
 };
 
 #define HASHTABLE_INITIALIZER { VMBUF_INITIALIZER, 0, 0 }
+#define HASHTABLE_MAKE(x) (x) = (struct hashtable)HASHTABLE_INITIALIZER
 
 int hashtable_init(struct hashtable *ht, uint32_t nel);
 uint32_t hashtable_insert(struct hashtable *ht, const void *key, size_t key_len, const void *val, size_t val_len);
@@ -39,6 +40,11 @@ static inline uint32_t hashtable_get_val_size(struct hashtable *ht, uint32_t rec
 
 static inline uint32_t hashtable_get_size(struct hashtable *ht) {
     return ht->size;
+}
+
+static inline const char *hashtable_lookup_str(struct hashtable*ht, const char *key, const char *default_val) {
+    uint32_t ofs = hashtable_lookup(ht, key, strlen(key));
+    return (ofs ? hashtable_get_val(ht, ofs) : default_val);
 }
 
 

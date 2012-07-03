@@ -54,8 +54,9 @@ SSTRL(HTTP_STATUS_503, "503 Service Unavailable");
 /* content types */
 SSTR(HTTP_CONTENT_TYPE_TEXT_PLAIN, "text/plain");
 SSTR(HTTP_CONTENT_TYPE_TEXT_HTML, "text/html");
+SSTR(HTTP_CONTENT_TYPE_IMAGE_GIF, "image/gif");
 
-static void http_server_process_request(char *uri, size_t uri_len, char *headers);
+static void http_server_process_request(char *uri, char *headers);
 
 static void http_server_fiber_main_wrapper(void) {
     http_server_fiber_main();
@@ -353,7 +354,7 @@ void http_server_fiber_main(void) {
             ctx->content_len = 0;
 
             /* minimal parsing and call user function */
-            http_server_process_request(URI, p - URI + 1, headers);
+            http_server_process_request(URI, headers);
         } else if (0 == SSTRNCMP(POST, vmbuf_data(&ctx->request)) || 0 == SSTRNCMP(PUT, vmbuf_data(&ctx->request))) {
             /* POST or PUT */
             for (;;) {
@@ -410,7 +411,7 @@ void http_server_fiber_main(void) {
             ctx->content_len = content_length;
 
             /* minimal parsing and call user function */
-            http_server_process_request(URI, p - URI + 1, headers);
+            http_server_process_request(URI, headers);
         } else {
             http_server_response(HTTP_STATUS_501, HTTP_CONTENT_TYPE_TEXT_PLAIN);
             break;
@@ -430,7 +431,7 @@ void http_server_fiber_main(void) {
         close(fd);
 }
 
-static void http_server_process_request(char *uri, size_t uri_len, char *headers) {
+static void http_server_process_request(char *uri, char *headers) {
     struct http_server_context *ctx = http_server_get_context();
     struct http_server *server = (struct http_server *)current_ctx->data.ptr;
     ctx->headers = headers;
@@ -443,9 +444,7 @@ static void http_server_process_request(char *uri, size_t uri_len, char *headers
         uri += SSTRLEN(HTTP);
         uri = strchrnul(uri, '/');
     }
-    vmbuf_resize_if_less(&ctx->request, uri_len); /* prepare space for decoded URI */
     ctx->uri = uri;
-    ctx->decoded_uri = NULL;
     epoll_worker_ignore_events();
     server->user_func();
 }
