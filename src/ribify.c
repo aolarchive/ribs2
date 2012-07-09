@@ -140,12 +140,6 @@ int ribs_getaddrinfo(const char *node, const char *service,
     struct gaicb cb = { .ar_name=node, .ar_service=service, .ar_request=hints, .ar_result=NULL };
     struct gaicb *cb_p[1] = { &cb };
 
-    int efd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
-
-    struct epoll_event ev = { .events = EPOLLIN | EPOLLET, .data.fd = efd };
-    if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, efd, &ev))
-        return LOGGER_PERROR("epoll_ctl"), close(efd), -1;
-
     struct sigevent sevp;
     sevp.sigev_notify = SIGEV_SIGNAL;
     sevp.sigev_signo = SIGIO;
@@ -154,12 +148,10 @@ int ribs_getaddrinfo(const char *node, const char *service,
 
     int res = getaddrinfo_a(GAI_NOWAIT, &cb_p[0], 1, &sevp);
     if (!res) {
-        epoll_worker_fd_map[efd].ctx = current_ctx;
         yield();
         res = gai_error(cb_p[0]);
         *results = cb.ar_result;
     }
-    close(efd);
     return res;
 }
 
