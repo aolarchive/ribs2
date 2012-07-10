@@ -133,6 +133,7 @@ ssize_t ribs_writev(int fd, const struct iovec *iov, int iovcnt) {
     return res;
 }
 
+#ifdef UGLY_GETADDRINFO_WORKAROUND
 int ribs_getaddrinfo(const char *node, const char *service,
                      const struct addrinfo *hints,
                      struct addrinfo **results) {
@@ -146,7 +147,7 @@ int ribs_getaddrinfo(const char *node, const char *service,
     sevp.sigev_value.sival_ptr = current_ctx;
     sevp.sigev_notify_attributes = NULL;
 
-    int res = getaddrinfo_a(GAI_NOWAIT, &cb_p[0], 1, &sevp);
+    int res = getaddrinfo_a(GAI_NOWAIT, cb_p, 1, &sevp);
     if (!res) {
         yield();
         res = gai_error(cb_p[0]);
@@ -154,4 +155,4 @@ int ribs_getaddrinfo(const char *node, const char *service,
     }
     return res;
 }
-
+#endif

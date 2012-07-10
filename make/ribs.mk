@@ -20,8 +20,12 @@ RIBIFYFLAGS+= \
 --redefine-sym send=ribs_send \
 --redefine-sym recv=ribs_recv \
 --redefine-sym readv=ribs_readv \
---redefine-sym writev=ribs_writev \
---redefine-sym getaddrinfo=ribs_getaddrinfo
+--redefine-sym writev=ribs_writev
+
+ifdef UGLY_GETADDRINFO_WORKAROUND
+RIBIFYFLAGS+=--redefine-sym getaddrinfo=ribs_getaddrinfo
+CFLAGS+=-DUGLY_GETADDRINFO_WORKAROUND
+endif
 
 OBJ=$(SRC:%.c=$(OBJ_DIR)/%.o) $(ASM:%.S=$(OBJ_DIR)/%.o)
 DEP=$(SRC:%.c=$(OBJ_DIR)/%.d)
