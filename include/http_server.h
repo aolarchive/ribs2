@@ -37,9 +37,10 @@ struct http_server {
     size_t init_header_size;
     size_t init_payload_size;
     size_t max_req_size;
+    size_t context_size;
 };
 
-#define HTTP_SERVER_INIT_DEFAULTS .stack_size = 0, .num_stacks = 0, .init_request_size = 8*1024, .init_header_size = 8*1024, .init_payload_size = 8*1024, .max_req_size = 0
+#define HTTP_SERVER_INIT_DEFAULTS .stack_size = 0, .num_stacks = 0, .init_request_size = 8*1024, .init_header_size = 8*1024, .init_payload_size = 8*1024, .max_req_size = 0, .context_size = 0, .timeout_handler.timeout = 60000
 #define HTTP_SERVER_INITIALIZER { HTTP_SERVER_INIT_DEFAULTS }
 
 
@@ -52,7 +53,7 @@ SSTREXTRN(HTTP_CONTENT_TYPE_IMAGE_GIF);
 
 #define HTTP_SERVER_NOT_FOUND (-2)
 
-int http_server_init(struct http_server *server, size_t context_size);
+int http_server_init(struct http_server *server);
 int http_server_init_acceptor(struct http_server *server);
 void http_server_header_start(const char *status, const char *content_type);
 void http_server_header_close();

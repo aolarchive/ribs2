@@ -85,7 +85,7 @@ static void http_server_idle_handler(void) {
 
 static void http_server_accept_connections(void);
 
-int http_server_init(struct http_server *server, size_t context_size) {
+int http_server_init(struct http_server *server) {
     if (0 > mime_types_init())
         return LOGGER_ERROR("failed to initialize mime types"), -1;
     http_headers_init();
@@ -110,9 +110,9 @@ int http_server_init(struct http_server *server, size_t context_size) {
         /* half of total mem to start with so we don't need to enable overcommit */
         num_ctx_in_one_map >>= 1;
         LOGGER_INFO("http server pool: initial=%zu, grow=%zu", num_ctx_in_one_map, num_ctx_in_one_map);
-        ctx_pool_init(&server->ctx_pool, num_ctx_in_one_map, num_ctx_in_one_map, rlim.rlim_cur, sizeof(struct http_server_context) + context_size);
+        ctx_pool_init(&server->ctx_pool, num_ctx_in_one_map, num_ctx_in_one_map, rlim.rlim_cur, sizeof(struct http_server_context) + server->context_size);
     } else {
-        ctx_pool_init(&server->ctx_pool, server->num_stacks, server->num_stacks, server->stack_size, sizeof(struct http_server_context) + context_size);
+        ctx_pool_init(&server->ctx_pool, server->num_stacks, server->num_stacks, server->stack_size, sizeof(struct http_server_context) + server->context_size);
     }
 
 
