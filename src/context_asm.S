@@ -2,28 +2,28 @@
 .globl ribs_swapcurcontext
 ribs_swapcurcontext:
         movq    current_ctx, %rsi
-	/* Save the preserved registers. */
-	movq	%rbx, 0(%rsi)
-	movq	%rbp, 8(%rsi)
-	movq	%r12, 16(%rsi)
-	movq	%r13, 24(%rsi)
-	movq	%r14, 32(%rsi)
-	movq	%r15, 40(%rsi)
-	movq	%rsp, 48(%rsi)
+        /* Save the preserved registers. */
+        movq    %rbx, 0(%rsi)
+        movq    %rbp, 8(%rsi)
+        movq    %r12, 16(%rsi)
+        movq    %r13, 24(%rsi)
+        movq    %r14, 32(%rsi)
+        movq    %r15, 40(%rsi)
+        movq    %rsp, 48(%rsi)
 
 ribs_setcontext:
-	/* Load the new stack pointer and the preserved registers.  */
+        /* Load the new stack pointer and the preserved registers.  */
         movq    %rdi, current_ctx
-	movq	0(%rdi), %rbx
-	movq	8(%rdi), %rbp
-	movq	16(%rdi), %r12
-	movq	24(%rdi), %r13
-	movq	32(%rdi), %r14
-	movq	40(%rdi), %r15
-	movq	48(%rdi), %rsp
-	ret
+        movq    0(%rdi), %rbx
+        movq    8(%rdi), %rbp
+        movq    16(%rdi), %r12
+        movq    24(%rdi), %r13
+        movq    32(%rdi), %r14
+        movq    40(%rdi), %r15
+        movq    48(%rdi), %rsp
+        ret
 
 .globl __ribs_context_exit
 __ribs_context_exit:
-        movq %rbx, %rdi
-        jmp ribs_setcontext
+        movq    %rbx, %rdi
+        jmp     ribs_setcontext
