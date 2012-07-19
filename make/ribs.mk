@@ -20,7 +20,9 @@ RIBIFYFLAGS+= \
 --redefine-sym send=ribs_send \
 --redefine-sym recv=ribs_recv \
 --redefine-sym readv=ribs_readv \
---redefine-sym writev=ribs_writev
+--redefine-sym writev=ribs_writev \
+--redefine-sym pipe2=ribs_pipe2 \
+--redefine-sym pipe=ribs_pipe
 
 ifdef UGLY_GETADDRINFO_WORKAROUND
 RIBIFYFLAGS+=--redefine-sym getaddrinfo=ribs_getaddrinfo

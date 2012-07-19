@@ -133,6 +133,27 @@ ssize_t ribs_writev(int fd, const struct iovec *iov, int iovcnt) {
     return res;
 }
 
+
+int ribs_pipe2(int pipefd[2], int flags) {
+
+    if (0 > pipe2(pipefd, flags | O_NONBLOCK))
+        return -1;
+
+    struct epoll_event ev = { .events = EPOLLIN | EPOLLOUT | EPOLLET, .data.fd = pipefd[0] };
+    if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, pipefd[0], &ev))
+        return LOGGER_PERROR("epoll_ctl"), -1;
+
+    ev.data.fd = pipefd[1];
+    if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, pipefd[1], &ev))
+        return LOGGER_PERROR("epoll_ctl"), -1;
+ 
+    return 0;
+}
+
+int ribs_pipe(int pipefd[2]) {
+    return ribs_pipe2(pipefd, 0);
+}
+
 #ifdef UGLY_GETADDRINFO_WORKAROUND
 int ribs_getaddrinfo(const char *node, const char *service,
                      const struct addrinfo *hints,
