@@ -13,5 +13,6 @@
 #include "http_client_pool.h"
 #include "http_headers.h"
 #include "http_cookies.h"
+#include "ribify.h"
 
 #endif // _RIBS__H_
