@@ -33,17 +33,12 @@ int timeout_handler_init(struct timeout_handler *timeout_handler) {
     /*
      * expiration handler
      */
-    timeout_handler->timeout_handler_ctx = ribs_context_create(SMALL_STACK_SIZE, expiration_handler);
-    timeout_handler->timeout_handler_ctx->data.ptr = timeout_handler;
-    timeout_handler->timeout_handler_ctx->fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
-    if (0 > timeout_handler->timeout_handler_ctx->fd)
+    int tfd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
+    if (0 > tfd)
         return LOGGER_PERROR("timerfd_create"), -1;
-    struct epoll_event ev;
-    ev.events = EPOLLIN;
-    epoll_worker_fd_map[timeout_handler->timeout_handler_ctx->fd].ctx = timeout_handler->timeout_handler_ctx;
-    ev.data.fd = timeout_handler->timeout_handler_ctx->fd;
-    if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev))
-        return LOGGER_PERROR("epoll_ctl"), -1;
+    timeout_handler->timeout_handler_ctx = small_ctx_for_fd(tfd, expiration_handler);
+    timeout_handler->timeout_handler_ctx->fd = tfd;
+    timeout_handler->timeout_handler_ctx->data.ptr = timeout_handler;
     /*
      * timeout chain
      */

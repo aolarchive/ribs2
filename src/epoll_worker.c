@@ -7,18 +7,19 @@
 #include <signal.h>
 #include <sys/signalfd.h>
 #include "logger.h"
+#include <fcntl.h>
 
 int ribs_epoll_fd = -1;
 struct epoll_event last_epollev;
 struct epoll_worker_fd_data *epoll_worker_fd_map;
 
-static int my_pid = -1;
+static int queue_ctx_fd = -1;
 
 LIST_CREATE(epoll_worker_timeout_chain);
 
 static void sigrtmin_to_context(void) {
     struct signalfd_siginfo siginfo;
-    while(1) {
+    while (1) {
        int res = read(last_epollev.data.fd, &siginfo, sizeof(struct signalfd_siginfo));
        if (sizeof(struct signalfd_siginfo) != res || NULL == (void *)siginfo.ssi_ptr) {
            LOGGER_PERROR("sigrtmin_to_ctx got NULL or < 128 bytes: %d", res);
@@ -28,15 +29,40 @@ static void sigrtmin_to_context(void) {
     }
 }
 
+static void pipe_to_context(void) {
+    void *ctx;
+    while (1) {
+        if (sizeof(&ctx) != read(last_epollev.data.fd, &ctx, sizeof(&ctx))) {
+            LOGGER_PERROR("read in pipe_to_context");
+            yield();
+        } else
+            ribs_swapcurcontext(ctx);
+    }
+}
+
+struct ribs_context* small_ctx_for_fd(int fd, void (*func)(void)) {
+    void *ctx=ribs_context_create(SMALL_STACK_SIZE, func);
+    if (NULL == ctx)
+        return LOGGER_PERROR("ribs_context_create"), NULL;
+    struct epoll_event ev = { .events = EPOLLIN, .data.fd = fd };
+    if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, fd, &ev))
+        return LOGGER_PERROR("epoll_ctl"), NULL;
+    epoll_worker_set_fd_ctx(fd, ctx);
+    return ctx;
+}
+
 int epoll_worker_init(void) {
-    my_pid = getpid();
+
     struct rlimit rlim;
     if (0 > getrlimit(RLIMIT_NOFILE, &rlim))
         return LOGGER_PERROR("getrlimit(RLIMIT_NOFILE)"), -1;
     epoll_worker_fd_map = calloc(rlim.rlim_cur, sizeof(struct epoll_worker_fd_data));
+
     ribs_epoll_fd = epoll_create1(EPOLL_CLOEXEC);
     if (ribs_epoll_fd < 0)
         return LOGGER_PERROR("epoll_create1"), -1;
+
+    /* block signals */
     sigset_t set;
     sigemptyset(&set);
     sigaddset(&set, SIGPIPE);
@@ -44,20 +70,22 @@ int epoll_worker_init(void) {
     if (-1 == sigprocmask(SIG_BLOCK, &set, NULL))
         return LOGGER_PERROR("sigprocmask"), -1;
 
+    /* sigrtmin to context */
     sigdelset(&set, SIGPIPE);
     int sfd = signalfd(-1, &set, SFD_NONBLOCK);
     if (0 > sfd)
         return LOGGER_PERROR("signalfd"), -1;
+    if (NULL == small_ctx_for_fd(sfd, sigrtmin_to_context))
+        return -1;
 
-    struct epoll_event ev = { .events = EPOLLIN, .data.fd = sfd };
-    if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, sfd, &ev))
-        return LOGGER_PERROR("epoll_ctl"), -1;
+    /* pipe to conetxt */
+    int pipefd[2];
+    if (0 > pipe2(pipefd, O_NONBLOCK))
+        return LOGGER_PERROR("pipe"), -1;
+    if (NULL == small_ctx_for_fd(pipefd[0], pipe_to_context))
+        return -1;
+    queue_ctx_fd = pipefd[1];
 
-    void *ctx=ribs_context_create(SMALL_STACK_SIZE, sigrtmin_to_context);
-    if (NULL == ctx)
-        return LOGGER_PERROR("ribs_context_create"), -1;
-
-    epoll_worker_set_fd_ctx(sfd, ctx);
     return 0;
 }
 
@@ -73,7 +101,7 @@ inline void yield(void) {
 inline void courtesy_yield(void) {
     if (0 == epoll_wait(ribs_epoll_fd, &last_epollev, 1, 0))
         return;
-    if (0 > sigqueue(my_pid, SIGRTMIN, (const union sigval)(void *)current_ctx))
-        LOGGER_PERROR("sigqueue");
+    if (0 > write(queue_ctx_fd, &current_ctx, sizeof(void *)))
+        LOGGER_PERROR("unable to queue context: write");
     ribs_swapcurcontext(epoll_worker_get_last_context());
 }

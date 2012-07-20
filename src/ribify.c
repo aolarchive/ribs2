@@ -6,7 +6,6 @@
 #include <sys/socket.h>
 #include <stdarg.h>
 #include <sys/uio.h>
-#define _GNU_SOURCE
 #include <netdb.h>
 #include <sys/eventfd.h>
 #include <signal.h>
@@ -146,7 +145,7 @@ int ribs_pipe2(int pipefd[2], int flags) {
     ev.data.fd = pipefd[1];
     if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, pipefd[1], &ev))
         goto epoll_ctl_error;
- 
+
     return 0;
 
 epoll_ctl_error:
