@@ -141,13 +141,23 @@ int ribs_pipe2(int pipefd[2], int flags) {
 
     struct epoll_event ev = { .events = EPOLLIN | EPOLLOUT | EPOLLET, .data.fd = pipefd[0] };
     if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, pipefd[0], &ev))
-        return LOGGER_PERROR("epoll_ctl"), -1;
+        goto epoll_ctl_error;
 
     ev.data.fd = pipefd[1];
     if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, pipefd[1], &ev))
-        return LOGGER_PERROR("epoll_ctl"), -1;
+        goto epoll_ctl_error;
  
     return 0;
+
+epoll_ctl_error:
+    {
+        int my_error = errno;
+        LOGGER_PERROR("epoll_ctl");
+        close(pipefd[0]);
+        close(pipefd[1]);
+        errno = my_error;
+    }
+    return -1;
 }
 
 int ribs_pipe(int pipefd[2]) {
@@ -164,7 +174,7 @@ int ribs_getaddrinfo(const char *node, const char *service,
 
     struct sigevent sevp;
     sevp.sigev_notify = SIGEV_SIGNAL;
-    sevp.sigev_signo = SIGIO;
+    sevp.sigev_signo = SIGRTMIN;
     sevp.sigev_value.sival_ptr = current_ctx;
     sevp.sigev_notify_attributes = NULL;
 

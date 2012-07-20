@@ -23,6 +23,7 @@ extern struct epoll_worker_fd_data *epoll_worker_fd_map;
 int epoll_worker_init(void);
 void epoll_worker_loop(void);
 void yield(void);
+void courtesy_yield(void);
 
 #include "../src/_epoll_worker.c"
 
