@@ -5,10 +5,6 @@
 #include "context.h"
 #include "list.h"
 
-#ifndef _EPOLL_WORKER_INLINE
-#define _EPOLL_WORKER_INLINE static inline
-#endif
-
 extern int ribs_epoll_fd;
 extern struct epoll_event last_epollev;
 
