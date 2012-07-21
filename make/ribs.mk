@@ -22,7 +22,10 @@ RIBIFYFLAGS+= \
 --redefine-sym readv=ribs_readv \
 --redefine-sym writev=ribs_writev \
 --redefine-sym pipe2=ribs_pipe2 \
---redefine-sym pipe=ribs_pipe
+--redefine-sym pipe=ribs_pipe \
+--redefine-sym nanosleep=ribs_nanosleep \
+--redefine-sym usleep=ribs_usleep \
+--redefine-sym sleep=ribs_sleep
 
 ifdef UGLY_GETADDRINFO_WORKAROUND
 RIBIFYFLAGS+=--redefine-sym getaddrinfo=ribs_getaddrinfo

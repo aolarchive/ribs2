@@ -16,7 +16,6 @@
 #include <sys/resource.h>
 #include <sys/uio.h>
 #include <sys/sendfile.h>
-#include <sys/timerfd.h>
 #include "mime_types.h"
 #include "logger.h"
 

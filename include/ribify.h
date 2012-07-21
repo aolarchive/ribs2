@@ -12,6 +12,9 @@ ssize_t ribs_readv(int fd, const struct iovec *iov, int iovcnt);
 ssize_t ribs_writev(int fd, const struct iovec *iov, int iovcnt);
 int ribs_pipe2(int pipefd[2], int flags);
 int ribs_pipe(int pipefd[2]);
+int ribs_nanosleep(const struct timespec *req, struct timespec *rem);
+unsigned int ribs_sleep(unsigned int seconds);
+int ribs_usleep(useconds_t usec);
 
 #ifdef UGLY_GETADDRINFO_WORKAROUND
 /* In this ugly mode ribs_getaddrinfo is not blocking but getaddrinfo_a creates threads internally */

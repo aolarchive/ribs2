@@ -9,6 +9,7 @@
 #include <netdb.h>
 #include <sys/eventfd.h>
 #include <signal.h>
+#include <sys/timerfd.h>
 
 int ribs_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     int flags=fcntl(sockfd, F_GETFL);
@@ -163,6 +164,39 @@ int ribs_pipe(int pipefd[2]) {
     return ribs_pipe2(pipefd, 0);
 }
 
+int ribs_nanosleep(const struct timespec *req, struct timespec *rem) {
+    int tfd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
+    if (0 > tfd)
+        return LOGGER_PERROR("ribs_nanosleep: timerfd_create"), -1;
+
+    struct epoll_event ev = { .events = EPOLLIN, .data.fd = tfd };
+    if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, tfd, &ev))
+        return LOGGER_PERROR("ribs_nanosleep: epoll_ctl"), close(tfd), -1;
+
+    struct itimerspec when = {{0,0},{req->tv_sec, req->tv_nsec}};
+    if (0 > timerfd_settime(tfd, 0, &when, NULL))
+        return LOGGER_PERROR("ribs_nanosleep: timerfd_settime"), close(tfd), -1;
+
+    epoll_worker_set_fd_ctx(tfd, current_ctx);
+    yield();
+    close(tfd);
+
+    if (NULL != rem)
+        rem->tv_sec = 0, rem->tv_nsec = 0;
+    return 0;
+}
+
+unsigned int ribs_sleep(unsigned int seconds) {
+    struct timespec req = {seconds, 0};
+    ribs_nanosleep(&req, NULL);
+    return 0;
+}
+
+int ribs_usleep(useconds_t usec) {
+    struct timespec req = {usec/1000000L, (usec%1000000L)*1000L};
+    return ribs_nanosleep(&req, NULL);
+}
+
 #ifdef UGLY_GETADDRINFO_WORKAROUND
 int ribs_getaddrinfo(const char *node, const char *service,
                      const struct addrinfo *hints,
@@ -173,7 +207,7 @@ int ribs_getaddrinfo(const char *node, const char *service,
 
     struct sigevent sevp;
     sevp.sigev_notify = SIGEV_SIGNAL;
-    sevp.sigev_signo = SIGRTMIN;
+    sevp.sigev_signo = SIGRTMIN; /* special support in epoll_worker.c */
     sevp.sigev_value.sival_ptr = current_ctx;
     sevp.sigev_notify_attributes = NULL;
 
