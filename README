@@ -1,0 +1,41 @@
+Introduction
+============
+RIBS (Robust Infrastructure for Backend Systems) is a library which
+allows building high-performance backend systems, primarily SaaS,
+while simplifying the flow of events into the user application without
+scarifying performance. The framework is completely event driven and
+designed to run as single threaded but not limited to. You can 'fork'
+or run multiple instances in order to utilize all cores on your
+system, it is recommended to avoid the use of threads. Instead of
+using threads which are controlled by the OS, RIBS implements and
+utilizes fibers (co-routines) where the context switching is done in
+the framework itself and triggered by events. Using fibers in that
+manner is highly efficient, since the application "knows" when to
+release control and context-switch, furthermore, the context switching
+is extremely light-weight compared to normal threads.
+
+In addition, RIBS provides vmbuf, a simple yet powerful way to manage
+large memory buffers.
+
+RIBS also provides http client and server. (pools, smart persistent
+connection handling)
+
+With RIBS you can take any library that is provided with ‘.a’ archive
+file, and “ribify” it to use RIBS provided function calls install of
+the default libc. This way you can take a library that is written in a
+“blocking” paradigm, and run inside a complete event driven system
+without modifications to the original code. This is proven to be
+working well with libmysqlclient.a and other libraries. RIBS includes
+libmysqlclient example.
+
+Prerequisites
+=============
+Ubuntu 64bit 10.04 or higher, preferably 12.04. Although it was tested
+on Ubuntu, any Linux distro which is running 2.6.32 (64bit only) or
+above should be fine as well, however, it was never tested. Please
+report if you encounter problems.
+
+In order to build the library you will need to install the following
+packages (under Ubuntu):
+* build-essential
+* libmysqlclient-dev (optional)

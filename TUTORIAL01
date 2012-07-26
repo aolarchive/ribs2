@@ -1,0 +1,196 @@
+ ___________________________
+'
+| TUTOROIAL01 - Hello world
+`---------------------------
+
+Before we begin
+===============
+The following directory structure will be used throughout the
+tutorial.
+
+[projects]
+|-- [ribs2]
+|   |-- COPYING           - LGPL2.1 license
+|   |-- LICENSE           - RIBS2.0 license
+|   |-- README            - High level introduction and prerequisites
+|   |-- [examples]        - working examples (incl. this tutorial)
+|       `-- [httpd]       - simple file server
+|   |-- [include]         - RIBS2.0 include files
+|   |-- [make]            - simple make system
+|   |-- Makefile          - RIBS2.0 main make file
+|   `-- [src]
+|-- [<your project>]      - good place to put your project
+|   |-- [include]         - project’s include files
+|   `-- [src]             - project’s source code
+|       `-- Makefile      - project’s make file
+`-- Makefile              - your top level make file (see below)
+
+Simple webapp (hello world)
+===========================
+In this tutorial we will build a simple ‘hello world`
+application. This tutorial covers the following:
+* Using RIBS make system
+* simple http server
+
+Step 1, setting up the environment.
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+* make sure you have the package ‘build-essential’ installed (On
+  systems other than Ubuntu, make sure you have gcc and libc-dev
+  installed).
+* create top level directory for all your projects, we will be using
+  ‘projects’.
+* now change the current directory to ‘projects’
+* clone ribs2 (TODO: add git clone command)
+* create the following directories: helloworld/ and helloworld/src
+
+Step 2, make files
+~~~~~~~~~~~~~~~~~~
+We need to build first ribs2 and then our projects. In order to do
+that let’s create top level Makefile that does exactly that.
+
+Under the ‘projects’ directory, create new file called Makefile and
+paste the following lines.
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   all:
+           @$(MAKE) -s -C ribs2          # make ribs2 first
+           @echo "[helloworld] build"
+           @$(MAKE) -s -C helloworld/src # make our project
+   clean:
+           @$(MAKE) -s -C ribs2 clean    # clean ribs2
+           @echo "[helloworld] clean"
+           @$(MAKE) -s -C helloworld/src clean  # clean our project
+.                                                                   .
+|___________________________________________________________________|
+
+Now let’s create Makefile for our project. Create and edit the file:
+helloworld/src/Makefile and paste the following.
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   TARGET=helloworld    # the name of the executable
+
+   SRC=helloworld.c     # list of source files
+
+   # we need to tell gcc where to find the include files of ribs2
+   CFLAGS+= -I ../../ribs2/include
+   # we need to tell the linker where to find ribs2 libraries
+   LDFLAGS+= -L ../../ribs2/lib -lribs2
+
+   include ../../ribs2/make/ribs.mk  # include ribs2 make system
+.                                                                   .
+|___________________________________________________________________|
+
+In order for our project to compile we need to create
+helloworld/src/helloworld.c with simple main for now.
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   int main(void) {
+       return 0;
+   }
+.                                                                   .
+|___________________________________________________________________|
+
+This should be enough to test the make files. From ‘projects’
+directory, invoke the make command and check for errors. Also try
+“make clean” to confirm it is working as well.
+
+
+Step 3, let’s write some code
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Let’s start by including “ribs.h”. This include file includes the
+entire ribs framework for you. No need to include more files.
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   #include “ribs.h”
+.                                                                   .
+|___________________________________________________________________|
+
+Now let’s add a function that will be invoked when get a request
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   static void my_server(void) {
+
+   }
+.                                                                   .
+|___________________________________________________________________|
+
+To initialize our server, we need to add the following to our main.
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+    /* must use the initializer or set all the values in 
+       http_server */
+    struct http_server server = HTTP_SERVER_INITIALIZER;
+    /* port number */
+    server.port = 8000;
+    /* call my_server upon receiving http request */
+    server.user_func = my_server;
+    /* init and check for errors */
+    if (0 > http_server_init(&server)) {
+        printf("http_server_init failed\n");
+        exit(EXIT_FAILURE);
+    }
+.                                                                   .
+|___________________________________________________________________|
+
+Since our system is fully event driven we also need to initialize the
+event loop. This can be done by adding the following lines.
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+    /* initialize the event loop */
+    if (0 > epoll_worker_init()) {
+        printf("epoll_worker_init failed\n");
+        exit(EXIT_FAILURE);
+    }
+.                                                                   .
+|___________________________________________________________________|
+
+At this point our server is initialized but it won’t accept
+connections yet, we need to add the following to start accepting
+connections (this split between init and accept is important when
+using fork).
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+    /* tell http server to start accepting connections */
+    if (0 > http_server_init_acceptor(&server)) {
+        printf("http_server_init_acceptor failed\n");
+        exit(EXIT_FAILURE);
+    }
+.                                                                   .
+|___________________________________________________________________|
+
+Everything is now initialized, we can now start our event dispatcher
+by adding the following lines.
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+    /* lastly, we need to handle events */
+    epoll_worker_loop();
+.                                                                   .
+|___________________________________________________________________|
+
+Before we run it, let’s add response. Add the following line to
+my_server function.
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+    http_server_response_sprintf(HTTP_STATUS_200,
+        HTTP_CONTENT_TYPE_TEXT_PLAIN, "hello world\n");
+.                                                                   .
+|___________________________________________________________________|
+
+Now run it. You can check the performance of your new server by
+running (you will to install apache2-utils):
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   $ ab -k -c 8 -n 1000000 http://localhost:8000/
+.                                                                   .
+|___________________________________________________________________|
