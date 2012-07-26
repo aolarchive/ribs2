@@ -8,7 +8,7 @@ int main(void) {
     /* must use the initializer or set all the values in http_server */
     struct http_server server = HTTP_SERVER_INITIALIZER;
     /* port number */
-    server.port = 8000;
+    server.port = 8080;
     /* call my_server upon receiving http request */
     server.user_func = my_server;
     /* init and check for errors */

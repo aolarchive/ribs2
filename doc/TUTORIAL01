@@ -20,35 +20,35 @@ tutorial.
 |   |-- Makefile          - RIBS2.0 main make file
 |   `-- [src]
 |-- [<your project>]      - good place to put your project
-|   |-- [include]         - project’s include files
-|   `-- [src]             - project’s source code
-|       `-- Makefile      - project’s make file
+|   |-- [include]         - project's include files
+|   `-- [src]             - project's source code
+|       `-- Makefile      - project's make file
 `-- Makefile              - your top level make file (see below)
 
 Simple webapp (hello world)
 ===========================
-In this tutorial we will build a simple ‘hello world`
+In this tutorial we will build a simple 'hello world`
 application. This tutorial covers the following:
 * Using RIBS make system
 * simple http server using an embeded ribs2
 
 Step 1, setting up the environment.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-* make sure you have the package ‘build-essential’ installed (On
+* make sure you have the package 'build-essential' installed (On
   systems other than Ubuntu, make sure you have gcc and libc-dev
   installed).
 * create top level directory for all your projects, we will be using
-  ‘projects’.
-* now change the current directory to ‘projects’
-* clone ribs2 (TODO: add git clone command)
+  'projects'.
+* now change the current directory to 'projects'
+* clone ribs2 (git clone https://github.com/Adaptv/ribs2.git)
 * create the following directories: helloworld/ and helloworld/src
 
 Step 2, make files
 ~~~~~~~~~~~~~~~~~~
 We need to build first ribs2 and then our projects. In order to do
-that let’s create top level Makefile that does exactly that.
+that let's create top level Makefile that does exactly that.
 
-Under the ‘projects’ directory, create new file called Makefile and
+Under the 'projects' directory, create new file called Makefile and
 paste the following lines.
  ___________________________________________________________________
 |                                                                   |
@@ -64,7 +64,7 @@ paste the following lines.
 .                                                                   .
 |___________________________________________________________________|
 
-Now let’s create Makefile for our project. Create and edit the file:
+Now let's create Makefile for our project. Create and edit the file:
 helloworld/src/Makefile and paste the following.
  ___________________________________________________________________
 |                                                                   |
@@ -93,23 +93,23 @@ helloworld/src/helloworld.c with a simple main for now.
 .                                                                   .
 |___________________________________________________________________|
 
-This should be enough to test the make files. From ‘projects’
+This should be enough to test the make files. From 'projects'
 directory, invoke the make command and check for errors. Also try
-“make clean” to confirm it is working as well.
+"make clean" to confirm it is working as well.
 
 
-Step 3, let’s write some code
+Step 3, let's write some code
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Let’s start by including “ribs.h”. This include file includes the
+Let's start by including "ribs.h". This include file includes the
 entire ribs framework for you. No need to include more files.
  ___________________________________________________________________
 |                                                                   |
 .                                                                   .
-   #include “ribs.h”
+   #include "ribs.h"
 .                                                                   .
 |___________________________________________________________________|
 
-Now let’s add a function that will be invoked when get a request
+Now let's add a function that will be invoked when get a request
  ___________________________________________________________________
 |                                                                   |
 .                                                                   .
@@ -127,7 +127,7 @@ To initialize our server, we need to add the following to our main.
        http_server */
     struct http_server server = HTTP_SERVER_INITIALIZER;
     /* port number */
-    server.port = 8000;
+    server.port = 8080;
     /* call my_server upon receiving http request */
     server.user_func = my_server;
     /* init and check for errors */
@@ -151,7 +151,7 @@ event loop. This can be done by adding the following lines.
 .                                                                   .
 |___________________________________________________________________|
 
-At this point our server is initialized but it won’t accept
+At this point our server is initialized but it won't accept
 connections yet, we need to add the following to start accepting
 connections (this split between init and accept is important when
 using fork).
@@ -176,7 +176,7 @@ by adding the following lines.
 .                                                                   .
 |___________________________________________________________________|
 
-Before we run it, let’s add response. Add the following line to
+Before we run it, let's add response. Add the following line to
 my_server function.
  ___________________________________________________________________
 |                                                                   |
@@ -186,11 +186,34 @@ my_server function.
 .                                                                   .
 |___________________________________________________________________|
 
-Now run it. You can check the performance of your new server by
-running (you will need to install apache2-utils):
+HTTP_STATUS_200 is used for successful request/response, other
+reposnses are available as well, for example: HTTP_STATUS_404 which
+means, page not found (see
+http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html for more
+information).
+
+HTTP_CONTENT_TYPE_TEXT_PLAIN specifies plain text response. You can
+add your more types, for example:
  ___________________________________________________________________
 |                                                                   |
 .                                                                   .
-   $ ab -k -c 8 -n 1000000 http://localhost:8000/
+   SSTRL(HTTP_CONTENT_TYPE_TEXT_XML, "text/xml");
+.                                                                   .
+|___________________________________________________________________|
+
+You can now test the performance of your new server (throughput and
+latency), we will be using apache benchmark which is part of
+apache2-utils package.
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   # first make sure your server is running
+   $ ./helloworld/bin/helloworld &
+
+   # run apache-benchmark
+   $ ab -k -c 8 -n 1000000 http://localhost:8080/
+
+   # -k for persistent connections, -c for concurrency of 8,
+   # -n for 1 million requests
 .                                                                   .
 |___________________________________________________________________|
