@@ -1,6 +1,6 @@
  ___________________________
 '
-| TUTOROIAL01 - Hello world
+| TUTORIAL01 - Hello world
 `---------------------------
 
 Before we begin
@@ -30,7 +30,7 @@ Simple webapp (hello world)
 In this tutorial we will build a simple ‘hello world`
 application. This tutorial covers the following:
 * Using RIBS make system
-* simple http server
+* simple http server using an embeded ribs2
 
 Step 1, setting up the environment.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -83,7 +83,7 @@ helloworld/src/Makefile and paste the following.
 |___________________________________________________________________|
 
 In order for our project to compile we need to create
-helloworld/src/helloworld.c with simple main for now.
+helloworld/src/helloworld.c with a simple main for now.
  ___________________________________________________________________
 |                                                                   |
 .                                                                   .
@@ -123,7 +123,7 @@ To initialize our server, we need to add the following to our main.
  ___________________________________________________________________
 |                                                                   |
 .                                                                   .
-    /* must use the initializer or set all the values in 
+    /* must use the initializer or set all the values in
        http_server */
     struct http_server server = HTTP_SERVER_INITIALIZER;
     /* port number */
@@ -187,7 +187,7 @@ my_server function.
 |___________________________________________________________________|
 
 Now run it. You can check the performance of your new server by
-running (you will to install apache2-utils):
+running (you will need to install apache2-utils):
  ___________________________________________________________________
 |                                                                   |
 .                                                                   .
