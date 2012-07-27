@@ -69,16 +69,42 @@ int main(int argc, char *argv[]) {
     }
 
     /* server config */
+        /* server config */
     struct http_server server = {
+        /* port number */
         .port = port,
+
+        /* call simple_file_server upon receiving http request */
         .user_func = simple_file_server,
+
+        /* set idle connection timeout to 60 seconds */
         .timeout_handler.timeout = 60000,
+
+        /* set fiber's stack size to 64K */
         .stack_size = 64*1024,
+
+        /* start the server with 100 stacks */
+        /* more stacks will be created if necessary */
         .num_stacks =  100,
+
+        /* we expect most of our requests to be less than 8K */
         .init_request_size = 8192,
+
+        /* we expect most of our response headers to be less than
+           8K */
         .init_header_size = 8192,
+
+        /* we expect most of our response payloads to be less than
+           8K */
         .init_payload_size = 8192,
+
+        /* no limit on the request size, this should be set to
+           something reasonable if you want to protect your server
+           against denial of service attack */
         .max_req_size = 0,
+
+        /* no additional space is needed in the context to store app
+           specified data (fiber local storage) */
         .context_size = 0
     };
 
@@ -86,6 +112,7 @@ int main(int argc, char *argv[]) {
     if (0 > http_server_init(&server))
         exit(EXIT_FAILURE);
 
+    /* run as daemon if specified */
     if (daemon_mode)
         daemonize();
 

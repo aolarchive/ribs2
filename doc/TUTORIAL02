@@ -1,4 +1,203 @@
- ____________________________
+ ________________________________
 '
-| TUTORIAL02 - Serving files
-`----------------------------
+| TUTORIAL02 - simple file server
+`--------------------------------
+
+In this tutorial we will build a simple file server. The following
+topics will be covered:
+* Intercepting specific URI
+* Sending files via sendfile
+* Directory listing
+* Additional http server configuration
+
+Step 1, creating project and make files
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Create the following directories under 'projects' (see TUTORIAL01):
+* httpd
+* httpd/src
+
+Create and edit file called httpd/src/Makefile and paste the following
+code:
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   TARGET=httpd    # the name of the executable
+
+   SRC=httpd.c     # list of source files
+
+   # we need to tell gcc where to find the include files of ribs2
+   CFLAGS+= -I ../../ribs2/include
+   # we need to tell the linker where to find ribs2 libraries
+   LDFLAGS+= -L ../../ribs2/lib -lribs2
+
+   include ../../ribs2/make/ribs.mk  # include ribs2 make system
+.                                                                   .
+|___________________________________________________________________|
+
+And simple main, httpd/src/httpd.c
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   #include "ribs.h"
+
+   int main(void) {
+       return 0;
+   }
+.                                                                   .
+|___________________________________________________________________|
+
+If you have a top level makefile (as implemented in TUTORIAL01), you
+should add your new project to it, this is how it should look (new
+lines are commented with <== add this line):
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   all:
+           @$(MAKE) -s -C ribs2              # make ribs2 first
+           @echo "[helloworld] build"
+           @$(MAKE) -s -C helloworld/src     # make our project
+           @echo "[httpd] build"             #  <== add this line
+           @$(MAKE) -s -C httpd/src          #  <== add this line
+   clean:
+           @$(MAKE) -s -C ribs2 clean        # clean ribs2
+           @echo "[helloworld] clean"
+           @$(MAKE) -s -C helloworld/src clean # clean our project
+           @echo "[httpd] clean"             #  <== add this line
+           @$(MAKE) -s -C httpd/src clean    #  <== add this line
+.                                                                   .
+|___________________________________________________________________|
+
+We are now ready to write some code.
+
+Step2, command line options
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Since we are going to extract command line args, let's change 'main'
+function to:
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   int main(int argc, char *argv[]) {
+       return 0;
+   }
+.                                                                   .
+|___________________________________________________________________|
+
+Now add the following lines to main. This will allow specifying port
+number and whether to run our server as service (daemon).
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+    static struct option long_options[] = {
+        {"port", 1, 0, 'p'},
+        {"daemonize", 0, 0, 'd'},
+        {"help", 0, 0, 1},
+        {0, 0, 0, 0}
+    };
+    /* port number */
+    int port = 8080;
+    /* should run as daemon */
+    int daemon_mode = 0;
+    while (1) {
+        int option_index = 0;
+        int c = getopt_long(argc, argv, "p:d", long_options,
+           &option_index);
+        if (c == -1)
+            break;
+        switch (c) {
+        case 'p':
+            port = atoi(optarg);
+            break;
+        case 'd':
+            daemon_mode = 1;
+            break;
+        }
+    }
+.                                                                   .
+|___________________________________________________________________|
+
+Step3, initialize the server
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Let's start by adding empty request handler
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   void simple_file_server(void) {
+   }
+.                                                                   .
+|___________________________________________________________________|
+
+Add the following to your main.
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+    /* server config */
+    struct http_server server = {
+        /* port number */
+        .port = port,
+
+        /* call simple_file_server upon receiving http request */
+        .user_func = simple_file_server,
+
+        /* set idle connection timeout to 60 seconds */
+        .timeout_handler.timeout = 60000,
+
+        /* set fiber's stack size to 64K */
+        .stack_size = 64*1024,
+
+        /* start the server with 100 stacks */
+        /* more stacks will be created if necessary */
+        .num_stacks =  100,
+
+        /* we expect most of our requests to be less than 8K */
+        .init_request_size = 8192,
+
+        /* we expect most of our response headers to be less than 8K
+           */
+        .init_header_size = 8192,
+
+        /* we expect most of our response payloads to be less than 8K
+           */
+        .init_payload_size = 8192,
+
+        /* no limit on the request size, this should be set to
+        something reasonable if you want to protect your server
+        against denial of service attack */
+        .max_req_size = 0,
+
+        /* no additional space is needed in the context to store app
+        specified data (fiber local storage) */
+        .context_size = 0
+    };
+
+    /* init and check for errors */
+    if (0 > http_server_init(&server)) {
+        printf("http_server_init failed\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* run as daemon if specified */
+    if (daemon_mode)
+        daemonize();
+
+    /* initialize the event loop */
+    if (0 > epoll_worker_init()) {
+        printf("epoll_worker_init failed\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* tell http server to start accepting connections */
+    if (0 > http_server_init_acceptor(&server)) {
+        printf("http_server_init_acceptor failed\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* lastly, we need to handle events */
+    epoll_worker_loop();
+.                                                                   .
+|___________________________________________________________________|
+
+Step4, let's send some files
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+

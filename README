@@ -39,3 +39,10 @@ In order to build the library you will need to install the following
 packages (under Ubuntu):
 * build-essential
 * libmysqlclient-dev (optional)
+
+Tutorials
+=========
+The following tutorials can be found in docs/
+* TUTORIAL01 - hello world
+* TUTORIAL02 - simple file server
+* TUTORIAL03 - Using MySQL via ribify
