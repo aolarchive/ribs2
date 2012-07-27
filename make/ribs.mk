@@ -28,6 +28,7 @@ RIBIFYFLAGS+= \
 --redefine-sym sleep=ribs_sleep
 
 ifdef UGLY_GETADDRINFO_WORKAROUND
+LDFLAGS+=-lanl
 RIBIFYFLAGS+=--redefine-sym getaddrinfo=ribs_getaddrinfo
 CFLAGS+=-DUGLY_GETADDRINFO_WORKAROUND
 endif
