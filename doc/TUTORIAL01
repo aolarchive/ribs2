@@ -30,7 +30,7 @@ Simple webapp (hello world)
 In this tutorial we will build a simple 'hello world`
 application. This tutorial covers the following:
 * Using RIBS make system
-* simple http server using an embeded ribs2
+* simple http server using an embedded ribs2
 
 Step 1, setting up the environment.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -187,13 +187,13 @@ my_server function.
 |___________________________________________________________________|
 
 HTTP_STATUS_200 is used for successful request/response, other
-reposnses are available as well, for example: HTTP_STATUS_404 which
+responses are available as well, for example: HTTP_STATUS_404 which
 means, page not found (see
 http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html for more
 information).
 
 HTTP_CONTENT_TYPE_TEXT_PLAIN specifies plain text response. You can
-add your more types, for example:
+use additional types, for example:
  ___________________________________________________________________
 |                                                                   |
 .                                                                   .

@@ -7,7 +7,7 @@ else
 OBJ_DIR=../obj/$(OBJ_SUB_DIR)
 endif
 
-LDFLAGS+=-L../lib $(LIBS:%=-l%) -lanl
+LDFLAGS+=-L../lib
 CFLAGS+=$(OPTFLAGS) -ggdb3 -W -Wall -Werror
 ASFLAGS+=-g
 
@@ -79,7 +79,7 @@ $(DEP): $(DIRS)
 	@echo "  (RIBIFY) $(@:../ribified/%=%) [ $@ $(RIBIFYFLAGS) ]"
 	@objcopy $(shell find /usr/lib -name $(@:../ribified/%=%)) $@ $(RIBIFYFLAGS)
 
-../bin/%: $(OBJ) $(LIBS:%=../lib/lib%.a) $(RIBIFY:%=../ribified/%)
+../bin/%: $(OBJ) $(RIBIFY:%=../ribified/%)
 	@echo "  (LD)     $(@:../bin/%=%)  [ -o $@ $(OBJ) $(LDFLAGS) ]"
 	@$(CC) -o $@ $(OBJ) $(LDFLAGS)
 
