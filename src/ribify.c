@@ -39,13 +39,7 @@ int ribs_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     if (res < 0 && errno != EINPROGRESS) {
         return res;
     }
-
-    struct epoll_event ev = { .events = EPOLLIN | EPOLLOUT | EPOLLET, .data.fd = sockfd };
-    if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, sockfd, &ev))
-        return LOGGER_PERROR("epoll_ctl"), -1;
-    epoll_worker_set_fd_ctx(ev.data.fd, &main_ctx);
-
-    return 0;
+    return ribs_epoll_add(sockfd, EPOLLIN | EPOLLOUT | EPOLLET, &main_ctx);
 }
 
 int ribs_fcntl(int fd, int cmd, ...) {
@@ -160,26 +154,14 @@ int ribs_pipe2(int pipefd[2], int flags) {
     if (0 > pipe2(pipefd, flags | O_NONBLOCK))
         return -1;
 
-    struct epoll_event ev = { .events = EPOLLIN | EPOLLOUT | EPOLLET, .data.fd = pipefd[0] };
-    if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, pipefd[0], &ev))
-        goto epoll_ctl_error;
-    epoll_worker_set_fd_ctx(ev.data.fd, &main_ctx);
+    if (0 == ribs_epoll_add(pipefd[0], EPOLLIN | EPOLLOUT | EPOLLET, &main_ctx) &&
+        0 > ribs_epoll_add(pipefd[1], EPOLLIN | EPOLLOUT | EPOLLET, &main_ctx))
+        return 0;
 
-    ev.data.fd = pipefd[1];
-    if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, pipefd[1], &ev))
-        goto epoll_ctl_error;
-    epoll_worker_set_fd_ctx(ev.data.fd, &main_ctx);
-
-    return 0;
-
-epoll_ctl_error:
-    {
-        int my_error = errno;
-        LOGGER_PERROR("epoll_ctl");
-        close(pipefd[0]);
-        close(pipefd[1]);
-        errno = my_error;
-    }
+    int my_error = errno;
+    close(pipefd[0]);
+    close(pipefd[1]);
+    errno = my_error;
     return -1;
 }
 
@@ -192,15 +174,13 @@ int ribs_nanosleep(const struct timespec *req, struct timespec *rem) {
     if (0 > tfd)
         return LOGGER_PERROR("ribs_nanosleep: timerfd_create"), -1;
 
-    struct epoll_event ev = { .events = EPOLLIN, .data.fd = tfd };
-    if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, tfd, &ev))
-        return LOGGER_PERROR("ribs_nanosleep: epoll_ctl"), close(tfd), -1;
+    if (0 > ribs_epoll_add(tfd, EPOLLIN, current_ctx))
+        return close(tfd), -1;
 
     struct itimerspec when = {{0,0},{req->tv_sec, req->tv_nsec}};
     if (0 > timerfd_settime(tfd, 0, &when, NULL))
         return LOGGER_PERROR("ribs_nanosleep: timerfd_settime"), close(tfd), -1;
 
-    epoll_worker_set_fd_ctx(tfd, current_ctx);
     yield();
     close(tfd);
 

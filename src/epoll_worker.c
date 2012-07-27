@@ -59,14 +59,20 @@ static void pipe_to_context(void) {
     }
 }
 
+int ribs_epoll_add(int fd, uint32_t events, struct ribs_context* ctx) {
+    struct epoll_event ev = { .events = events, .data.fd = fd };
+    if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, fd, &ev))
+        return LOGGER_PERROR("epoll_ctl"), -1;
+    epoll_worker_set_fd_ctx(fd, ctx);
+    return 0;
+}
+
 struct ribs_context* small_ctx_for_fd(int fd, void (*func)(void)) {
     void *ctx=ribs_context_create(SMALL_STACK_SIZE, func);
     if (NULL == ctx)
         return LOGGER_PERROR("ribs_context_create"), NULL;
-    struct epoll_event ev = { .events = EPOLLIN, .data.fd = fd };
-    if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, fd, &ev))
-        return LOGGER_PERROR("epoll_ctl"), NULL;
-    epoll_worker_set_fd_ctx(fd, ctx);
+    if (0 > ribs_epoll_add(fd, EPOLLIN, ctx))
+        return NULL;
     return ctx;
 }
 

@@ -181,35 +181,24 @@ int http_server_init(struct http_server *server) {
 }
 
 int http_server_init_acceptor(struct http_server *server) {
-    int lfd = server->accept_ctx->fd;
-    epoll_worker_fd_map[lfd].ctx = server->accept_ctx;
-    struct epoll_event ev;
-    ev.events = EPOLLIN;
-    ev.data.fd = lfd;
-    if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, lfd, &ev))
-        return LOGGER_PERROR("epoll_ctl"), -1;
-
+    if (0 > ribs_epoll_add(server->accept_ctx->fd, EPOLLIN, server->accept_ctx))
+        return -1;
     return timeout_handler_init(&server->timeout_handler);
 }
 
 static void http_server_accept_connections(void) {
     struct http_server *server = (struct http_server *)current_ctx->data.ptr;
-    struct epoll_event ev;
     for (;; yield()) {
         struct sockaddr_in new_addr;
         socklen_t new_addr_size = sizeof(struct sockaddr_in);
         int fd = accept4(current_ctx->fd, (struct sockaddr *)&new_addr, &new_addr_size, SOCK_CLOEXEC | SOCK_NONBLOCK);
-        if (fd < 0)
+        if (0 > fd)
             continue;
 
-        struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
-        fd_data->ctx = server->idle_ctx;
-        timeout_handler_add_fd_data(&server->timeout_handler, fd_data);
+        if (0 > ribs_epoll_add(fd, EPOLLIN | EPOLLOUT | EPOLLET, server->idle_ctx))
+            return;
 
-        ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
-        ev.data.fd = fd;
-        if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, fd, &ev))
-            LOGGER_PERROR("epoll_ctl");
+        timeout_handler_add_fd_data(&server->timeout_handler, epoll_worker_fd_map + fd);
     }
 }
 
