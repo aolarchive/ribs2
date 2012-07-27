@@ -43,6 +43,8 @@ int ribs_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     struct epoll_event ev = { .events = EPOLLIN | EPOLLOUT | EPOLLET, .data.fd = sockfd };
     if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, sockfd, &ev))
         return LOGGER_PERROR("epoll_ctl"), -1;
+    epoll_worker_set_fd_ctx(ev.data.fd, &main_ctx);
+
     return 0;
 }
 
@@ -161,10 +163,12 @@ int ribs_pipe2(int pipefd[2], int flags) {
     struct epoll_event ev = { .events = EPOLLIN | EPOLLOUT | EPOLLET, .data.fd = pipefd[0] };
     if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, pipefd[0], &ev))
         goto epoll_ctl_error;
+    epoll_worker_set_fd_ctx(ev.data.fd, &main_ctx);
 
     ev.data.fd = pipefd[1];
     if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, pipefd[1], &ev))
         goto epoll_ctl_error;
+    epoll_worker_set_fd_ctx(ev.data.fd, &main_ctx);
 
     return 0;
 
