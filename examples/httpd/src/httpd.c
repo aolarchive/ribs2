@@ -23,23 +23,36 @@
  * file server
  */
 void simple_file_server(void) {
+    /* get the current http server context */
     struct http_server_context *ctx = http_server_get_context();
+
+    /* uri decode the uri in the context */
     http_server_decode_uri(ctx->uri);
 
+    /* remove the leading slash, we will be serving files from the
+       current directory */
     const char *file = ctx->uri;
     if (*file == '/') ++file;
 
     int res = http_server_sendfile(file);
-    if (0 > res) { // not found
+    if (0 > res) {
+        /* not found */
         if (HTTP_SERVER_NOT_FOUND == res)
-            http_server_response_sprintf(HTTP_STATUS_404, HTTP_CONTENT_TYPE_TEXT_PLAIN, "not found");
+            http_server_response_sprintf(HTTP_STATUS_404,
+                                         HTTP_CONTENT_TYPE_TEXT_PLAIN, "not found: %s", file);
+        else
+            http_server_response_sprintf(HTTP_STATUS_500,
+                                         HTTP_CONTENT_TYPE_TEXT_PLAIN, "500 Internal Server Error: %s", file);
     }
-    else if (0 < res) { // directory
+    else if (0 < res) {
+        /* directory */
         if (0 > http_server_generate_dir_list(ctx->uri)) {
-            http_server_response_sprintf(HTTP_STATUS_404, HTTP_CONTENT_TYPE_TEXT_PLAIN, "not found");
+            http_server_response_sprintf(HTTP_STATUS_404,
+                                         HTTP_CONTENT_TYPE_TEXT_PLAIN, "dir not found: %s", ctx->uri);
             return;
         }
-        http_server_response(HTTP_STATUS_200, HTTP_CONTENT_TYPE_TEXT_HTML);
+        http_server_response(HTTP_STATUS_200,
+                             HTTP_CONTENT_TYPE_TEXT_HTML);
     }
 }
 
@@ -69,7 +82,6 @@ int main(int argc, char *argv[]) {
     }
 
     /* server config */
-        /* server config */
     struct http_server server = {
         /* port number */
         .port = port,
@@ -120,6 +132,8 @@ int main(int argc, char *argv[]) {
        listening on the same socket. for file server, one process is
        more than enough */
     /* fork(); */
+
+    /* initialize the event loop */
     if (epoll_worker_init() < 0)
         exit(EXIT_FAILURE);
 

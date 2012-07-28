@@ -464,12 +464,12 @@ int http_server_sendfile(const char *filename) {
     int fd = current_ctx->fd;
     int ffd = open(filename, O_RDONLY);
     if (ffd < 0)
-        return -2;
+        return HTTP_SERVER_NOT_FOUND;
     struct stat st;
     if (0 > fstat(ffd, &st)) {
         LOGGER_PERROR(filename);
         close(ffd);
-        return -2;
+        return HTTP_SERVER_NOT_FOUND;
     }
     if (S_ISDIR(st.st_mode)) {
         close(ffd);
