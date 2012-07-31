@@ -36,6 +36,7 @@ static int queue_ctx_fd = -1;
 
 LIST_CREATE(epoll_worker_timeout_chain);
 
+#ifdef UGLY_GETADDRINFO_WORKAROUND
 static void sigrtmin_to_context(void) {
     struct signalfd_siginfo siginfo;
     while (1) {
@@ -47,6 +48,7 @@ static void sigrtmin_to_context(void) {
            ribs_swapcurcontext((void *)siginfo.ssi_ptr);
     }
 }
+#endif
 
 static void pipe_to_context(void) {
     void *ctx;
@@ -87,21 +89,26 @@ int epoll_worker_init(void) {
     if (ribs_epoll_fd < 0)
         return LOGGER_PERROR("epoll_create1"), -1;
 
-    /* block signals */
+    /* block some signals */
     sigset_t set;
     sigemptyset(&set);
     sigaddset(&set, SIGPIPE);
+    if (-1 == sigprocmask(SIG_BLOCK, &set, NULL))
+        return LOGGER_PERROR("sigprocmask"), -1;
+
+#ifdef UGLY_GETADDRINFO_WORKAROUND
+    sigemptyset(&set);
     sigaddset(&set, SIGRTMIN);
     if (-1 == sigprocmask(SIG_BLOCK, &set, NULL))
         return LOGGER_PERROR("sigprocmask"), -1;
 
     /* sigrtmin to context */
-    sigdelset(&set, SIGPIPE);
     int sfd = signalfd(-1, &set, SFD_NONBLOCK);
     if (0 > sfd)
         return LOGGER_PERROR("signalfd"), -1;
     if (NULL == small_ctx_for_fd(sfd, sigrtmin_to_context))
         return -1;
+#endif
 
     /* pipe to conetxt */
     int pipefd[2];

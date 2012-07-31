@@ -37,6 +37,8 @@ int ribs_usleep(useconds_t usec);
 
 #ifdef UGLY_GETADDRINFO_WORKAROUND
 /* In this ugly mode ribs_getaddrinfo is not blocking but getaddrinfo_a creates threads internally */
+
+#include <netdb.h>
 int ribs_getaddrinfo(const char *node, const char *service,
                      const struct addrinfo *hints,
                      struct addrinfo **results);

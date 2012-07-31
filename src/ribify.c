@@ -205,7 +205,7 @@ int ribs_getaddrinfo(const char *node, const char *service,
                      const struct addrinfo *hints,
                      struct addrinfo **results) {
 
-    struct gaicb cb = { .ar_name=node, .ar_service=service, .ar_request=hints, .ar_result=NULL };
+    struct gaicb cb = { .ar_name = node, .ar_service = service, .ar_request = hints, .ar_result = NULL };
     struct gaicb *cb_p[1] = { &cb };
 
     struct sigevent sevp;

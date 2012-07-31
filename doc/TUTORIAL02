@@ -139,7 +139,7 @@ Add the following to your main.
         /* set idle connection timeout to 60 seconds */
         .timeout_handler.timeout = 60000,
 
-        /* set fiber's stack size to 64K */
+        /* set each fiber's stack size to 64K */
         .stack_size = 64*1024,
 
         /* start the server with 100 stacks */
