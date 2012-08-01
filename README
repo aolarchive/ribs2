@@ -42,8 +42,10 @@ packages (under Ubuntu):
 
 Tutorials
 =========
-The following tutorials can be found in docs/
+The following tutorials can be found in doc/
 * TUTORIAL01 - hello world
 * TUTORIAL02 - simple file server
 * TUTORIAL03 - Using MySQL via ribify
+* TUTORIAL04 - log player (http client)
+* TUTORIAL05 - dumping data and creating index
 =========

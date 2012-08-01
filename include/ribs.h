@@ -33,5 +33,6 @@
 #include "http_headers.h"
 #include "http_cookies.h"
 #include "ribify.h"
+#include "file_writer.h"
 
 #endif // _RIBS__H_

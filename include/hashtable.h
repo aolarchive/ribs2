@@ -66,5 +66,8 @@ static inline const char *hashtable_lookup_str(struct hashtable*ht, const char *
     return (ofs ? hashtable_get_val(ht, ofs) : default_val);
 }
 
+static inline void hashtable_free(struct hashtable *ht) {
+    vmbuf_free(&ht->data);
+}
 
 #endif // _HASHTABLE__H_
