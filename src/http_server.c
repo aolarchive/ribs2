@@ -195,8 +195,10 @@ static void http_server_accept_connections(void) {
         if (0 > fd)
             continue;
 
-        if (0 > ribs_epoll_add(fd, EPOLLIN | EPOLLOUT | EPOLLET, server->idle_ctx))
-            return;
+        if (0 > ribs_epoll_add(fd, EPOLLIN | EPOLLOUT | EPOLLET, server->idle_ctx)) {
+            close(fd);
+            continue;
+        }
 
         timeout_handler_add_fd_data(&server->timeout_handler, epoll_worker_fd_map + fd);
     }
