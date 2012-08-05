@@ -27,7 +27,6 @@ endif
 
 LDFLAGS+=-L../lib
 CFLAGS+=$(OPTFLAGS) -ggdb3 -W -Wall -Werror
-ASFLAGS+=-g
 
 RIBIFYFLAGS+= \
 --redefine-sym write=ribs_write \
@@ -78,7 +77,7 @@ $(OBJ_DIR)/%.o: %.c $(OBJ_DIR)/%.d
 
 $(OBJ_DIR)/%.o: %.S
 	@echo "  (ASM)    $*.S  [ -c $(CFLAGS) $*.S -o $(OBJ_DIR)/$*.o ]"
-	@$(AS) $(ASFLAGS) $*.S -o $(OBJ_DIR)/$*.o
+	@$(CC) -c $(CFLAGS) $*.S -o $(OBJ_DIR)/$*.o
 
 $(OBJ_DIR)/%.d: %.c
 	@echo "  (DEP)    $*.c"

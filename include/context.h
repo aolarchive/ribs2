@@ -25,14 +25,18 @@
 
 #define SMALL_STACK_SIZE 4096
 
+#ifdef __x86_64__
+#define NUM_ADDITIONAL_REGS 5
+#endif
+
+#ifdef __i386__
+#define NUM_ADDITIONAL_REGS 3
+#endif
+
 struct ribs_context {
-    long rbx; /* 0   */
-    long rbp; /* 8   */
-    long r12; /* 16  */
-    long r13; /* 24  */
-    long r14; /* 32  */
-    long r15; /* 40  */
-    long rsp; /* 48  */
+    uintptr_t stack_pointer_reg;
+    uintptr_t parent_context_reg;
+    uintptr_t additional_reg[NUM_ADDITIONAL_REGS];
     epoll_data_t data;
     struct ribs_context *next_free;
     int fd;
@@ -43,7 +47,7 @@ extern struct ribs_context main_ctx;
 extern struct ribs_context *current_ctx;
 
 extern void ribs_swapcurcontext(struct ribs_context *rctx);
-extern void ribs_makecontext(struct ribs_context *ctx, struct ribs_context *rctx, void (*func)(void));
+extern void ribs_makecontext(struct ribs_context *ctx, struct ribs_context *pctx, void (*func)(void));
 
 extern struct ribs_context *ribs_context_create(size_t stack_size, void (*func)(void));
 

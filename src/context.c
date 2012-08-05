@@ -26,20 +26,20 @@ struct ribs_context main_ctx;
 struct ribs_context *current_ctx = &main_ctx;
 extern void __ribs_context_exit(void);
 
-void ribs_makecontext(struct ribs_context *ctx, struct ribs_context *rctx, void (*func)(void)) {
+void ribs_makecontext(struct ribs_context *ctx, struct ribs_context *pctx, void (*func)(void)) {
     /* align stack to 16 bytes, assuming function always does push rbp to align.
        func doesn't need to be aligned since it doesn't rely on stack alignment
        (needed when using SSE instructions)
     */
-    void *sp = (unsigned long int *) ((((uintptr_t) ctx) & -16L) - 8);
+    void *sp = (unsigned long int *) ((((uintptr_t) ctx) & -16L) - sizeof(uintptr_t));
 
     *(uintptr_t *)(sp) = (uintptr_t)&__ribs_context_exit;
 
-    sp -= 8;
+    sp -= sizeof(uintptr_t);
     *(uintptr_t *)(sp) = (uintptr_t)func;
 
-    ctx->rsp = (uintptr_t) sp;
-    ctx->rbx = (uintptr_t) rctx;
+    ctx->stack_pointer_reg = (uintptr_t) sp;
+    ctx->parent_context_reg = (uintptr_t) pctx;
 }
 
 struct ribs_context *ribs_context_create(size_t stack_size, void (*func)(void)) {

@@ -30,10 +30,13 @@ a libmysqlclient example.
 
 Prerequisites
 =============
-Ubuntu 64bit 10.04 or higher, preferably 12.04. Although it was tested
-on Ubuntu, any Linux distro which is running 2.6.32 (64bit only) or
-above should be fine as well, however, it was never tested. Please
-report if you encounter problems.
+Ubuntu 10.04 or higher, preferably 12.04. Although it was tested on
+Ubuntu, any Linux distro which is running 2.6.32 or above should be
+fine as well, however, it was never tested. Please report if you
+encounter problems.
+
+Although 32bit is also supported, 64bit is highly recommended due to
+address space limitation of 32bit.
 
 In order to build the library you will need to install the following
 packages (under Ubuntu):
