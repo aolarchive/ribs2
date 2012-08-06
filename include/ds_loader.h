@@ -31,6 +31,10 @@ struct ds_loader_file {
     const char *filename;
 };
 
+#ifdef DS_LOADER_STAGE
+#   undef DS_LOADER_STAGE
+#endif
+
 #endif // _DS_LOADER__H_
 
 #ifndef DS_LOADER_STAGE /* vars */
@@ -47,8 +51,13 @@ struct ds_loader_file {
 
 #undef DS_LOADER_STAGE
 #define DS_LOADER_STAGE 1
+
 #include DS_LOADER_CONFIG
-#include "ds_loader.h"
+/*
+ * not including next stages yet, to allow creating .h file with the
+ * ds_loader_t declaration
+ */
+/* #include "ds_loader.h" */
 
 #elif DS_LOADER_STAGE==1 /* load */
 
