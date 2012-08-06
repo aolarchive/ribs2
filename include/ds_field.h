@@ -58,3 +58,7 @@ static inline int TEMPLATE_FUNC(ds_field,T,free)(struct TEMPLATE(ds_field,T) *ds
     dsf->mem = NULL;
     return res;
 }
+
+static inline T TEMPLATE_FUNC(ds_field,T,get)(struct TEMPLATE(ds_field,T) *dsf, size_t index) {
+    return dsf->mem[index];
+}

@@ -35,12 +35,15 @@ struct ds_loader_file {
 
 #ifndef DS_LOADER_STAGE /* vars */
 
-#define DS_LOADER_BEGIN()
+#define DS_LOADER_BEGIN() typedef struct ds_loader {
 
-#define DS_LOADER_END()
+#define DS_LOADER_END() } ds_loader_t;
 
 #define DS_FIELD_LOADER(T,name)                                         \
-    DS_FIELD(T) DS_FIELD_MAKE(DB_NAME,TABLE_NAME,name) = DS_FIELD_INITIALIZER;
+    DS_FIELD(T) DS_FIELD_MAKE(DB_NAME,TABLE_NAME,name);// = DS_FIELD_INITIALIZER;
+
+#define DS_VAR_FIELD_LOADER(name)                                     \
+    struct ds_var_field DS_FIELD_MAKE(DB_NAME,TABLE_NAME,name);// = DS_VAR_FIELD_INITIALIZER;
 
 #undef DS_LOADER_STAGE
 #define DS_LOADER_STAGE 1
@@ -51,7 +54,7 @@ struct ds_loader_file {
 
 #undef DS_LOADER_BEGIN
 #define DS_LOADER_BEGIN()          \
-    static int ds_loader_init(const char *base_dir) {  \
+    static int ds_loader_init(ds_loader_t *ds_loader, const char *base_dir) { \
     int res = 0;                                       \
     struct vmbuf vmb = VMBUF_INITIALIZER;              \
     vmbuf_init(&vmb, 4096);
@@ -67,8 +70,16 @@ struct ds_loader_file {
 #define DS_FIELD_LOADER(T,name)                                         \
     vmbuf_reset(&vmb);                                                  \
     vmbuf_sprintf(&vmb, "%s/%s/%s/%s", base_dir, DS_STRIGIFY(DB_NAME), DS_STRIGIFY(TABLE_NAME), #name); \
-    if (0 > (res = DS_FIELD_INIT(T, &(DS_FIELD_MAKE(DB_NAME,TABLE_NAME,name)), vmbuf_data(&vmb)))) \
+    if (0 > (res = DS_FIELD_INIT(T, &(ds_loader->DS_FIELD_MAKE(DB_NAME,TABLE_NAME,name)), vmbuf_data(&vmb)))) \
         goto ds_loader_done;
+
+#undef DS_VAR_FIELD_LOADER
+#define DS_VAR_FIELD_LOADER(name)                                     \
+    vmbuf_reset(&vmb);                                                  \
+    vmbuf_sprintf(&vmb, "%s/%s/%s/%s", base_dir, DS_STRIGIFY(DB_NAME), DS_STRIGIFY(TABLE_NAME), #name); \
+    if (0 > (res = ds_var_field_init(&(ds_loader->DS_FIELD_MAKE(DB_NAME,TABLE_NAME,name)), vmbuf_data(&vmb)))) \
+        goto ds_loader_done;
+
 
 #undef DS_LOADER_STAGE
 #define DS_LOADER_STAGE 2
@@ -80,11 +91,14 @@ struct ds_loader_file {
 #undef DS_LOADER_BEGIN
 #undef DS_LOADER_END
 #undef DS_FIELD_LOADER
+#undef DS_VAR_FIELD_LOADER
 
 #define DS_LOADER_BEGIN()                       \
     static const char *ds_loader_files[] = {
 #define DS_LOADER_END() NULL };
 #define DS_FIELD_LOADER(T,name)                 \
+    DS_MAKE_PATH(DB_NAME,TABLE_NAME,name),
+#define DS_VAR_FIELD_LOADER(name)             \
     DS_MAKE_PATH(DB_NAME,TABLE_NAME,name),
 
 #undef DS_LOADER_STAGE
