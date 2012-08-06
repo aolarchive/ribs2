@@ -23,16 +23,20 @@
 #include "ribs_defs.h"
 #include <mysql/mysql.h>
 
-struct mysql_helper {
-    MYSQL mysql;
-    MYSQL_STMT *stmt;
+struct mysql_login_info {
     const char *host;
     const char *user;
     const char *pass;
     const char *db;
     unsigned int port;
 };
-int mysql_helper_connect(struct mysql_helper *mysql_helper);
+
+struct mysql_helper {
+    MYSQL mysql;
+    MYSQL_STMT *stmt;
+};
+
+int mysql_helper_connect(struct mysql_helper *mysql_helper, struct mysql_login_info *login_info);
 int mysql_helper_select(struct mysql_helper *mysql_helper, const char *query, size_t query_len, const char *fields, ...);
 /* executes arbitrary queries */
 int mysql_helper_execute(struct mysql_helper *mysql_helper, const char *query, unsigned long *ar);

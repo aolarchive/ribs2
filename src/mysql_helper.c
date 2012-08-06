@@ -35,18 +35,21 @@ static int report_stmt_error(struct mysql_helper *mysql_helper) {
     return -1;
 }
 
-int mysql_helper_connect(struct mysql_helper *mysql_helper) {
+int mysql_helper_connect(struct mysql_helper *mysql_helper, struct mysql_login_info *login_info) {
     mysql_init(&mysql_helper->mysql);
     if (NULL == mysql_real_connect(&mysql_helper->mysql,
-                                   mysql_helper->host,
-                                   mysql_helper->user,
-                                   mysql_helper->pass,
-                                   mysql_helper->db,
-                                   mysql_helper->port,
+                                   login_info->host,
+                                   login_info->user,
+                                   login_info->pass,
+                                   login_info->db,
+                                   login_info->port,
                                    NULL, 0))
         return report_error(mysql_helper);
     my_bool b_flag = 0;
     if (0 != mysql_options(&mysql_helper->mysql, MYSQL_REPORT_DATA_TRUNCATION, (const char *)&b_flag))
+        return report_error(mysql_helper);
+    b_flag = 1;
+    if (0 != mysql_options(&mysql_helper->mysql, MYSQL_OPT_RECONNECT, (const char *)&b_flag))
         return report_error(mysql_helper);
     return 0;
 }

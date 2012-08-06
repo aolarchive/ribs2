@@ -14,6 +14,6 @@ struct mysql_dumper_type {
     uint32_t flags;
 };
 
-int mysql_dumper_dump(struct mysql_helper *mysql_helper, const char *outputdir, const char *dbname, const char *tablename, const char *query, size_t query_len, struct mysql_dumper_type *types);
+int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *outputdir, const char *dbname, const char *tablename, const char *query, size_t query_len, struct mysql_dumper_type *types);
 
 #endif // _MYSQL_DUMPER__H_

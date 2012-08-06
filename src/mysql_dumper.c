@@ -11,18 +11,16 @@
 
 #define IS_UNSIGNED(f)  ((f) & UNSIGNED_FLAG)
 
-static int report_error(struct mysql_helper *mysql_helper) {
-
-    LOGGER_ERROR("%s", mysql_error(&mysql_helper->mysql));
-    mysql_close(&mysql_helper->mysql);
+static int report_error(MYSQL *mysql) {
+    LOGGER_ERROR("%s", mysql_error(mysql));
+    mysql_close(mysql);
     return -1;
 }
 
-static int report_stmt_error(struct mysql_helper *mysql_helper) {
-    LOGGER_ERROR("%s, %s", mysql_error(&mysql_helper->mysql), mysql_stmt_error(mysql_helper->stmt));
-    mysql_stmt_close(mysql_helper->stmt);
-    mysql_helper->stmt = NULL;
-    mysql_close(&mysql_helper->mysql);
+static int report_stmt_error(MYSQL *mysql, MYSQL_STMT *stmt) {
+    LOGGER_ERROR("%s, %s", mysql_error(mysql), mysql_stmt_error(stmt));
+    mysql_stmt_close(stmt);
+    mysql_close(mysql);
     return -1;
 }
 
@@ -180,26 +178,27 @@ int mkdir_recursive(char *file) {
 }
 
 
-int mysql_dumper_dump(struct mysql_helper *mysql_helper, const char *outputdir, const char *dbname, const char *tablename, const char *query, size_t query_len, struct mysql_dumper_type *types) {
-    mysql_init(&mysql_helper->mysql);
-    mysql_helper->stmt = NULL;
-    if (NULL == mysql_real_connect(&mysql_helper->mysql, mysql_helper->host, mysql_helper->user, mysql_helper->pass, dbname, mysql_helper->port, NULL, CLIENT_COMPRESS))
-        return report_error(mysql_helper);
+int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *outputdir, const char *dbname, const char *tablename, const char *query, size_t query_len, struct mysql_dumper_type *types) {
+    MYSQL mysql;
+    MYSQL_STMT *stmt = NULL;
+    mysql_init(&mysql);
+    if (NULL == mysql_real_connect(&mysql, mysql_login_info->host, mysql_login_info->user, mysql_login_info->pass, mysql_login_info->db, mysql_login_info->port, NULL, CLIENT_COMPRESS))
+        return report_error(&mysql);
 
     my_bool b_flag = 0;
-    if (0 != mysql_options(&mysql_helper->mysql, MYSQL_REPORT_DATA_TRUNCATION, (const char *)&b_flag))
-        return report_error(mysql_helper);
+    if (0 != mysql_options(&mysql, MYSQL_REPORT_DATA_TRUNCATION, (const char *)&b_flag))
+        return report_error(&mysql);
 
-    mysql_helper->stmt = mysql_stmt_init(&mysql_helper->mysql);
-    if (!mysql_helper->stmt)
-        return report_error(mysql_helper);
+    stmt = mysql_stmt_init(&mysql);
+    if (!stmt)
+        return report_error(&mysql);
 
-    if (0 != mysql_stmt_prepare(mysql_helper->stmt, query, query_len))
-        return report_stmt_error(mysql_helper);
+    if (0 != mysql_stmt_prepare(stmt, query, query_len))
+        return report_stmt_error(&mysql, stmt);
 
-    MYSQL_RES *rs = mysql_stmt_result_metadata(mysql_helper->stmt);
+    MYSQL_RES *rs = mysql_stmt_result_metadata(stmt);
     if (!rs)
-        return report_stmt_error(mysql_helper);
+        return report_stmt_error(&mysql, stmt);
 
     unsigned int n = mysql_num_fields(rs);
     MYSQL_FIELD *fields = mysql_fetch_fields(rs);
@@ -301,10 +300,10 @@ int mysql_dumper_dump(struct mysql_helper *mysql_helper, const char *outputdir, 
      * execute & bind
      */
     if (0 != err ||
-        0 != mysql_stmt_execute(mysql_helper->stmt) ||
-        0 != mysql_stmt_bind_result(mysql_helper->stmt, bind)) {
+        0 != mysql_stmt_execute(stmt) ||
+        0 != mysql_stmt_bind_result(stmt, bind)) {
         err = -1;
-        report_stmt_error(mysql_helper);
+        report_stmt_error(&mysql, stmt);
         goto dumper_close_writer;
     }
     char zeros[4096];
@@ -314,7 +313,7 @@ int mysql_dumper_dump(struct mysql_helper *mysql_helper, const char *outputdir, 
     /*
      * write all rows to output files
      */
-    while (0 == (mysql_err = mysql_stmt_fetch(mysql_helper->stmt))) {
+    while (0 == (mysql_err = mysql_stmt_fetch(stmt))) {
         unsigned int i;
         int b = 0;
         for (i = 0; i < n && !b; ++i)
@@ -347,8 +346,8 @@ int mysql_dumper_dump(struct mysql_helper *mysql_helper, const char *outputdir, 
     LOGGER_ERROR("failed to write data, aborting");
  dumper_ok:
     /* we are done with mysql, close it */
-    mysql_stmt_close(mysql_helper->stmt);
-    mysql_close(&mysql_helper->mysql);
+    mysql_stmt_close(stmt);
+    mysql_close(&mysql);
     dprintf(STDOUT_FILENO, "%zu records, %zu skipped\n", count, num_rows_errors);
     /* check for mysql errors */
     if (mysql_err != MYSQL_NO_DATA)
