@@ -3,8 +3,7 @@ _RIBS_INLINE_ void file_writer_make(struct file_writer *fw) {
 }
 
 _RIBS_INLINE_ int file_writer_init(struct file_writer *fw, const char *filename) {
-    if (fw->fd >= 0)
-        file_writer_close(fw);
+    file_writer_close(fw);
     unlink(filename);
     fw->mem = NULL;
     fw->base_loc = fw->write_loc = 0;
