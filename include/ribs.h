@@ -22,6 +22,7 @@
 
 #include "ribs_defs.h"
 #include "vmbuf.h"
+#include "vmfile.h"
 #include "context.h"
 #include "ctx_pool.h"
 #include "hashtable.h"

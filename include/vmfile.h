@@ -28,6 +28,9 @@
 #include <errno.h>
 #include <string.h>
 #include <time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include "_vmbuf_preamble.h"
 #define VMBUF_T vmfile
