@@ -27,10 +27,12 @@
 #include <sys/signalfd.h>
 #include "logger.h"
 #include <fcntl.h>
+#include <setjmp.h>
 
 int ribs_epoll_fd = -1;
 struct epoll_event last_epollev;
 struct epoll_worker_fd_data *epoll_worker_fd_map;
+static jmp_buf jmp_epoll_worker_exit;
 
 static int queue_ctx_fd = -1;
 
@@ -122,7 +124,13 @@ int epoll_worker_init(void) {
 }
 
 void epoll_worker_loop(void) {
-    for (;;yield());
+    if (0 == setjmp(jmp_epoll_worker_exit)) {
+        for (;;yield());
+    }
+}
+
+void epoll_worker_exit(void) {
+    longjmp(jmp_epoll_worker_exit, 1);
 }
 
 inline void yield(void) {

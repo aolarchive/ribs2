@@ -18,12 +18,17 @@
     along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "daemonize.h"
+#include "epoll_worker.h"
+#include "vmfile.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <signal.h>
 #include "logger.h"
+
+static const char *pidfile = NULL;
 
 int daemonize() {
     pid_t pid = fork();
@@ -53,5 +58,59 @@ int daemonize() {
     pid = getpid();
 
     LOGGER_INFO("child process started (pid=%d)", pid);
+    return 0;
+}
+
+int ribs_logger_init(const char *filename) {
+    if ('|' == *filename) {
+        // popen
+        ++filename;
+        FILE *fp = popen(filename, "w");
+        if (NULL != fp) {
+            int fd = fileno(fp);
+            if (0 > dup2(fd, STDOUT_FILENO) ||
+                0 > dup2(fd, STDERR_FILENO))
+                return perror("dup2"), -1;
+            pclose(fp);
+         } else
+            return -1;
+    } else {
+        // open
+        int fd = open(filename, O_CREAT | O_WRONLY | O_APPEND, 0644);
+        if (fd < 0)
+            return perror(filename), -1;
+        if (0 > dup2(fd, STDOUT_FILENO) ||
+            0 > dup2(fd, STDERR_FILENO))
+            return perror("dup2"), -1;
+        close(fd);
+    }
+    return 0;
+}
+
+static void signal_handler(int signum) {
+    switch(signum) {
+    case SIGINT:
+    case SIGTERM:
+        if (pidfile) unlink(pidfile);
+        epoll_worker_exit();
+        break;
+    default:
+        LOGGER_ERROR("unknown signal");
+    }
+}
+
+int ribs_set_pidfile(const char *filename) {
+    pidfile = filename;
+    struct vmfile vmf_pid = VMFILE_INITIALIZER;
+    if (0 > vmfile_init(&vmf_pid, pidfile, 4096))
+        return -1;
+    vmfile_sprintf(&vmf_pid, "%d", (int)getpid());
+    vmfile_close(&vmf_pid);
+    struct sigaction sa = {
+        .sa_handler = signal_handler,
+        .sa_flags = 0
+    };
+    sigaction(SIGTERM, &sa, NULL);
+    sigaction(SIGINT, &sa, NULL);
     return 0;
 }

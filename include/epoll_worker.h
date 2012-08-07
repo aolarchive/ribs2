@@ -37,6 +37,7 @@ extern struct epoll_worker_fd_data *epoll_worker_fd_map;
 
 int epoll_worker_init(void);
 void epoll_worker_loop(void);
+void epoll_worker_exit(void);
 void yield(void);
 void courtesy_yield(void);
 int ribs_epoll_add(int fd, uint32_t events, struct ribs_context* ctx);

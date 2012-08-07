@@ -21,5 +21,7 @@
 #define _DAEMONIZE__H_
 
 int daemonize();
+int ribs_logger_init(const char *filename);
+int ribs_set_pidfile(const char *filename);
 
 #endif // _DAEMONIZE__H_
