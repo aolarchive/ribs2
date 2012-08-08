@@ -27,6 +27,7 @@
 #include <fcntl.h>
 #include "ds.h"
 #include "hashtable.h"
+#include "file_utils.h"
 
 #define IS_UNSIGNED(f)  ((f) & UNSIGNED_FLAG)
 
@@ -174,26 +175,6 @@ static const char *get_ds_type_str(int e) {
         DS_TYPE_MAPPER_ENUM_TO_STR(double);
     }
     return "N/A";
-}
-
-int mkdir_recursive(char *file) {
-    char *p = strrchr(file, '/');
-    if (NULL == p)
-        return 0;
-    *p = 0;
-    char *cur = file;
-    while (*cur) {
-        ++cur;
-        char *p = strchrnul(cur, '/');
-        char c = *p;
-        *p = 0;
-        if (0 > mkdir(file, 0755) && errno != EEXIST)
-            return -1;
-        cur = p;
-        *p = c;
-    }
-    *p = '/'; // restore
-    return 0;
 }
 
 
