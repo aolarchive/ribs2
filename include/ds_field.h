@@ -17,7 +17,6 @@
     You should have received a copy of the GNU Lesser General Public License
     along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
 */
-
 struct TEMPLATE(ds_field,T) {
     T *mem;
     size_t num_elements;
