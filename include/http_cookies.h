@@ -21,7 +21,7 @@
 #define _HTTP_COOKIES__H_
 
 #include "ribs_defs.h"
-#include <hashtable.h>
+#include "hashtable.h"
 
 int http_parse_cookies(struct hashtable *ht, char *cookies_str);
 

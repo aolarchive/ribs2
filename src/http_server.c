@@ -75,6 +75,7 @@ SSTR(HTTP_CONTENT_TYPE_TEXT_HTML, "text/html");
 SSTR(HTTP_CONTENT_TYPE_IMAGE_GIF, "image/gif");
 
 static void http_server_process_request(char *uri, char *headers);
+static void http_server_accept_connections(void);
 
 static void http_server_fiber_main_wrapper(void) {
     http_server_fiber_main();
@@ -101,12 +102,14 @@ static void http_server_idle_handler(void) {
     }
 }
 
-static void http_server_accept_connections(void);
-
 int http_server_init(struct http_server *server) {
+    /*
+     * one time global initializers
+     */
     if (0 > mime_types_init())
         return LOGGER_ERROR("failed to initialize mime types"), -1;
-    http_headers_init();
+    if (0 > http_headers_init())
+        return LOGGER_ERROR("failed to initialize http headers"), -1;
     /*
      * idle connection handler
      */
@@ -138,6 +141,7 @@ int http_server_init(struct http_server *server) {
      * listen socket
      */
     const int LISTEN_BACKLOG = 32768;
+    LOGGER_INFO("listening on port: %d, backlog: %d", server->port, LISTEN_BACKLOG);
     int lfd = socket(PF_INET, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
     if (0 > lfd)
         return -1;
@@ -173,7 +177,6 @@ int http_server_init(struct http_server *server) {
     server->accept_ctx = ribs_context_create(ACCEPTOR_STACK_SIZE, http_server_accept_connections);
     server->accept_ctx->fd = lfd;
     server->accept_ctx->data.ptr = server;
-    LOGGER_INFO("listening on port: %d, backlog: %d", server->port, LISTEN_BACKLOG);
 
     if (server->max_req_size == 0)
         server->max_req_size = DEFAULT_MAX_REQ_SIZE;

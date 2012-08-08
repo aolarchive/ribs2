@@ -32,7 +32,7 @@ SSTRL(DEFAULT_MIME_TYPE, "text/plain");
 static struct hashtable ht_mime_types = HASHTABLE_INITIALIZER;
 
 int mime_types_init(void) {
-    if (hashtable_get_size(&ht_mime_types))
+    if (hashtable_get_size(&ht_mime_types) > 0)
         return 1;
     LOGGER_INFO("initializing mime types");
     int fd = open(MIME_TYPES, O_RDONLY);
