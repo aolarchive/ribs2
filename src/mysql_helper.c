@@ -51,6 +51,8 @@ int mysql_helper_connect(struct mysql_helper *mysql_helper, struct mysql_login_i
     b_flag = 1;
     if (0 != mysql_options(&mysql_helper->mysql, MYSQL_OPT_RECONNECT, (const char *)&b_flag))
         return report_error(mysql_helper);
+    vmbuf_make(&mysql_helper->buf); // TODO: add initializer
+    vmbuf_init(&mysql_helper->buf, 16384);
     return 0;
 }
 
@@ -71,9 +73,12 @@ int mysql_helper_select(struct mysql_helper *mysql_helper, const char *query, si
 
     int nargs = strlen(fields);
     MYSQL_BIND bind[nargs];
-    unsigned long length[nargs];
-    my_bool error[nargs];
-    my_bool is_null[nargs];
+    size_t length_ofs = vmbuf_alloc_aligned(&mysql_helper->buf, sizeof(unsigned long) * nargs);
+    size_t error_ofs = vmbuf_alloc_aligned(&mysql_helper->buf, sizeof(my_bool) * nargs);
+    size_t is_null_ofs = vmbuf_alloc_aligned(&mysql_helper->buf, sizeof(my_bool) * nargs);
+    unsigned long *length = (unsigned long *)vmbuf_data_ofs(&mysql_helper->buf, length_ofs);
+    my_bool *error = (my_bool *)vmbuf_data_ofs(&mysql_helper->buf, error_ofs);
+    my_bool *is_null = (my_bool *)vmbuf_data_ofs(&mysql_helper->buf, is_null_ofs);
 
     memset(bind, 0, sizeof(MYSQL_BIND) * nargs);
 
@@ -125,6 +130,7 @@ int mysql_helper_free(struct mysql_helper *mysql_helper) {
         mysql_helper->stmt = NULL;
     }
     mysql_close(&mysql_helper->mysql);
+    vmbuf_free(&mysql_helper->buf);
     return 0;
 }
 

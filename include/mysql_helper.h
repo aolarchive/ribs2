@@ -22,6 +22,7 @@
 
 #include "ribs_defs.h"
 #include <mysql/mysql.h>
+#include "vmbuf.h"
 
 struct mysql_login_info {
     const char *host;
@@ -34,6 +35,7 @@ struct mysql_login_info {
 struct mysql_helper {
     MYSQL mysql;
     MYSQL_STMT *stmt;
+    struct vmbuf buf;
 };
 
 int mysql_helper_connect(struct mysql_helper *mysql_helper, struct mysql_login_info *login_info);
