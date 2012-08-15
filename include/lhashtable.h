@@ -97,6 +97,7 @@ struct lhashtable {
 };
 
 int lhashtable_init(struct lhashtable *lht, const char *filename);
+int lhashtable_close(struct lhashtable *lht);
 int lhashtable_insert(struct lhashtable *lht, const void *key, size_t key_len, const void *val, size_t val_len);
 int lhashtable_insert_str(struct lhashtable *lht, const char *key, const char *val);
 uint64_t lhashtable_lookup(struct lhashtable *lht, const void *key, size_t key_len);

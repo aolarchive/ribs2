@@ -60,10 +60,27 @@ static inline uint64_t _lhashtable_alloc_ofs(struct lhashtable *lht, size_t n) {
 }
 
 int lhashtable_init(struct lhashtable *lht, const char *filename) {
+    lhashtable_close(lht);
+    struct stat st;
+    if (0 == stat(filename, &st)) {
+        if (st.st_size < (ssize_t)sizeof(struct lhashtable_header))
+            return LOGGER_ERROR("corrupted file (size): %s", filename), -1;
+        lht->fd = open(filename, O_RDWR, 0644);
+        if (0 > lht->fd)
+            return LOGGER_PERROR(filename), -1;
+        lht->mem = mmap(NULL, st.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, lht->fd, 0);
+        if (MAP_FAILED == lht->mem)
+            return LOGGER_PERROR(filename), close(lht->fd), lht->fd = -1;
+        if (0 != memcmp(LHT_SIGNATURE, lht->mem, sizeof(LHT_SIGNATURE))) {
+            LOGGER_ERROR("corrupted file (signature): %s", filename), -1;
+            return close(lht->fd), lht->fd = -1, munmap(lht->mem, st.st_size), -1;
+        }
+        return 0;
+    }
+    unlink(filename);
     lht->fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, 0644);
     if (0 > lht->fd)
         return LOGGER_PERROR(filename), -1;
-
     /* initial size */
     size_t size = sizeof(struct lhashtable_header);
     _ALIGN_P2(size, LHT_BLOCK_SIZE);
@@ -82,8 +99,6 @@ int lhashtable_init(struct lhashtable *lht, const char *filename) {
     HEADER()->flags = 0;
     memset(HEADER()->tables_offsets, 0, sizeof(HEADER()->tables_offsets));
     HEADER()->num_data_blocks = 4096; /* TODO: make it configurable */
-
-    /* TODO: init sub-tables */
     int i;
     for (i = 0; i < LHASHTABLE_NUM_SUB_TABLES; ++i) {
         uint64_t sub_table_ofs = _lhashtable_alloc_ofs(lht, sizeof(struct lhashtable_table) + sizeof(uint64_t) * (HEADER()->num_data_blocks + 1));
@@ -96,7 +111,18 @@ int lhashtable_init(struct lhashtable *lht, const char *filename) {
         SUB_TABLE()->current_block = 0;
         SUB_TABLE()->buckets_offsets[0] = _lhashtable_alloc_ofs(lht, sizeof(struct lhashtable_bucket) * SUB_TABLE_INITIAL_SIZE);
     }
+    return 0;
+}
 
+int lhashtable_close(struct lhashtable *lht) {
+    if (lht->fd < 0)
+        return 0;
+    if (0 > close(lht->fd))
+        LOGGER_ERROR("failed to close file (fd=%d)", lht->fd);
+    lht->fd = -1;
+    if (0 > munmap(lht->mem, HEADER()->capacity))
+        LOGGER_ERROR("failed to unmap file (addr=%p)", lht->mem);
+    lht->mem = NULL;
     return 0;
 }
 
