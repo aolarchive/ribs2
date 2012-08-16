@@ -137,8 +137,16 @@ int mysql_helper_free(struct mysql_helper *mysql_helper) {
 int mysql_helper_fetch(struct mysql_helper *mysql_helper) {
     int err = mysql_stmt_fetch(mysql_helper->stmt);
     if (err != 0) {
-        if (err != MYSQL_NO_DATA)
+        switch(err) {
+        case MYSQL_NO_DATA:
+            return 0;
+        case MYSQL_DATA_TRUNCATED:
+            LOGGER_ERROR_FUNC("MYSQL_DATA_TRUNCATED");
+            return -1;
+        default:
+            LOGGER_ERROR_FUNC("unknown mysql error: %d", err);
             return report_stmt_error(mysql_helper);
+        }
         return 0;
     }
     return 1;
