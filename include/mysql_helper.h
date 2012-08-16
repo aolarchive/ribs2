@@ -21,6 +21,7 @@
 #define _MYSQL_HELPER__H_
 
 #include "ribs_defs.h"
+#include "vmbuf.h"
 #include <mysql/mysql.h>
 #include "vmbuf.h"
 
@@ -36,6 +37,13 @@ struct mysql_helper {
     MYSQL mysql;
     MYSQL_STMT *stmt;
     struct vmbuf buf;
+    char **data;
+    unsigned long *length;
+    my_bool *is_error;
+    my_bool *is_null;
+    int8_t *is_str;
+
+    int num_fields;
 };
 
 int mysql_helper_connect(struct mysql_helper *mysql_helper, struct mysql_login_info *login_info);
