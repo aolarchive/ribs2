@@ -32,6 +32,7 @@
 
 #define LHASHTABLE_FLAG_FIN   0x01  /* clean shutdown */
 #define LHASHTABLE_NUM_SUB_TABLES 256
+#define LHASHTABLE_FREELIST_COUNT 8192 /* (max record size) / (record alignment) */
 
 /*
  * main header
@@ -47,6 +48,17 @@ struct lhashtable_header {
 };
 
 /*
+ * ofs ==> record
+ */
+union lhashtable_data_ofs {
+    struct {
+        unsigned ofs:17;
+        unsigned block:15; /* block 0 is special case */
+    } bits;
+    uint32_t u32;;
+};
+
+/*
  * hashtable (sub-table)
  */
 struct lhashtable_table {
@@ -55,6 +67,7 @@ struct lhashtable_table {
     uint32_t size;
     uint32_t next_alloc;
     uint16_t current_block;
+    union lhashtable_data_ofs freelist[LHASHTABLE_FREELIST_COUNT];
     uint64_t data_start_ofs[/* num_data_blocks */]; /* num_data_blocks * 1M blocks = 4GB..32GB */
 };
 
@@ -65,17 +78,6 @@ struct lhashtable_record {
     uint16_t key_len;
     uint16_t val_len;
     char data[];
-};
-
-/*
- * ofs ==> record
- */
-union lhashtable_data_ofs {
-    struct {
-        unsigned ofs:17;
-        unsigned block:15; /* block 0 is special case */
-    } bits;
-    uint32_t u32;;
 };
 
 /*
@@ -101,6 +103,7 @@ int lhashtable_close(struct lhashtable *lht);
 int lhashtable_insert(struct lhashtable *lht, const void *key, size_t key_len, const void *val, size_t val_len);
 int lhashtable_insert_str(struct lhashtable *lht, const char *key, const char *val);
 uint64_t lhashtable_lookup(struct lhashtable *lht, const void *key, size_t key_len);
+int lhashtable_remove(struct lhashtable *lht, const void *key, size_t key_len);
 void lhashtable_dump(struct lhashtable *lht);
 
 static inline void *lhashtable_get_val(struct lhashtable *lht, uint64_t rec_ofs) {

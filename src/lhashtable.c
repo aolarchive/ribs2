@@ -104,7 +104,8 @@ int lhashtable_init(struct lhashtable *lht, const char *filename) {
         uint64_t sub_table_ofs = _lhashtable_alloc_ofs(lht, sizeof(struct lhashtable_table) + sizeof(uint64_t) * (HEADER()->num_data_blocks + 1));
         HEADER()->tables_offsets[i] = sub_table_ofs;
         memset(SUB_TABLE()->buckets_offsets, 0, sizeof(SUB_TABLE()->buckets_offsets));
-        memset(SUB_TABLE()->data_start_ofs, 0, sizeof(uint64_t) * (HEADER()->num_data_blocks + 1));
+        memset(SUB_TABLE()->freelist, 0, sizeof(SUB_TABLE()->freelist));
+        memset(SUB_TABLE()->data_start_ofs, 0, sizeof(uint64_t) * (HEADER()->num_data_blocks + 1)); /* 0 is reserved */
         SUB_TABLE()->mask = SUB_TABLE_INITIAL_SIZE - 1;
         SUB_TABLE()->size = 0;
         SUB_TABLE()->next_alloc = LHT_BLOCK_SIZE; /* 0 is reserved ==> set to full */
@@ -126,18 +127,25 @@ int lhashtable_close(struct lhashtable *lht) {
     return 0;
 }
 
-int lhashtable_locate_bucket_idx(const void *key, size_t key_len, uint32_t mask) {
-    uint32_t h = hashcode(key, key_len);
-    uint32_t b = h & mask;
-    if (b < SUB_TABLE_INITIAL_SIZE) return 0;
-    uint32_t il2 = ilog2(b);
-    uint32_t table_idx = il2 - SUB_TABLE_MIN_BITS + 1;
-    uint32_t loc = b - (1<<il2);
-    LOGGER_INFO("h=%u, b=%u, il2=%u, table_idx=%u, loc=%u", h, b, il2, table_idx, loc);
+static inline uint64_t _lhashtable_data_ofs_to_abs_ofs(struct lhashtable_table *tbl, union lhashtable_data_ofs *data_ofs) {
+    return tbl->data_start_ofs[data_ofs->bits.block] + (data_ofs->bits.ofs << LHT_ALLOC_ALIGN_BITS);
+}
+
+static inline int _lhashtable_alloc_from_freelist(struct lhashtable *lht, uint64_t sub_table_ofs, size_t n, union lhashtable_data_ofs *data_ofs) {
+    N_ALIGN();
+    n >>= LHT_ALLOC_ALIGN_BITS;
+    if (0 == SUB_TABLE()->freelist[n].u32)
+        return -1;
+    *data_ofs = SUB_TABLE()->freelist[n];
+    uint64_t ofs = _lhashtable_data_ofs_to_abs_ofs(SUB_TABLE(), data_ofs);
+    union lhashtable_data_ofs *data_ofs_ptr = lht->mem + ofs;
+    SUB_TABLE()->freelist[n] = *data_ofs_ptr;
     return 0;
 }
 
 static inline int _lhashtable_sub_alloc(struct lhashtable *lht, uint64_t sub_table_ofs, size_t n, union lhashtable_data_ofs *data_ofs) {
+    if (0 == _lhashtable_alloc_from_freelist(lht, sub_table_ofs, n, data_ofs))
+        return 0;
     N_ALIGN();
     if (LHT_BLOCK_SIZE - SUB_TABLE()->next_alloc < n) {
         /* TODO: add leftover to the free list */
@@ -152,11 +160,7 @@ static inline int _lhashtable_sub_alloc(struct lhashtable *lht, uint64_t sub_tab
     return 0;
 }
 
-static inline uint64_t _data_ofs_to_abs_ofs(struct lhashtable_table *tbl, union lhashtable_data_ofs *data_ofs) {
-    return tbl->data_start_ofs[data_ofs->bits.block] + (data_ofs->bits.ofs << LHT_ALLOC_ALIGN_BITS);
-}
-
-static inline uint64_t _get_bucket_ofs(struct lhashtable *lht, uint64_t sub_table_ofs, uint32_t bucket) {
+static inline uint64_t _lhashtable_get_bucket_ofs(struct lhashtable *lht, uint64_t sub_table_ofs, uint32_t bucket) {
     if (bucket < SUB_TABLE_INITIAL_SIZE)
         return SUB_TABLE()->buckets_offsets[0] + (sizeof(struct lhashtable_bucket) * bucket);
     uint32_t il2 = ilog2(bucket);
@@ -165,14 +169,13 @@ static inline uint64_t _get_bucket_ofs(struct lhashtable *lht, uint64_t sub_tabl
     return SUB_TABLE()->buckets_offsets[il2 - SUB_TABLE_MIN_BITS + 1] + (sizeof(struct lhashtable_bucket) * bucket);
 }
 
-static inline struct lhashtable_bucket *_get_bucket_ptr(struct lhashtable *lht, uint64_t sub_table_ofs, uint32_t bucket) {
-    return lht->mem + _get_bucket_ofs(lht, sub_table_ofs, bucket);
+static inline struct lhashtable_bucket *_lhashtable_get_bucket_ptr(struct lhashtable *lht, uint64_t sub_table_ofs, uint32_t bucket) {
+    return lht->mem + _lhashtable_get_bucket_ofs(lht, sub_table_ofs, bucket);
 }
 
-static inline void _move_buckets_range(struct lhashtable *lht, uint64_t sub_table_ofs, uint32_t mask, uint32_t new_mask, uint32_t begin, uint32_t end) {
-    (void)mask;
+static void _lhashtable_move_buckets_range(struct lhashtable *lht, uint64_t sub_table_ofs, uint32_t new_mask, uint32_t begin, uint32_t end) {
     for (; begin < end; ++begin) {
-        uint64_t bkt_ofs = _get_bucket_ofs(lht, sub_table_ofs, begin);
+        uint64_t bkt_ofs = _lhashtable_get_bucket_ofs(lht, sub_table_ofs, begin);
         struct lhashtable_bucket *bkt = lht->mem + bkt_ofs;
         if (0 == bkt->data_ofs.u32)
             continue;
@@ -184,7 +187,7 @@ static inline void _move_buckets_range(struct lhashtable *lht, uint64_t sub_tabl
         /* free the bucket so it can be reused */
         bkt->data_ofs.u32 = 0;
         for (;;) {
-            uint64_t new_bkt_ofs = _get_bucket_ofs(lht, sub_table_ofs, new_bkt_idx);
+            uint64_t new_bkt_ofs = _lhashtable_get_bucket_ofs(lht, sub_table_ofs, new_bkt_idx);
             struct lhashtable_bucket *new_bkt = lht->mem + new_bkt_ofs;
             if (0 == new_bkt->data_ofs.u32) {
                 new_bkt->hashcode = bkt->hashcode;
@@ -198,7 +201,7 @@ static inline void _move_buckets_range(struct lhashtable *lht, uint64_t sub_tabl
     }
 }
 
-static inline int _resize_table_if_needed(struct lhashtable *lht, uint64_t sub_table_ofs) {
+static inline int _lhashtable_resize_table_if_needed(struct lhashtable *lht, uint64_t sub_table_ofs) {
     uint32_t mask = SUB_TABLE()->mask;
     uint32_t capacity = mask + 1;
     if (likely(SUB_TABLE()->size < (capacity >> 1)))
@@ -211,9 +214,9 @@ static inline int _resize_table_if_needed(struct lhashtable *lht, uint64_t sub_t
     uint32_t b = 0;
     /* skip the begining for now, this part may contain buckets from
        the end of the table (wraparound) */
-    for (; 0 != _get_bucket_ptr(lht, sub_table_ofs, b)->data_ofs.u32; ++b);
-    _move_buckets_range(lht, sub_table_ofs, mask, new_mask, b, capacity);
-    _move_buckets_range(lht, sub_table_ofs, mask, new_mask, 0, b);
+    for (; 0 != _lhashtable_get_bucket_ptr(lht, sub_table_ofs, b)->data_ofs.u32; ++b);
+    _lhashtable_move_buckets_range(lht, sub_table_ofs, new_mask, b, capacity);
+    _lhashtable_move_buckets_range(lht, sub_table_ofs, new_mask, 0, b);
 
     SUB_TABLE()->mask = new_mask;
     /* TODO: resize here */
@@ -224,11 +227,11 @@ int lhashtable_insert(struct lhashtable *lht, const void *key, size_t key_len, c
     uint32_t h = hashcode(key, key_len);
     uint32_t sub_tbl_idx = (h ^ (h >> 8)) & (LHASHTABLE_NUM_SUB_TABLES - 1); /* TODO: maybe change later */
     uint64_t sub_table_ofs = HEADER()->tables_offsets[sub_tbl_idx];
-    _resize_table_if_needed(lht, sub_table_ofs);
+    _lhashtable_resize_table_if_needed(lht, sub_table_ofs);
     uint32_t mask = SUB_TABLE()->mask;
     uint32_t b = h & mask;
     for (;;) {
-        uint64_t bkt_ofs = _get_bucket_ofs(lht, sub_table_ofs, b);
+        uint64_t bkt_ofs = _lhashtable_get_bucket_ofs(lht, sub_table_ofs, b);
         struct lhashtable_bucket *bkt = lht->mem + bkt_ofs;
         if (0 == bkt->data_ofs.u32) {
             size_t n = sizeof(struct lhashtable_record) + key_len + val_len;
@@ -238,7 +241,7 @@ int lhashtable_insert(struct lhashtable *lht, const void *key, size_t key_len, c
             bkt = lht->mem + bkt_ofs;
             bkt->hashcode = h;
             bkt->data_ofs = data_ofs;
-            struct lhashtable_record *rec = lht->mem + _data_ofs_to_abs_ofs(SUB_TABLE(), &data_ofs);
+            struct lhashtable_record *rec = lht->mem + _lhashtable_data_ofs_to_abs_ofs(SUB_TABLE(), &data_ofs);
             rec->key_len = key_len;
             rec->val_len = val_len;
             memcpy(rec->data, key, key_len);
@@ -264,12 +267,12 @@ uint64_t lhashtable_lookup(struct lhashtable *lht, const void *key, size_t key_l
     uint32_t mask = SUB_TABLE()->mask;
     uint32_t b = h & mask;
     for (;;) {
-        uint64_t bkt_ofs = _get_bucket_ofs(lht, sub_table_ofs, b);
+        uint64_t bkt_ofs = _lhashtable_get_bucket_ofs(lht, sub_table_ofs, b);
         struct lhashtable_bucket *bkt = lht->mem + bkt_ofs;
         if (0 == bkt->data_ofs.u32)
             return 0;
         if (h == bkt->hashcode) {
-            uint64_t rec_ofs = _data_ofs_to_abs_ofs(SUB_TABLE(), &bkt->data_ofs);
+            uint64_t rec_ofs = _lhashtable_data_ofs_to_abs_ofs(SUB_TABLE(), &bkt->data_ofs);
             struct lhashtable_record *rec = lht->mem + rec_ofs;
             if (key_len == rec->key_len && 0 == memcmp(rec->data, key, key_len))
                 return rec_ofs;
@@ -280,6 +283,73 @@ uint64_t lhashtable_lookup(struct lhashtable *lht, const void *key, size_t key_l
     }
     return 0;
 }
+
+static void _lhashtable_fix_chain_down(struct lhashtable *lht, uint64_t sub_table_ofs, uint32_t mask, uint32_t bucket) {
+    for(;;) {
+        uint64_t bkt_ofs = _lhashtable_get_bucket_ofs(lht, sub_table_ofs, bucket);
+        struct lhashtable_bucket *bkt = lht->mem + bkt_ofs;
+        if (0 == bkt->data_ofs.u32) /* is end of chain? */
+            break;
+        uint32_t new_bucket = bkt->hashcode & mask; /* ideal bucket */
+        for (;;) {
+            if (bucket == new_bucket) /* no need to move */
+                break;
+            struct lhashtable_bucket *new_bkt = lht->mem + _lhashtable_get_bucket_ofs(lht, sub_table_ofs, new_bucket);
+            if (0 == new_bkt->data_ofs.u32) {
+                /* found new spot, move the bucket */
+                *new_bkt = *bkt;
+                bkt->data_ofs.u32 = 0; /* make as deleted */
+                break;
+            }
+            ++new_bucket;
+            if (new_bucket > mask)
+                new_bucket = 0;
+        }
+        ++bucket;
+        if (bucket > mask)
+            bucket = 0;
+    }
+}
+
+int lhashtable_remove(struct lhashtable *lht, const void *key, size_t key_len) {
+    uint32_t h = hashcode(key, key_len);
+    uint32_t sub_tbl_idx = (h ^ (h >> 8)) & (LHASHTABLE_NUM_SUB_TABLES - 1); /* TODO: maybe change later */
+    uint64_t sub_table_ofs = HEADER()->tables_offsets[sub_tbl_idx];
+    uint32_t mask = SUB_TABLE()->mask;
+    uint32_t b = h & mask;
+    for (;;) {
+        uint64_t bkt_ofs = _lhashtable_get_bucket_ofs(lht, sub_table_ofs, b);
+        struct lhashtable_bucket *bkt = lht->mem + bkt_ofs;
+        if (0 == bkt->data_ofs.u32)
+            return -1;
+        if (h == bkt->hashcode) {
+            uint64_t rec_ofs = _lhashtable_data_ofs_to_abs_ofs(SUB_TABLE(), &bkt->data_ofs);
+            struct lhashtable_record *rec = lht->mem + rec_ofs;
+            if (key_len == rec->key_len && 0 == memcmp(rec->data, key, key_len)) {
+                /* add to freelist */
+                size_t n = sizeof(struct lhashtable_record) + key_len + rec->val_len;
+                N_ALIGN();
+                n >>= LHT_ALLOC_ALIGN_BITS;
+                union lhashtable_data_ofs *data_ofs_ptr = lht->mem + rec_ofs;
+                *data_ofs_ptr = SUB_TABLE()->freelist[n];
+                SUB_TABLE()->freelist[n] = bkt->data_ofs;
+                bkt->data_ofs.u32 = 0; /* mark as deleted */
+                --SUB_TABLE()->size;
+                /* skip the deleted bucket and fix buckets below it */
+                ++b;
+                if (b > mask)
+                    b = 0;
+                _lhashtable_fix_chain_down(lht, sub_table_ofs, mask, b);
+                return 0;
+            }
+        }
+        ++b;
+        if (b > mask)
+            b = 0;
+    }
+    return -1;
+}
+
 
 void lhashtable_dump(struct lhashtable *lht) {
     int i;
