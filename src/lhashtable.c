@@ -232,13 +232,11 @@ int lhashtable_insert(struct lhashtable *lht, const void *key, size_t key_len, c
     uint32_t b = h & mask;
     for (;;) {
         uint64_t bkt_ofs = _lhashtable_get_bucket_ofs(lht, sub_table_ofs, b);
-        struct lhashtable_bucket *bkt = lht->mem + bkt_ofs;
-        if (0 == bkt->data_ofs.u32) {
+        if (0 == ((struct lhashtable_bucket *)(lht->mem + bkt_ofs))->data_ofs.u32) {
             size_t n = sizeof(struct lhashtable_record) + key_len + val_len;
             union lhashtable_data_ofs data_ofs;
             _lhashtable_sub_alloc(lht, sub_table_ofs, n, &data_ofs);
-            /* re-calc pointer, mem can move after allocating */
-            bkt = lht->mem + bkt_ofs;
+            struct lhashtable_bucket *bkt = lht->mem + bkt_ofs;
             bkt->hashcode = h;
             bkt->data_ofs = data_ofs;
             struct lhashtable_record *rec = lht->mem + _lhashtable_data_ofs_to_abs_ofs(SUB_TABLE(), &data_ofs);
