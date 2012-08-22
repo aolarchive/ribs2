@@ -1,16 +1,24 @@
-_RIBS_INLINE_ int lhashtable_insert_str(struct lhashtable *lht, const char *key, const char *val) {
-    return lhashtable_insert(lht, key, strlen(key), val, strlen(val) + 1);
+_RIBS_INLINE_ uint64_t lhashtable_put_str(struct lhashtable *lht, const char *key, const char *val) {
+    return lhashtable_put(lht, key, strlen(key), val, strlen(val) + 1);
 }
 
-_RIBS_INLINE_ const char *lhashtable_lookup_str(struct lhashtable *lht, const char *key) {
-    uint64_t rec_ofs = lhashtable_lookup(lht, key, strlen(key));
+_RIBS_INLINE_ const char *lhashtable_get_str(struct lhashtable *lht, const char *key) {
+    uint64_t rec_ofs = lhashtable_get(lht, key, strlen(key));
     if (0 == rec_ofs)
         return NULL;
     return lhashtable_get_val(lht, rec_ofs);
 }
 
-_RIBS_INLINE_ int lhashtable_remove_str(struct lhashtable *lht, const char *key) {
-    return lhashtable_remove(lht, key, strlen(key));
+_RIBS_INLINE_ int lhashtable_del_str(struct lhashtable *lht, const char *key) {
+    return lhashtable_del(lht, key, strlen(key));
+}
+
+_RIBS_INLINE_ void *lhashtable_get_key(struct lhashtable *lht, uint64_t rec_ofs) {
+    return ((struct lhashtable_record *)(lht->mem + rec_ofs))->data;
+}
+
+_RIBS_INLINE_ size_t lhashtable_get_key_len(struct lhashtable *lht, uint64_t rec_ofs) {
+    return ((struct lhashtable_record *)(lht->mem + rec_ofs))->key_len;
 }
 
 _RIBS_INLINE_ void *lhashtable_get_val(struct lhashtable *lht, uint64_t rec_ofs) {
@@ -18,10 +26,13 @@ _RIBS_INLINE_ void *lhashtable_get_val(struct lhashtable *lht, uint64_t rec_ofs)
     return rec->data + rec->key_len;
 }
 
+_RIBS_INLINE_ size_t lhashtable_get_val_len(struct lhashtable *lht, uint64_t rec_ofs) {
+    return ((struct lhashtable_record *)(lht->mem + rec_ofs))->val_len;
+}
+
 _RIBS_INLINE_ uint64_t lhashtable_writeloc(struct lhashtable *lht) {
     return ((struct lhashtable_header *)lht->mem)->write_loc;
 }
-
 
 /*
  * inline functions for internal use

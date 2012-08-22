@@ -126,19 +126,21 @@ struct lhashtable {
 
 int lhashtable_init(struct lhashtable *lht, const char *filename);
 int lhashtable_close(struct lhashtable *lht);
-int lhashtable_insert(struct lhashtable *lht, const void *key, size_t key_len, const void *val, size_t val_len);
-int lhashtable_insert_or_update(struct lhashtable *lht, const void *key, size_t key_len, const void *val, size_t val_len);
-uint64_t lhashtable_lookup(struct lhashtable *lht, const void *key, size_t key_len);
-int lhashtable_remove(struct lhashtable *lht, const void *key, size_t key_len);
+uint64_t lhashtable_put(struct lhashtable *lht, const void *key, size_t key_len, const void *val, size_t val_len);
+uint64_t lhashtable_get(struct lhashtable *lht, const void *key, size_t key_len);
+int lhashtable_del(struct lhashtable *lht, const void *key, size_t key_len);
 void lhashtable_dump(struct lhashtable *lht);
 
 /*
  * inline
  */
-_RIBS_INLINE_ int lhashtable_insert_str(struct lhashtable *lht, const char *key, const char *val);
-_RIBS_INLINE_ const char *lhashtable_lookup_str(struct lhashtable *lht, const char *key);
-_RIBS_INLINE_ int lhashtable_remove_str(struct lhashtable *lht, const char *key);
+_RIBS_INLINE_ uint64_t lhashtable_put_str(struct lhashtable *lht, const char *key, const char *val);
+_RIBS_INLINE_ const char *lhashtable_get_str(struct lhashtable *lht, const char *key);
+_RIBS_INLINE_ int lhashtable_del_str(struct lhashtable *lht, const char *key);
+_RIBS_INLINE_ void *lhashtable_get_key(struct lhashtable *lht, uint64_t rec_ofs);
+_RIBS_INLINE_ size_t lhashtable_get_key_len(struct lhashtable *lht, uint64_t rec_ofs);
 _RIBS_INLINE_ void *lhashtable_get_val(struct lhashtable *lht, uint64_t rec_ofs);
+_RIBS_INLINE_ size_t lhashtable_get_val_len(struct lhashtable *lht, uint64_t rec_ofs);
 _RIBS_INLINE_ uint64_t lhashtable_writeloc(struct lhashtable *lht);
 
 #include "../src/_lhashtable.c"

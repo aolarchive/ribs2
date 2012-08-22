@@ -82,44 +82,14 @@ int lhashtable_close(struct lhashtable *lht) {
     return 0;
 }
 
-int lhashtable_insert(struct lhashtable *lht, const void *key, size_t key_len, const void *val, size_t val_len) {
+uint64_t lhashtable_put(struct lhashtable *lht, const void *key, size_t key_len, const void *val, size_t val_len) {
     uint32_t h = hashcode(key, key_len);
     uint32_t sub_tbl_idx = LHT_SUB_TABLE_HASH(h);
     uint64_t sub_table_ofs = LHT_GET_HEADER()->tables_offsets[sub_tbl_idx];
     _lhashtable_resize_table_if_needed(lht, sub_table_ofs);
     uint32_t mask = LHT_GET_SUB_TABLE()->mask;
     uint32_t b = h & mask;
-    for (;;) {
-        uint64_t bkt_ofs = _lhashtable_get_bucket_ofs(lht, sub_table_ofs, b);
-        if (0 == ((struct lhashtable_bucket *)(lht->mem + bkt_ofs))->data_ofs.u32) {
-            size_t n = sizeof(struct lhashtable_record) + key_len + val_len;
-            union lhashtable_data_ofs data_ofs;
-            _lhashtable_sub_alloc(lht, sub_table_ofs, n, &data_ofs);
-            struct lhashtable_bucket *bkt = lht->mem + bkt_ofs;
-            bkt->hashcode = h;
-            bkt->data_ofs = data_ofs;
-            struct lhashtable_record *rec = lht->mem + _lhashtable_data_ofs_to_abs_ofs(LHT_GET_SUB_TABLE(), &data_ofs);
-            rec->key_len = key_len;
-            rec->val_len = val_len;
-            memcpy(rec->data, key, key_len);
-            memcpy(rec->data + key_len, val, val_len);;
-            ++LHT_GET_SUB_TABLE()->size;
-            return 0;
-        }
-        ++b;
-        if (b > mask)
-            b = 0;
-    }
-    return 0;
-}
-
-int lhashtable_insert_or_update(struct lhashtable *lht, const void *key, size_t key_len, const void *val, size_t val_len) {
-    uint32_t h = hashcode(key, key_len);
-    uint32_t sub_tbl_idx = LHT_SUB_TABLE_HASH(h);
-    uint64_t sub_table_ofs = LHT_GET_HEADER()->tables_offsets[sub_tbl_idx];
-    _lhashtable_resize_table_if_needed(lht, sub_table_ofs);
-    uint32_t mask = LHT_GET_SUB_TABLE()->mask;
-    uint32_t b = h & mask;
+    uint64_t rec_ofs;
     for (;;) {
         uint64_t bkt_ofs = _lhashtable_get_bucket_ofs(lht, sub_table_ofs, b);
         struct lhashtable_bucket *bkt = lht->mem + bkt_ofs;
@@ -131,16 +101,17 @@ int lhashtable_insert_or_update(struct lhashtable *lht, const void *key, size_t 
             bkt = lht->mem + bkt_ofs;
             bkt->hashcode = h;
             bkt->data_ofs = data_ofs;
-            struct lhashtable_record *rec = lht->mem + _lhashtable_data_ofs_to_abs_ofs(LHT_GET_SUB_TABLE(), &data_ofs);
+            rec_ofs = _lhashtable_data_ofs_to_abs_ofs(LHT_GET_SUB_TABLE(), &data_ofs);
+            struct lhashtable_record *rec = lht->mem + rec_ofs;
             rec->key_len = key_len;
             rec->val_len = val_len;
             memcpy(rec->data, key, key_len);
             memcpy(rec->data + key_len, val, val_len);;
             ++LHT_GET_SUB_TABLE()->size;
-            return 0;
+            return rec_ofs;
         }
         if (h == bkt->hashcode) {
-            uint64_t rec_ofs = _lhashtable_data_ofs_to_abs_ofs(LHT_GET_SUB_TABLE(), &bkt->data_ofs);
+            rec_ofs = _lhashtable_data_ofs_to_abs_ofs(LHT_GET_SUB_TABLE(), &bkt->data_ofs);
             struct lhashtable_record *rec = lht->mem + rec_ofs;
             if (key_len == rec->key_len && 0 == memcmp(rec->data, key, key_len)) {
                 size_t n = sizeof(struct lhashtable_record) + key_len + val_len;
@@ -155,7 +126,8 @@ int lhashtable_insert_or_update(struct lhashtable *lht, const void *key, size_t 
                     _lhashtable_add_to_freelist(lht, sub_table_ofs, rec_ofs, bkt->data_ofs, oldn);
                     bkt->data_ofs = data_ofs;
                     /* new record */
-                    rec = lht->mem + _lhashtable_data_ofs_to_abs_ofs(LHT_GET_SUB_TABLE(), &data_ofs);
+                    rec_ofs = _lhashtable_data_ofs_to_abs_ofs(LHT_GET_SUB_TABLE(), &data_ofs);
+                    rec = lht->mem + rec_ofs;
                     /* copy the key to the new record */
                     rec->key_len = key_len;
                     memcpy(rec->data, key, key_len);
@@ -163,7 +135,7 @@ int lhashtable_insert_or_update(struct lhashtable *lht, const void *key, size_t 
                 /* always set the value */
                 rec->val_len = val_len;
                 memcpy(rec->data + key_len, val, val_len);
-                return 0;
+                return rec_ofs;
             }
         }
         ++b;
@@ -173,7 +145,7 @@ int lhashtable_insert_or_update(struct lhashtable *lht, const void *key, size_t 
     return 0;
 }
 
-uint64_t lhashtable_lookup(struct lhashtable *lht, const void *key, size_t key_len) {
+uint64_t lhashtable_get(struct lhashtable *lht, const void *key, size_t key_len) {
     uint32_t h = hashcode(key, key_len);
     uint32_t sub_tbl_idx = LHT_SUB_TABLE_HASH(h);
     uint64_t sub_table_ofs = LHT_GET_HEADER()->tables_offsets[sub_tbl_idx];
@@ -224,7 +196,7 @@ static void _lhashtable_fix_chain_down(struct lhashtable *lht, uint64_t sub_tabl
     }
 }
 
-int lhashtable_remove(struct lhashtable *lht, const void *key, size_t key_len) {
+int lhashtable_del(struct lhashtable *lht, const void *key, size_t key_len) {
     uint32_t h = hashcode(key, key_len);
     uint32_t sub_tbl_idx = LHT_SUB_TABLE_HASH(h);
     uint64_t sub_table_ofs = LHT_GET_HEADER()->tables_offsets[sub_tbl_idx];
