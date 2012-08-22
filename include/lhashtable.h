@@ -3,6 +3,8 @@
 
 #include "ribs_defs.h"
 #include "logger.h"
+#include <sys/mman.h>
+#include "ilog2.h"
 
 /* linear hashing */
 /*
@@ -28,11 +30,34 @@
   real address = data_start_ofs[block] + (ofs << 3)
 
 
- */
+*/
 
-#define LHASHTABLE_FLAG_FIN   0x01  /* clean shutdown */
-#define LHASHTABLE_NUM_SUB_TABLES 256
-#define LHASHTABLE_FREELIST_COUNT 8192 /* (max record size) / (record alignment) */
+/*
+ * misc config
+ */
+#define LHT_FLAG_FIN   0x01  /* clean shutdown */
+#define LHT_NUM_SUB_TABLES 256
+#define LHT_FREELIST_COUNT 8192 /* (max record size) / (record alignment) */
+/*
+ * memory management
+ */
+#define LHT_BLOCK_SIZE_BITS 20
+#define LHT_BLOCK_SIZE (1<<LHT_BLOCK_SIZE_BITS)
+#define LHT_ALLOC_ALIGN_BITS 3
+#define LHT_ALLOC_ALIGN (1<<LHT_ALLOC_ALIGN_BITS)
+/*
+ * sub table
+ */
+#define LHT_SUB_TABLE_MIN_BITS 3
+#define LHT_SUB_TABLE_INITIAL_SIZE (1<<LHT_SUB_TABLE_MIN_BITS)
+#define LHT_SUB_TABLE_HASH(h) ((h ^ (h >> 8)) & (LHT_NUM_SUB_TABLES - 1)) /* TODO: maybe change later */
+#define LHT_GET_SUB_TABLE() ((struct lhashtable_table *)(lht->mem + sub_table_ofs))
+/*
+ * misc helpers
+ */
+#define LHT_GET_HEADER() ((struct lhashtable_header *)lht->mem)
+#define _LHT_ALIGN_P2(x,b) (x)+=(b)-1; (x)&=~((b)-1)
+#define LHT_N_ALIGN() _LHT_ALIGN_P2(n, LHT_ALLOC_ALIGN)
 
 /*
  * main header
@@ -43,7 +68,7 @@ struct lhashtable_header {
     uint8_t flags;
     uint64_t write_loc; /* always aligned to 8 bytes */
     uint64_t capacity;
-    uint64_t tables_offsets[LHASHTABLE_NUM_SUB_TABLES]; /* 256 * [4GB..32GB] = [1TB..8TB] max */
+    uint64_t tables_offsets[LHT_NUM_SUB_TABLES]; /* 256 * [4GB..32GB] = [1TB..8TB] max */
     uint16_t num_data_blocks; /* default 4096, max 32768 */
 };
 
@@ -67,7 +92,7 @@ struct lhashtable_table {
     uint32_t size;
     uint32_t next_alloc;
     uint16_t current_block;
-    union lhashtable_data_ofs freelist[LHASHTABLE_FREELIST_COUNT];
+    union lhashtable_data_ofs freelist[LHT_FREELIST_COUNT];
     uint64_t data_start_ofs[/* num_data_blocks */]; /* num_data_blocks * 1M blocks = 4GB..32GB */
 };
 
@@ -88,7 +113,6 @@ struct lhashtable_bucket {
     union lhashtable_data_ofs data_ofs;
 };
 
-
 #define LHASHTABLE_INITIALIZER { NULL, -1 }
 /*
  * main struct
@@ -103,12 +127,13 @@ int lhashtable_close(struct lhashtable *lht);
 int lhashtable_insert(struct lhashtable *lht, const void *key, size_t key_len, const void *val, size_t val_len);
 int lhashtable_insert_str(struct lhashtable *lht, const char *key, const char *val);
 uint64_t lhashtable_lookup(struct lhashtable *lht, const void *key, size_t key_len);
+const char *lhashtable_lookup_str(struct lhashtable *lht, const char *key);
 int lhashtable_remove(struct lhashtable *lht, const void *key, size_t key_len);
+int lhashtable_remove_str(struct lhashtable *lht, const char *key);
 void lhashtable_dump(struct lhashtable *lht);
+_RIBS_INLINE_ void *lhashtable_get_val(struct lhashtable *lht, uint64_t rec_ofs);
+_RIBS_INLINE_ uint64_t lhashtable_writeloc(struct lhashtable *lht);
 
-static inline void *lhashtable_get_val(struct lhashtable *lht, uint64_t rec_ofs) {
-    struct lhashtable_record *rec = lht->mem + rec_ofs;
-    return rec->data + rec->key_len;
-}
+#include "../src/_lhashtable.c"
 
 #endif // _LHASHTABLE__H_
