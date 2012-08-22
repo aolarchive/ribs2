@@ -1,3 +1,18 @@
+_RIBS_INLINE_ int lhashtable_insert_str(struct lhashtable *lht, const char *key, const char *val) {
+    return lhashtable_insert(lht, key, strlen(key), val, strlen(val) + 1);
+}
+
+_RIBS_INLINE_ const char *lhashtable_lookup_str(struct lhashtable *lht, const char *key) {
+    uint64_t rec_ofs = lhashtable_lookup(lht, key, strlen(key));
+    if (0 == rec_ofs)
+        return NULL;
+    return lhashtable_get_val(lht, rec_ofs);
+}
+
+_RIBS_INLINE_ int lhashtable_remove_str(struct lhashtable *lht, const char *key) {
+    return lhashtable_remove(lht, key, strlen(key));
+}
+
 _RIBS_INLINE_ void *lhashtable_get_val(struct lhashtable *lht, uint64_t rec_ofs) {
     struct lhashtable_record *rec = lht->mem + rec_ofs;
     return rec->data + rec->key_len;
@@ -133,4 +148,12 @@ static inline int _lhashtable_resize_table_if_needed(struct lhashtable *lht, uin
     LHT_GET_SUB_TABLE()->mask = new_mask;
     /* TODO: resize here */
     return 0;
+}
+
+static inline void _lhashtable_add_to_freelist(struct lhashtable *lht, uint64_t sub_table_ofs, uint64_t rec_ofs, union lhashtable_data_ofs data_ofs, size_t n) {
+    LHT_N_ALIGN();
+    n >>= LHT_ALLOC_ALIGN_BITS;
+    union lhashtable_data_ofs *data_ofs_ptr = lht->mem + rec_ofs;
+    *data_ofs_ptr = LHT_GET_SUB_TABLE()->freelist[n];
+    LHT_GET_SUB_TABLE()->freelist[n] = data_ofs;
 }
