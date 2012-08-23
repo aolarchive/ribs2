@@ -37,6 +37,9 @@
 #include <sys/sendfile.h>
 #include "mime_types.h"
 #include "logger.h"
+#define HTTP_DEF_STR(var,str)                   \
+    const char var[]=str
+#include "http_defs.h"
 
 #define ACCEPTOR_STACK_SIZE 8192
 #define MIN_HTTP_REQ_SIZE 5 // method(3) + space(1) + URI(1) + optional VER...
@@ -59,20 +62,6 @@ SSTRL(CONTENT_LENGTH, "\r\nContent-Length: ");
 /* 1xx */
 SSTRL(HTTP_STATUS_100, "100 Continue");
 SSTRL(EXPECT_100, "\r\nExpect: 100");
-/* 2xx */
-SSTR(HTTP_STATUS_200, "200 OK");
-/* 4xx */
-SSTR(HTTP_STATUS_404, "404 Not Found");
-SSTRL(HTTP_STATUS_411, "411 Length Required");
-SSTRL(HTTP_STATUS_413, "413 Request Entity Too Large");
-/* 5xx */
-SSTR(HTTP_STATUS_500, "500 Internal Server Error");
-SSTRL(HTTP_STATUS_501, "501 Not Implemented");
-SSTRL(HTTP_STATUS_503, "503 Service Unavailable");
-/* content types */
-SSTR(HTTP_CONTENT_TYPE_TEXT_PLAIN, "text/plain");
-SSTR(HTTP_CONTENT_TYPE_TEXT_HTML, "text/html");
-SSTR(HTTP_CONTENT_TYPE_IMAGE_GIF, "image/gif");
 
 static void http_server_process_request(char *uri, char *headers);
 static void http_server_accept_connections(void);

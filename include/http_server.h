@@ -62,14 +62,6 @@ struct http_server {
 #define HTTP_SERVER_INIT_DEFAULTS .stack_size = 0, .num_stacks = 0, .init_request_size = 8*1024, .init_header_size = 8*1024, .init_payload_size = 8*1024, .max_req_size = 0, .context_size = 0, .timeout_handler.timeout = 60000
 #define HTTP_SERVER_INITIALIZER { HTTP_SERVER_INIT_DEFAULTS }
 
-
-SSTREXTRN(HTTP_STATUS_200);
-SSTREXTRN(HTTP_STATUS_404);
-SSTREXTRN(HTTP_STATUS_500);
-SSTREXTRN(HTTP_CONTENT_TYPE_TEXT_PLAIN);
-SSTREXTRN(HTTP_CONTENT_TYPE_TEXT_HTML);
-SSTREXTRN(HTTP_CONTENT_TYPE_IMAGE_GIF);
-
 #define HTTP_SERVER_NOT_FOUND (-2)
 
 int http_server_init(struct http_server *server);
