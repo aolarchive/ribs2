@@ -234,7 +234,7 @@ _RIBS_INLINE_ int TEMPLATE(VMBUF_T,write)(struct VMBUF_T *vmb, int fd) {
     ssize_t res;
     size_t rav;
     while ((rav = TEMPLATE(VMBUF_T,ravail)(vmb)) > 0) {
-        res = write(fd, TEMPLATE(VMBUF_T,rloc)(vmb), TEMPLATE(VMBUF_T,ravail)(vmb));
+        res = write(fd, TEMPLATE(VMBUF_T,rloc)(vmb), rav);
         if (res < 0)
             return (EAGAIN == errno ? 0 : -1);
         else if (res > 0)
