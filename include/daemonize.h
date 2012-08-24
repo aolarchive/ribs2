@@ -20,7 +20,8 @@
 #ifndef _DAEMONIZE__H_
 #define _DAEMONIZE__H_
 
-int daemonize();
+int daemonize(void);
+void daemon_finalize(void);
 int ribs_logger_init(const char *filename);
 int ribs_set_pidfile(const char *filename);
 

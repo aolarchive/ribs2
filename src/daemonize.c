@@ -29,8 +29,12 @@
 #include "logger.h"
 
 static const char *pidfile = NULL;
+static int child_is_up_pipe[2] = { -1, -1 };
 
-int daemonize() {
+int daemonize(void) {
+    if (0 > pipe(child_is_up_pipe))
+        return LOGGER_ERROR("failed to create pipe"), -1;
+
     pid_t pid = fork();
     if (pid < 0) {
         LOGGER_PERROR("daemonize, fork");
@@ -39,8 +43,22 @@ int daemonize() {
 
     if (pid > 0) {
         LOGGER_INFO("daemonize started (pid=%d)", pid);
+        close(child_is_up_pipe[1]); /* close the write side */
+        /* wait for child to come up */
+        uint8_t t;
+        int res;
+        LOGGER_INFO("waiting for the child process to start...");
+        if (0 >= (res = read(child_is_up_pipe[0], &t, sizeof(t)))) {
+            if (0 > res)
+                LOGGER_PERROR("pipe");
+            LOGGER_ERROR("child process failed to start");
+            exit(EXIT_FAILURE);
+        }
+        LOGGER_INFO("child process started successfully");
         exit(EXIT_SUCCESS);
     }
+
+    close(child_is_up_pipe[0]); /* close the read side */
 
     umask(0);
 
@@ -59,6 +77,16 @@ int daemonize() {
 
     LOGGER_INFO("child process started (pid=%d)", pid);
     return 0;
+}
+
+void daemon_finalize(void) {
+    if (0 > child_is_up_pipe[1])
+        return;
+    uint8_t t = 0;
+    if (0 > write(child_is_up_pipe[1], &t, sizeof(t))) {
+        LOGGER_PERROR("pipe");
+        exit(EXIT_FAILURE);
+    }
 }
 
 int ribs_logger_init(const char *filename) {
