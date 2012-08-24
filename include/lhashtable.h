@@ -135,6 +135,7 @@ struct lhashtable_bucket {
 };
 
 #define LHASHTABLE_INITIALIZER { NULL, -1 }
+#define LHASHTABLE_INIT(lht) (lht) = ((struct lhashtable)LHASHTABLE_INITIALIZER)
 /*
  * main struct
  */
