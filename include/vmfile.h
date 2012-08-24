@@ -39,6 +39,7 @@
 #include "_vmbuf.h"
 
 #define VMFILE_INITIALIZER { NULL, 0, 0, 0, -1 }
+#define VMFILE_INIT(var) (var) = ((struct vmfile)VMFILE_INITIALIZER)
 
 _RIBS_INLINE_ int TEMPLATE(VMBUF_T,close)(struct VMBUF_T *vmb);
 
