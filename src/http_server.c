@@ -537,7 +537,7 @@ int http_server_generate_dir_list(const char *URI) {
             t = localtime_r(&st.st_mtime, &t_res);
 
             vmbuf_strcpy(payload, "<tr>");
-            vmbuf_sprintf(payload, "<td><a href=\"%s%s%s\">%s%s</a></td>", URI, de.d_name, slash, de.d_name, slash);
+            vmbuf_sprintf(payload, "<td><a href=\"%s%s\">%s%s</a></td>", de.d_name, slash, de.d_name, slash);
             vmbuf_strcpy(payload, "<td>");
             if (t)
                 vmbuf_strftime(payload, "%F %T", t);
