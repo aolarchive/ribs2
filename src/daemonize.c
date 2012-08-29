@@ -115,11 +115,14 @@ int ribs_logger_init(const char *filename) {
     return 0;
 }
 
+static void cleanup_pidfile(void) {
+    if (pidfile) unlink(pidfile);
+}
+
 static void signal_handler(int signum) {
     switch(signum) {
     case SIGINT:
     case SIGTERM:
-        if (pidfile) unlink(pidfile);
         epoll_worker_exit();
         break;
     default:
@@ -140,5 +143,6 @@ int ribs_set_pidfile(const char *filename) {
     };
     sigaction(SIGTERM, &sa, NULL);
     sigaction(SIGINT, &sa, NULL);
+    atexit(cleanup_pidfile);
     return 0;
 }
