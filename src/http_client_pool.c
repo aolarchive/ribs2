@@ -211,7 +211,7 @@ void http_client_fiber_main(void) {
             size_t data_start = eoh_ofs;
             char *p;
             for (;;) {
-                READ_MORE_DATA_STR((p = strchrnul((data = vmbuf_data(&ctx->response)) + chunk_start, '\r')) == 0);
+                READ_MORE_DATA_STR(*(p = strchrnul((data = vmbuf_data(&ctx->response)) + chunk_start, '\r')) == 0);
                 if (0 != SSTRNCMP(CRLF, p))
                     CLIENT_ERROR();
                 uint32_t s = strtoul(data + chunk_start, NULL, 16);
