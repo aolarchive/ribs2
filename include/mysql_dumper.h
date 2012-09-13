@@ -21,6 +21,7 @@
 #define _MYSQL_DUMPER__H_
 
 #include "ribs_defs.h"
+#include "mysql_common.h"
 #include "mysql_helper.h"
 
 #define MYSQL_DUMPER_UNSIGNED   0x0001

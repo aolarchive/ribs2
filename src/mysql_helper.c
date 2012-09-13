@@ -22,7 +22,6 @@
 #include "vmbuf.h"
 #include <string.h>
 #include <ctype.h>
-#include "mysql_common.h"
 
 static int report_error(struct mysql_helper *mysql_helper) {
     LOGGER_ERROR("(MySQL errno: %d) %s", mysql_errno(&mysql_helper->mysql), mysql_error(&mysql_helper->mysql));

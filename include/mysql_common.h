@@ -23,7 +23,17 @@
 
 #include "ribs_defs.h"
 
+struct mysql_login_info {
+    const char *host;
+    const char *user;
+    const char *pass;
+    const char *db;
+    unsigned int port;
+};
+
 size_t ribs_mysql_get_storage_size(int type, size_t length);
 const char *ribs_mysql_get_type_name(int type);
+void ribs_mysql_mask_db_pass(char *str);
+int ribs_mysql_parse_db_conn_str(char *str, struct mysql_login_info *info);
 
 #endif // _MYSQL_COMMON__H_

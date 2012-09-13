@@ -24,15 +24,7 @@
 #include "vmbuf.h"
 #include <mysql/mysql.h>
 #include "vmbuf.h"
-
-
-struct mysql_login_info {
-    const char *host;
-    const char *user;
-    const char *pass;
-    const char *db;
-    unsigned int port;
-};
+#include "mysql_common.h"
 
 struct mysql_helper {
     MYSQL mysql;

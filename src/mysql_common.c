@@ -21,6 +21,9 @@
 #include "enum.h"
 #include "mysql_common.h"
 #include <mysql/mysql.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 size_t ribs_mysql_get_storage_size(int type, size_t length) {
     switch (type) {
@@ -85,4 +88,48 @@ const char *ribs_mysql_get_type_name(int type) {
         ENUM_TO_STRING(MYSQL_TYPE_GEOMETRY);
     }
     return "UNKNOWN";
+}
+
+void ribs_mysql_mask_db_pass(char *str)
+{
+    char *p = strchrnul(str, '@');
+    if (*p)
+    {
+        char *p1 = strchrnul(str, '/');
+        if (p1 < p)
+            memset(p1 + 1, '*', p - p1 - 1);
+    }
+}
+
+int ribs_mysql_parse_db_conn_str(char *str, struct mysql_login_info *info)
+{
+    memset(info, 0, sizeof(struct mysql_login_info));
+    info->user = cuserid(NULL);
+    info->pass = "";
+    info->host = "";
+    info->port = 0;
+
+    char *p = strchrnul(str, '@');
+    if (*p)
+    {
+        *p++ = 0;
+        info->user = str;
+        info->host = p;
+
+        p = strchrnul(p, ':');
+        if (*p)
+        {
+            *p++ = 0;
+            info->port = atoi(p);
+        }
+
+        p = strchrnul(str, '/');
+        if (*p)
+        {
+            *p++ = 0;
+            info->pass = p;
+        }
+    } else
+        return -1;
+    return 0;
 }
