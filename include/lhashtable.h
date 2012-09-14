@@ -91,6 +91,7 @@ struct lhashtable_header {
     uint64_t capacity;
     uint64_t tables_offsets[LHT_NUM_SUB_TABLES]; /* 256 * [4GB..32GB] = [1TB..8TB] max */
     uint16_t num_data_blocks; /* default 4096, max 32768 */
+    uint32_t size; /* number of keys in all sub-tables */
 };
 
 /*
@@ -150,7 +151,7 @@ uint64_t lhashtable_put(struct lhashtable *lht, const void *key, size_t key_len,
 uint64_t lhashtable_get(struct lhashtable *lht, const void *key, size_t key_len);
 int lhashtable_del(struct lhashtable *lht, const void *key, size_t key_len);
 void lhashtable_dump(struct lhashtable *lht);
-
+uint32_t lhashtable_size(struct lhashtable *lht);
 /*
  * inline
  */

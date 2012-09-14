@@ -70,6 +70,7 @@ int lhashtable_init(struct lhashtable *lht, const char *filename) {
     strncpy(LHT_GET_HEADER()->signature, LHT_SIGNATURE, sizeof(LHT_GET_HEADER()->signature));
     LHT_GET_HEADER()->version = LHT_VERSION;
     LHT_GET_HEADER()->flags = 0;
+    LHT_GET_HEADER()->size = 0;
     memset(LHT_GET_HEADER()->tables_offsets, 0, sizeof(LHT_GET_HEADER()->tables_offsets));
     LHT_GET_HEADER()->num_data_blocks = 4096; /* TODO: make it configurable */
     int i;
@@ -127,6 +128,7 @@ uint64_t lhashtable_put(struct lhashtable *lht, const void *key, size_t key_len,
             memcpy(rec->data, key, key_len);
             memcpy(rec->data + key_len, val, val_len);;
             ++LHT_GET_SUB_TABLE()->size;
+            ++LHT_GET_HEADER()->size;
             return rec_ofs;
         }
         if (h == bkt->hashcode) {
@@ -234,6 +236,7 @@ int lhashtable_del(struct lhashtable *lht, const void *key, size_t key_len) {
                 _lhashtable_add_to_freelist(lht, sub_table_ofs, rec_ofs, bkt->data_ofs, n);
                 bkt->data_ofs.u32 = 0; /* mark as deleted */
                 --LHT_GET_SUB_TABLE()->size;
+                --LHT_GET_HEADER()->size;
                 /* skip the deleted bucket and fix buckets below it */
                 ++b;
                 if (b > mask)
@@ -263,4 +266,8 @@ void lhashtable_dump(struct lhashtable *lht) {
         printf("\tmask=%u, size=%u, next_alloc=%u, current_block=%hu\n", tbl->mask, tbl->size, tbl->next_alloc, tbl->current_block);
         /* TODO: print keys and values */
     }
+}
+
+uint32_t lhashtable_size(struct lhashtable *lht) {
+    return LHT_GET_HEADER()->size;
 }
