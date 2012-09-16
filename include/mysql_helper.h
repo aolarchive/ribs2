@@ -41,10 +41,13 @@ struct mysql_helper {
 };
 
 int mysql_helper_connect(struct mysql_helper *mysql_helper, struct mysql_login_info *login_info);
-int mysql_helper_select(struct mysql_helper *mysql_helper, const char *query, size_t query_len, const char *fields, ...);
+int mysql_helper_stmt(struct mysql_helper *mysql_helper, const char *query, size_t query_len, const char *params, const char *fields, ...);
 /* executes arbitrary queries */
 int mysql_helper_execute(struct mysql_helper *mysql_helper, const char *query, unsigned long *ar);
 int mysql_helper_free(struct mysql_helper *mysql_helper);
 int mysql_helper_fetch(struct mysql_helper *mysql_helper);
+int mysql_helper_tx_begin(struct mysql_helper *mysql_helper);
+int mysql_helper_tx_commit(struct mysql_helper *mysql_helper);
+int mysql_helper_tx_rollback(struct mysql_helper *mysql_helper);
 
 #endif // _MYSQL_HELPER__H_
