@@ -18,16 +18,9 @@
     along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "enum.h"
 #include "mysql_common.h"
 #include <mysql/mysql.h>
-
-#define ENUM_2_STORAGE(e, t) \
-    case e:                  \
-    return (sizeof(t))
-
-#define ENUM_2_STORAGE_STR(e, l) \
-    case e:                      \
-    return (l);
 
 size_t ribs_mysql_get_storage_size(int type, size_t length) {
     switch (type) {
@@ -60,10 +53,6 @@ size_t ribs_mysql_get_storage_size(int type, size_t length) {
     }
     return 0;
 }
-
-#define ENUM_TO_STRING(e) \
-    case e: \
-    return (#e)
 
 const char *ribs_mysql_get_type_name(int type) {
     switch (type) {
