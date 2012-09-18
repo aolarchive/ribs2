@@ -168,8 +168,13 @@ int mysql_helper_stmt(struct mysql_helper *mysql_helper,
                 break;
             case 's':
                 ptypes[i] = MYSQL_TYPE_STRING;
-                plengths[i] = isupper(c) ? va_arg(ap, size_t) : strlen(str);
-                str = va_arg(ap, char *);
+                if (isupper(c)) {
+                    plengths[i] = va_arg(ap, size_t);
+                    str = va_arg(ap, char *);
+                } else {
+                    str = va_arg(ap, char *);
+                    plengths[i] = strlen(str);
+                }
                 pnulls[i] = (str == NULL);
                 pbind_ptr->buffer = str;
                 pbind_ptr->buffer_length = plengths[i];
