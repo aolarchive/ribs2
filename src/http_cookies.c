@@ -47,5 +47,6 @@ int http_parse_cookies(struct hashtable *ht, char *cookies_str) {
             ++p;
         }
     }
+    add_cookie(ht, s);
     return 0;
 }

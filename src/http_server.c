@@ -59,6 +59,8 @@ SSTRL(CONNECTION, "\r\nConnection: ");
 SSTRL(CONNECTION_CLOSE, "close");
 SSTRL(CONNECTION_KEEPALIVE, "Keep-Alive");
 SSTRL(CONTENT_LENGTH, "\r\nContent-Length: ");
+SSTRL(SET_COOKIE, "\r\nSet-Cookie: ");
+SSTRL(COOKIE_VERSION, "Version=\"1\"");
 /* 1xx */
 SSTRL(HTTP_STATUS_100, "100 Continue");
 SSTRL(EXPECT_100, "\r\nExpect: 100");
@@ -221,6 +223,16 @@ void http_server_header_start(const char *status, const char *content_type) {
 void http_server_header_close() {
     struct http_server_context *ctx = http_server_get_context();
     vmbuf_strcpy(&ctx->header, CRLFCRLF);
+}
+
+void http_server_set_cookie(const char *name, const char *value, uint32_t max_age, const char *path) {
+    struct http_server_context *ctx = http_server_get_context();
+    vmbuf_sprintf(&ctx->header, "%s%s=\"%s\";Max-Age=%u;Path=%s;%s", SET_COOKIE, name, value, max_age, path, COOKIE_VERSION);
+}
+
+void http_server_set_session_cookie(const char *name, const char *value) {
+    struct http_server_context *ctx = http_server_get_context();
+    vmbuf_sprintf(&ctx->header, "%s%s=\"%s\"; %s", SET_COOKIE, name, value, COOKIE_VERSION);
 }
 
 void http_server_response(const char *status, const char *content_type) {
