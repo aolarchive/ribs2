@@ -225,14 +225,17 @@ void http_server_header_close() {
     vmbuf_strcpy(&ctx->header, CRLFCRLF);
 }
 
-void http_server_set_cookie(const char *name, const char *value, uint32_t max_age, const char *path) {
+void http_server_set_cookie(const char *name, const char *value, uint32_t max_age, const char *path, const char *domain) {
     struct http_server_context *ctx = http_server_get_context();
-    vmbuf_sprintf(&ctx->header, "%s%s=\"%s\";Max-Age=%u;Path=%s;%s", SET_COOKIE, name, value, max_age, path, COOKIE_VERSION);
+    vmbuf_sprintf(&ctx->header, "%s%s=\"%s\"", SET_COOKIE, name, value);
+    if (path) vmbuf_sprintf(&ctx->header, ";Path=%s", path);
+    if (max_age) vmbuf_sprintf(&ctx->header, ";Max-Age=%u", max_age);
+    if (domain) vmbuf_sprintf(&ctx->header, ";Domain=%s", domain);
+    vmbuf_sprintf(&ctx->header, ";%s", COOKIE_VERSION);
 }
 
-void http_server_set_session_cookie(const char *name, const char *value) {
-    struct http_server_context *ctx = http_server_get_context();
-    vmbuf_sprintf(&ctx->header, "%s%s=\"%s\"; %s", SET_COOKIE, name, value, COOKIE_VERSION);
+void http_server_set_session_cookie(const char *name, const char *value, const char *path) {
+    http_server_set_cookie(name, value, 0, path, NULL);
 }
 
 void http_server_response(const char *status, const char *content_type) {
