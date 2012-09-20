@@ -66,21 +66,21 @@ int mysql_helper_execute(struct mysql_helper *mysql_helper, const char *query, u
 
 int mysql_helper_tx_begin(struct mysql_helper *mysql_helper)
 {
-    if (0 != mysql_query(&mysql_helper->mysql, "BEGIN"))
+    if (0 != mysql_autocommit(&mysql_helper->mysql, 0))
         return report_error(mysql_helper);
     return 0;
 }
 
 int mysql_helper_tx_commit(struct mysql_helper *mysql_helper)
 {
-    if (0 != mysql_query(&mysql_helper->mysql, "COMMIT"))
+    if (0 != mysql_commit(&mysql_helper->mysql))
         return report_error(mysql_helper);
     return 0;
 }
 
 int mysql_helper_tx_rollback(struct mysql_helper *mysql_helper)
 {
-    if (0 != mysql_query(&mysql_helper->mysql, "ROLLBACK"))
+    if (0 != mysql_rollback(&mysql_helper->mysql))
         return report_error(mysql_helper);
     return 0;
 }
