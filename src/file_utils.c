@@ -19,10 +19,12 @@
 */
 
 #include "file_utils.h"
+#include "logger.h"
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <errno.h>
+#include <stdio.h>
 
 int mkdir_recursive(const char *filename) {
     char file[strlen(filename) + 1];
@@ -46,3 +48,14 @@ int mkdir_recursive(const char *filename) {
     return 0;
 }
 
+int ribs_create_temp_file(const char *prefix) {
+    char fmt[] = "/dev/shm/%s_XXXXXX";
+    char filename[strlen(prefix) + sizeof(fmt)];
+    sprintf(filename, fmt, prefix);
+    int fd = mkstemp(filename);
+    if (fd < 0)
+        return LOGGER_PERROR("mkstemp: %s", filename), -1;
+    if (unlink(filename) < 0)
+        return LOGGER_PERROR("unlink: %s", filename), close(fd), -1;
+        return fd;
+}

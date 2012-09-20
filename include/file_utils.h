@@ -24,5 +24,6 @@
 #include "ribs_defs.h"
 
 int mkdir_recursive(const char *filename);
+int ribs_create_temp_file(const char *prefix);
 
 #endif // _FILE_UTILS__H_
