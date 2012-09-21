@@ -33,9 +33,18 @@
 #define DS_FIELD_INITIALIZER { NULL, 0 }
 #define DS_FIELD(T) struct TEMPLATE(ds_field,T)
 #define DS_FIELD_INIT(T,x,f) TEMPLATE_FUNC(ds_field,T,init)((x),f)
+#define DS_FIELD_FREE(T,x) TEMPLATE_FUNC(ds_field,T,free)((x))
 #define DS_FIELD_BEGIN(x) ((x)->mem)
 #define DS_FIELD_END(x) (DS_FIELD_BEGIN(x) + (x)->num_elements)
 #define DS_FIELD_GET_VAL(x,i) (*(DS_FIELD_BEGIN(x) + i))
+#define DS_FIELD_NUM_ELEMENTS(x) ((x)->num_elements)
+
+#define DS_FIELD_WRITER_INITIALIZER { FILE_WRITER_INITIALIZER, 0 }
+#define DS_FIELD_WRITER(T) struct TEMPLATE(ds_field_writer,T)
+#define DS_FIELD_WRITER_INIT(T,x,f) TEMPLATE_FUNC(ds_field_writer,T,init)((x),f)
+#define DS_FIELD_WRITER_CLOSE(T,x) TEMPLATE_FUNC(ds_field_writer,T,close)((x))
+#define DS_FIELD_WRITER_WRITE(T,x,v) TEMPLATE_FUNC(ds_field_writer,T,write)((x),(v))
+#define DS_FIELD_WRITER_NUM_ELEMENTS(x) ((x)->num_elements)
 
 /*
  * example:
@@ -47,6 +56,15 @@
  *   uint32_t *my_field = DS_FIELD_BEGIN(&ds_my_field);
  *   uint32_t *my_field1_end = DS_FIELD_END(&ds_my_field);
  */
+
+/*
+ * writer example:
+ *   DS_FIELD_WRITER(uint32_t) ds_my_w_field = DS_FIELD_WRITER_INITIALIZER;
+ *   DS_FIELD_WRITER_INIT(uint32_t, &ds_my_w_field, "my_field.ds");
+ *   DS_FIELD_WRITER_WRITE(uint32_t, &ds_my_w_field, 1234);
+ *   DS_FIELD_WRITER_CLOSE(uint32_t, &ds_my_w_field);
+ */
+
 
 /* internal stuff */
 #ifdef T

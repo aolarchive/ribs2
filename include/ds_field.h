@@ -61,3 +61,25 @@ static inline int TEMPLATE_FUNC(ds_field,T,free)(struct TEMPLATE(ds_field,T) *ds
 static inline T TEMPLATE_FUNC(ds_field,T,get)(struct TEMPLATE(ds_field,T) *dsf, size_t index) {
     return dsf->mem[index];
 }
+
+/*
+ * writer
+ */
+struct TEMPLATE(ds_field_writer,T) {
+    struct file_writer fw;
+};
+
+static inline int TEMPLATE_FUNC(ds_field_writer,T,init)(struct TEMPLATE(ds_field_writer,T) *dsf, const char *filename) {
+    if (0 > file_writer_init(&dsf->fw, filename))
+        return -1;
+    int64_t ds_type = TEMPLATE(ds_type,T);
+    return file_writer_write(&dsf->fw, &ds_type, sizeof(ds_type));
+}
+
+static inline int TEMPLATE_FUNC(ds_field_writer,T,close)(struct TEMPLATE(ds_field_writer,T) *dsf) {
+    return file_writer_close(&dsf->fw);
+}
+
+static inline int TEMPLATE_FUNC(ds_field_writer,T,write)(struct TEMPLATE(ds_field_writer,T) *dsf, T v) {
+    return file_writer_write(&dsf->fw, &v, sizeof(T));
+}
