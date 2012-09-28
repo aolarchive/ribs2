@@ -71,7 +71,7 @@ struct TEMPLATE(ds_field_writer,T) {
 
 static inline int TEMPLATE_FUNC(ds_field_writer,T,init)(struct TEMPLATE(ds_field_writer,T) *dsf, const char *filename) {
     if (0 > file_writer_init(&dsf->fw, filename))
-        return -1;
+        return LOGGER_PERROR("%s", filename), -1;
     int64_t ds_type = TEMPLATE(ds_type,T);
     return file_writer_write(&dsf->fw, &ds_type, sizeof(ds_type));
 }

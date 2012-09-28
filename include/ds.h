@@ -25,6 +25,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <sys/mman.h>
+#include <stdio.h>
+#include <string.h>
+#include "file_writer.h"
 #include "template.h"
 #include "logger.h"
 #include "ds_var_field.h"

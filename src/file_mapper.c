@@ -38,7 +38,7 @@ int file_mapper_init(struct file_mapper *fm, const char *filename) {
     fm->mem = (char *)mmap(NULL, vmbuf_align(fm->size), PROT_READ, MAP_SHARED, fd, 0);
     close(fd);
     if (MAP_FAILED == fm->mem)
-        return LOGGER_PERROR_FUNC("mmap %s", filename), close(fd), -1;
+        return LOGGER_PERROR_FUNC("mmap %s", filename), close(fd), fm->mem = NULL, -1;
     return 0;
 }
 

@@ -20,6 +20,9 @@
 #ifndef _TEMPLATE__H_
 #define _TEMPLATE__H_
 
+#define _MACRO_CONCAT(A,B) A ## B
+#define MACRO_CONCAT(A,B) _MACRO_CONCAT(A,B)
+
 #define _TEMPLATE_HELPER(S,T) S ## _ ## T
 #define TEMPLATE(S,T) _TEMPLATE_HELPER(S,T)
 

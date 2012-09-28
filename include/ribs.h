@@ -37,5 +37,6 @@
 #include "ribify.h"
 #include "file_writer.h"
 #include "ds.h"
+#include "idx.h"
 
 #endif // _RIBS__H_

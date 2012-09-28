@@ -272,7 +272,7 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
     /* we are done with mysql, close it */
     mysql_stmt_close(stmt);
     mysql_close(&mysql);
-    dprintf(STDOUT_FILENO, "%zu records, %zu skipped\n", count, num_rows_errors);
+    LOGGER_INFO("%s: %zu records, %zu skipped", tablename, count, num_rows_errors);
     /* check for mysql errors */
     if (mysql_err != MYSQL_NO_DATA)
         err = dprintf(STDOUT_FILENO, "mysql_stmt_fetch returned an error (code=%d)\n", mysql_err), -1;
