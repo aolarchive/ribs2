@@ -27,6 +27,7 @@ _RIBS_INLINE_ int file_writer_init(struct file_writer *fw, const char *filename)
     fw->mem = NULL;
     fw->base_loc = fw->write_loc = 0;
     fw->fd = open(filename, O_RDWR | O_CREAT, 0644);
+    fw->buffer_size = next_p2(fw->buffer_size);
     if (0 > fw->fd)
         return perror("open, file_writer_init"), -1;
 
@@ -37,6 +38,7 @@ _RIBS_INLINE_ int file_writer_init(struct file_writer *fw, const char *filename)
     if (MAP_FAILED == fw->mem)
         return perror("mmap, file_writer_init"), -1;
     fw->capacity = fw->buffer_size;
+    fw->next_loc = fw->base_loc + fw->buffer_size;
     return 0;
 }
 
@@ -54,15 +56,43 @@ _RIBS_INLINE_ size_t file_writer_wlocpos(struct file_writer *fw) {
 
 _RIBS_INLINE_ int file_writer_wseek(struct file_writer *fw, size_t n) {
     fw->write_loc += n;
-    if (fw->write_loc == fw->capacity) {
+    if (fw->write_loc == fw->next_loc) {
         fw->base_loc = fw->write_loc;
-        fw->capacity += fw->buffer_size;
-        if (0 > ftruncate(fw->fd, fw->capacity))
-            return perror("ftruncate, file_writer_wseek"), -1;
+        fw->next_loc = fw->base_loc + fw->buffer_size;
+        if (fw->write_loc == fw->capacity) { /* can be false if used lseek */
+            fw->capacity += fw->buffer_size;
+            if (0 > ftruncate(fw->fd, fw->capacity))
+                return perror("ftruncate, file_writer_wseek"), -1;
+        }
         fw->mem = mmap(fw->mem, fw->buffer_size, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, fw->fd, fw->base_loc);
         if (MAP_FAILED == fw->mem)
             return perror("mmap, file_writer_init"), -1;
     }
+    return 0;
+}
+
+_RIBS_INLINE_ int file_writer_lseek(struct file_writer *fw, off_t offset, int whence) {
+    switch(whence) {
+    case SEEK_SET:
+        fw->write_loc = offset;
+        break;
+    case SEEK_CUR:
+        fw->write_loc += offset;
+        break;
+    case SEEK_END:
+        return errno = EINVAL, -1; /* not supported */
+    }
+
+    if (fw->write_loc > fw->capacity) {
+        fw->capacity = (fw->write_loc + fw->buffer_size - 1) & ~(fw->buffer_size - 1);
+        if (0 > ftruncate(fw->fd, fw->capacity))
+            return perror("ftruncate, file_writer_wseek"), -1;
+    }
+    fw->base_loc = fw->write_loc & ~(fw->buffer_size - 1);
+    fw->next_loc = fw->base_loc + fw->buffer_size;
+    fw->mem = mmap(fw->mem, fw->buffer_size, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, fw->fd, fw->base_loc);
+    if (MAP_FAILED == fw->mem)
+        return perror("mmap, file_writer_init"), -1;
     return 0;
 }
 
