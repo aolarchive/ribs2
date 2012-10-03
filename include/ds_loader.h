@@ -27,10 +27,6 @@
 #define _DS_STRIGIFY(x) #x
 #define DS_STRIGIFY(x) _DS_STRIGIFY(x)
 
-struct ds_loader_file {
-    const char *filename;
-};
-
 #ifdef DS_LOADER_STAGE
 #   undef DS_LOADER_STAGE
 #endif
@@ -39,9 +35,16 @@ struct ds_loader_file {
 
 #ifndef DS_LOADER_STAGE /* vars */
 
-#define DS_LOADER_BEGIN() typedef struct ds_loader {
+#ifndef DS_LOADER_TYPENAME
+#   define DS_LOADER_TYPENAME ds_loader
+#endif
 
-#define DS_LOADER_END() } ds_loader_t;
+#undef DS_LOADER_TYPENAME_T
+#define DS_LOADER_TYPENAME_T MACRO_CONCAT(DS_LOADER_TYPENAME,_t)
+
+#define DS_LOADER_BEGIN() typedef struct DS_LOADER_TYPENAME {
+
+#define DS_LOADER_END() } MACRO_CONCAT(DS_LOADER_TYPENAME,_t);
 
 #define DS_FIELD_LOADER(T,name)                                         \
     DS_FIELD(T) DS_FIELD_MAKE(DB_NAME,TABLE_NAME,name);// = DS_FIELD_INITIALIZER;
@@ -69,7 +72,7 @@ struct ds_loader_file {
 
 #undef DS_LOADER_BEGIN
 #define DS_LOADER_BEGIN()          \
-    static int ds_loader_init(ds_loader_t *ds_loader, const char *base_dir) { \
+    static int MACRO_CONCAT(DS_LOADER_TYPENAME,_init)(DS_LOADER_TYPENAME_T *ds_loader, const char *base_dir) { \
     int res = 0;                                       \
     struct vmbuf vmb = VMBUF_INITIALIZER;              \
     vmbuf_init(&vmb, 4096);
@@ -126,7 +129,7 @@ struct ds_loader_file {
 #undef DS_VAR_FIELD_LOADER
 
 #define DS_LOADER_BEGIN()                       \
-    static const char *ds_loader_files[] = {
+    static const char *MACRO_CONCAT(DS_LOADER_TYPENAME,_files)[] = {
 #define DS_LOADER_END() NULL };
 #define DS_FIELD_LOADER(T,name)                 \
     DS_MAKE_PATH(DB_NAME,TABLE_NAME,name,""),
@@ -141,6 +144,18 @@ struct ds_loader_file {
 #define DS_LOADER_STAGE 3
 #include DS_LOADER_CONFIG
 #include "ds_loader.h"
+
+#elif DS_LOADER_STAGE==3 /* cleanup */
+
+#undef DS_LOADER_STAGE
+
+#undef DS_LOADER_BEGIN
+#undef DS_LOADER_END
+#undef DS_FIELD_LOADER
+#undef IDX_O2O_LOADER
+#undef IDX_O2M_LOADER
+#undef DS_VAR_FIELD_LOADER
+
 
 #endif
 
