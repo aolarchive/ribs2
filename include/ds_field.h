@@ -50,9 +50,10 @@ static inline int TEMPLATE_FUNC(ds_field,T,init)(struct TEMPLATE(ds_field,T) *ds
 }
 
 static inline int TEMPLATE_FUNC(ds_field,T,free)(struct TEMPLATE(ds_field,T) *dsf) {
-    if (!dsf->mem) return 0;
+    void *mem = dsf->mem;
+    if (!mem) return 0;
     int res;
-    if (0 > (res = munmap(dsf->mem - sizeof(int64_t) /* include the header */, (dsf->num_elements * sizeof(T)) + sizeof(int64_t))))
+    if (0 > (res = munmap(mem - sizeof(int64_t) /* include the header */, (dsf->num_elements * sizeof(T)) + sizeof(int64_t))))
         LOGGER_PERROR_FUNC("munmap");
     dsf->mem = NULL;
     return res;
