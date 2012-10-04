@@ -74,12 +74,12 @@ _RIBS_INLINE_ int bitvect_from_index(struct bitvect *bv, uint32_t *index, size_t
         if (idx == idx_end) break;
         size_t loc = *idx >> BITVECT_NUM_BITS_ALIGN;
         if (current != loc) {
-            data[current] = a;
+            data[current] |= a;
             a = 0;
             current = loc;
         }
     }
-    data[current] = a;
+    data[current] |= a;
     return 0;
 }
 
