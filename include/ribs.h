@@ -35,8 +35,12 @@
 #include "http_headers.h"
 #include "http_cookies.h"
 #include "ribify.h"
+#include "file_mapper.h"
 #include "file_writer.h"
 #include "ds.h"
 #include "idx.h"
+#include "search.h"
+#include "bitvect.h"
+#include "object_pool.h"
 
 #endif // _RIBS__H_
