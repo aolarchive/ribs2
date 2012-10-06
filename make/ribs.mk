@@ -42,7 +42,8 @@ RIBIFYFLAGS+= \
 --redefine-sym pipe=ribs_pipe \
 --redefine-sym nanosleep=ribs_nanosleep \
 --redefine-sym usleep=ribs_usleep \
---redefine-sym sleep=ribs_sleep
+--redefine-sym sleep=ribs_sleep \
+--redefine-sym sendfile=ribs_sendfile
 
 ifdef UGLY_GETADDRINFO_WORKAROUND
 LDFLAGS+=-lanl

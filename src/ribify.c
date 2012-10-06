@@ -29,6 +29,7 @@
 #include <sys/eventfd.h>
 #include <signal.h>
 #include <sys/timerfd.h>
+#include <sys/sendfile.h>
 
 int ribs_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     int flags=fcntl(sockfd, F_GETFL);
@@ -148,6 +149,28 @@ ssize_t ribs_writev(int fd, const struct iovec *iov, int iovcnt) {
     return res;
 }
 
+ssize_t ribs_sendfile(int out_fd, int in_fd, off_t *offset, size_t count) {
+    ssize_t res;
+    ssize_t t_res = 0;
+
+    epoll_worker_set_fd_ctx(out_fd, current_ctx);
+    for(;;yield()) {
+        res = sendfile(out_fd, in_fd, offset, count);
+        if (0 < res) {
+            t_res += res;
+            count -= res;
+            if (0 == count)
+                break;
+            continue;
+        }
+        if (errno != EAGAIN) {
+            t_res = res;
+            break;
+        }
+    }
+    epoll_worker_set_fd_ctx(out_fd, &main_ctx);
+    return t_res;
+}
 
 int ribs_pipe2(int pipefd[2], int flags) {
 

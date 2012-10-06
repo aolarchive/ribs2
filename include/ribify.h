@@ -29,6 +29,7 @@ ssize_t ribs_send(int sockfd, const void *buf, size_t len, int flags);
 ssize_t ribs_recv(int sockfd, void *buf, size_t len, int flags);
 ssize_t ribs_readv(int fd, const struct iovec *iov, int iovcnt);
 ssize_t ribs_writev(int fd, const struct iovec *iov, int iovcnt);
+ssize_t ribs_sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
 int ribs_pipe2(int pipefd[2], int flags);
 int ribs_pipe(int pipefd[2]);
 int ribs_nanosleep(const struct timespec *req, struct timespec *rem);
