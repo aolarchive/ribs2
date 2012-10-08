@@ -28,6 +28,7 @@
 #include "ilog2.h"
 
 #define FILE_WRITER_INITIALIZER { -1, NULL, 0, 0, 0, 0, 1024*1024 }
+#define FILE_WRITER_INIT(var) (var) = ((struct file_writer)FILE_WRITER_INITIALIZER)
 
 struct file_writer {
     int fd;

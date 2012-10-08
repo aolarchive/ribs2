@@ -20,6 +20,7 @@
 #include "mysql_dumper.h"
 #include "logger.h"
 #include "vmbuf.h"
+#include "vmfile.h"
 #include "file_writer.h"
 #include <string.h>
 #include <sys/types.h>
@@ -140,10 +141,23 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
 
     struct vmbuf buf = VMBUF_INITIALIZER;
     vmbuf_init(&buf, 4096);
-    vmbuf_sprintf(&buf, "%s/schema.txt", outputdir);
+    vmbuf_sprintf(&buf, "%s/%s/%s/schema.txt", outputdir, dbname, tablename);
     mkdir_recursive(vmbuf_data(&buf));
     int fdschema = creat(vmbuf_data(&buf), 0644);
-
+    struct vmfile ds_txt = VMFILE_INITIALIZER;
+    vmbuf_reset(&buf);
+    vmbuf_sprintf(&buf, "%s/%s/%s/ds.txt", outputdir, dbname, tablename);
+    if (0 > vmfile_init(&ds_txt, vmbuf_data(&buf), 4096))
+        return LOGGER_ERROR("failed to create: %s", vmbuf_data(&buf)), vmbuf_free(&buf), -1;
+    vmfile_sprintf(&ds_txt, "DS_LOADER_BEGIN()\n");
+    vmfile_sprintf(&ds_txt, "/*\n * DB: %s\n */\n", dbname);
+    vmfile_sprintf(&ds_txt, "#undef DB_NAME\n#define DB_NAME %s\n", dbname);
+    ssize_t len = 80 - strlen(tablename);
+    if (len < 0) len = 4;
+    char header[len];
+    memset(header, '=', len);
+    vmfile_sprintf(&ds_txt, "/* %.*s[ %s ]%.*s */\n", len / 2, header, tablename, len - (len / 2), header);
+    vmfile_sprintf(&ds_txt, "#   undef TABLE_NAME\n#   define TABLE_NAME %s\n", tablename);
     /*
      * initialize output files
      */
@@ -210,6 +224,11 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
         size_t len = ribs_mysql_get_storage_size(field_types[i], fields[i].length);
         if (fdschema > 0)
             dprintf(fdschema, "%03d  name = %s, size=%zu, length=%lu, type=%s (%s), is_prikey=%d, ds_type=%s\n", i, fields[i].name, len, fields[i].length, ribs_mysql_get_type_name(field_types[i]), bind[i].is_unsigned ? "unsigned" : "signed", IS_PRI_KEY(fields[i].flags), ds_type_str);
+        if (is_var_length_field(field_types[i])) {
+            vmfile_sprintf(&ds_txt, "        DS_VAR_FIELD_LOADER(%s)\n", fields[i].name);
+        } else {
+            vmfile_sprintf(&ds_txt, "        DS_FIELD_LOADER(%s, %s)\n", ds_type_str, fields[i].name);
+        }
         bind[i].buffer_type = field_types[i];
         bind[i].buffer_length = len;
         bind[i].buffer = malloc(len);
@@ -220,6 +239,9 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
     hashtable_free(&ht_types);
     mysql_free_result(rs);
     close(fdschema);
+    //vmfile_sprintf(&ds_txt, "/*\n * TABLE END: %s\n */\n", tablename);
+    vmfile_sprintf(&ds_txt, "DS_LOADER_END()\n");
+    vmfile_close(&ds_txt);
     /*
      * execute & bind
      */
@@ -274,8 +296,10 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
     mysql_close(&mysql);
     LOGGER_INFO("%s: %zu records, %zu skipped", tablename, count, num_rows_errors);
     /* check for mysql errors */
-    if (mysql_err != MYSQL_NO_DATA)
-        err = dprintf(STDOUT_FILENO, "mysql_stmt_fetch returned an error (code=%d)\n", mysql_err), -1;
+    if (mysql_err != MYSQL_NO_DATA) {
+        LOGGER_ERROR("mysql_stmt_fetch returned an error (code=%d)\n", mysql_err);
+        err = -1;
+    }
  dumper_close_writer:
     /*
      * finalize & free memory

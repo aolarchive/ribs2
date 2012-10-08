@@ -23,6 +23,7 @@
 #include "ribs_defs.h"
 
 #define FILE_MAPPER_INITIALIZER { NULL, 0 }
+#define FILE_MAPPER_INIT(var) (var) = ((struct file_mapper)FILE_MAPPER_INITIALIZER)
 
 struct file_mapper {
     void *mem;

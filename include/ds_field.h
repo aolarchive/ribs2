@@ -63,24 +63,36 @@ static inline T TEMPLATE_FUNC(ds_field,T,get)(struct TEMPLATE(ds_field,T) *dsf, 
     return dsf->mem[index];
 }
 
+static inline size_t TEMPLATE_FUNC(ds_field,T,num_elements)(struct TEMPLATE(ds_field,T) *dsf) {
+    return dsf->num_elements;
+}
+
+
 /*
  * writer
  */
 struct TEMPLATE(ds_field_writer,T) {
     struct file_writer fw;
+    size_t num_elements;
 };
 
-static inline int TEMPLATE_FUNC(ds_field_writer,T,init)(struct TEMPLATE(ds_field_writer,T) *dsf, const char *filename) {
-    if (0 > file_writer_init(&dsf->fw, filename))
+static inline int TEMPLATE_FUNC(ds_field_writer,T,init)(struct TEMPLATE(ds_field_writer,T) *dsfw, const char *filename) {
+    if (0 > file_writer_init(&dsfw->fw, filename))
         return LOGGER_PERROR("%s", filename), -1;
+    dsfw->num_elements = 0;
     int64_t ds_type = TEMPLATE(ds_type,T);
-    return file_writer_write(&dsf->fw, &ds_type, sizeof(ds_type));
+    return file_writer_write(&dsfw->fw, &ds_type, sizeof(ds_type));
 }
 
-static inline int TEMPLATE_FUNC(ds_field_writer,T,close)(struct TEMPLATE(ds_field_writer,T) *dsf) {
-    return file_writer_close(&dsf->fw);
+static inline int TEMPLATE_FUNC(ds_field_writer,T,close)(struct TEMPLATE(ds_field_writer,T) *dsfw) {
+    return file_writer_close(&dsfw->fw);
 }
 
-static inline int TEMPLATE_FUNC(ds_field_writer,T,write)(struct TEMPLATE(ds_field_writer,T) *dsf, T v) {
-    return file_writer_write(&dsf->fw, &v, sizeof(T));
+static inline int TEMPLATE_FUNC(ds_field_writer,T,write)(struct TEMPLATE(ds_field_writer,T) *dsfw, T v) {
+    ++dsfw->num_elements;
+    return file_writer_write(&dsfw->fw, &v, sizeof(T));
+}
+
+static inline size_t TEMPLATE_FUNC(ds_field_writer,T,num_elements)(struct TEMPLATE(ds_field_writer,T) *dsfw) {
+    return dsfw->num_elements;
 }

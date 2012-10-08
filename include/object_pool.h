@@ -1,3 +1,22 @@
+/*
+    This file is part of RIBS2.0 (Robust Infrastructure for Backend Systems).
+    RIBS is an infrastructure for building great SaaS applications (but not
+    limited to).
+
+    Copyright (C) 2012 Adap.tv, Inc.
+
+    RIBS is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation, version 2.1 of the License.
+
+    RIBS is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public License
+    along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
+*/
 #ifndef _OBJECT_POOL__H_
 #define _OBJECT_POOL__H_
 
@@ -16,7 +35,7 @@ struct object_pool {
 
 _RIBS_INLINE_ int object_pool_grow(struct object_pool *op, size_t growby) {
     size_t i;
-    printf("allocating %zu elements\n", growby);
+    LOGGER_INFO("object_pool<%zu>: allocating %zu elements", op->object_size, growby);
     void *mem = calloc(growby, op->object_size);
     for (i = 0; i < growby; ++i, mem += op->object_size) {
         if (op->init_object)

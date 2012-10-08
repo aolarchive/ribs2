@@ -46,7 +46,7 @@ int mysql_helper_connect(struct mysql_helper *mysql_helper, struct mysql_login_i
                                    login_info->port,
                                    NULL, 0))
         return report_error(mysql_helper);
-    my_bool b_flag = 0;
+    my_bool b_flag = 1;
     if (0 != mysql_options(&mysql_helper->mysql, MYSQL_REPORT_DATA_TRUNCATION, (const char *)&b_flag))
         return report_error(mysql_helper);
     b_flag = 1;

@@ -113,4 +113,12 @@ uint32_t hashtable_lookup(struct hashtable *ht, const void *key, size_t key_len)
     return 0;
 }
 
+int hashtable_foreach(struct hashtable *ht, int (*func)(uint32_t rec)) {
+    struct ht_entry *hte = (struct ht_entry *)vmbuf_data(&ht->data), *htend = hte + ht->mask + 1;
+    for (; hte != htend; ++hte) {
+        if (0 < hte->rec && 0 > func(hte->rec))
+            return -1;
+    }
+    return 0;
+}
 
