@@ -26,13 +26,7 @@
 #include <errno.h>
 #include <stdio.h>
 
-int mkdir_recursive(const char *filename) {
-    char file[strlen(filename) + 1];
-    strcpy(file, filename);
-    char *p = strrchr(file, '/');
-    if (NULL == p)
-        return 0;
-    *p = 0;
+int _mkdir_recursive(char *file) {
     char *cur = file;
     while (*cur) {
         ++cur;
@@ -44,8 +38,33 @@ int mkdir_recursive(const char *filename) {
         cur = p;
         *p = c;
     }
-    *p = '/'; // restore
     return 0;
+}
+
+/*
+ * Recursively create all directories for the given filename.
+ * Example: for "/dir1/dir2/dir3/file" directories dir1, dir2, and dir3
+ *          will be created if they don't exist.
+ */
+int mkdir_for_file_recursive(const char *filename) {
+    char file[strlen(filename) + 1];
+    strcpy(file, filename);
+    char *p = strrchr(file, '/');
+    if (NULL == p)
+        return 0;
+    *p = 0;
+    return _mkdir_recursive(file);
+}
+
+/*
+ * Recursively create all directories for the given directory.
+ * Example: for "/dir1/dir2/dir3" directories dir1, dir2, and dir3
+ *          will be created if they don't exist.
+ */
+int mkdir_recursive(const char *dirname) {
+    char file[strlen(dirname) + 1];
+    strcpy(file, dirname);
+    return _mkdir_recursive(file);
 }
 
 int ribs_create_temp_file(const char *prefix) {

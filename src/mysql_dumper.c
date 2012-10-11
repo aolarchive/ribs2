@@ -142,7 +142,7 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
     struct vmbuf buf = VMBUF_INITIALIZER;
     vmbuf_init(&buf, 4096);
     vmbuf_sprintf(&buf, "%s/%s/%s/schema.txt", outputdir, dbname, tablename);
-    mkdir_recursive(vmbuf_data(&buf));
+    mkdir_for_file_recursive(vmbuf_data(&buf));
     int fdschema = creat(vmbuf_data(&buf), 0644);
     struct vmfile ds_txt = VMFILE_INITIALIZER;
     vmbuf_reset(&buf);
@@ -203,7 +203,7 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
         vmbuf_reset(&buf);
         vmbuf_sprintf(&buf, "%s/%s/%s/%s", outputdir, dbname, tablename, fields[i].name);
 
-        mkdir_recursive(vmbuf_data(&buf));
+        mkdir_for_file_recursive(vmbuf_data(&buf));
         if (is_var_length_field(field_types[i])) {
             size_t ofs = vmbuf_wlocpos(&buf);
             vmbuf_sprintf(&buf, ".ofs");

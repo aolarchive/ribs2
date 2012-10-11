@@ -48,7 +48,7 @@ _RIBS_INLINE_ int TEMPLATE(VMBUF_T,close)(struct VMBUF_T *vmb);
         return perror("ftruncate, " STRINGIFY(VMBUF_T) "_" funcname), -1;
 
 _RIBS_INLINE_ int TEMPLATE(VMBUF_T,init)(struct VMBUF_T *vmb, const char *filename, size_t initial_size) {
-    if (0 <= vmb->fd && 0 > vmfile_close(vmb))
+    if (0 > vmfile_close(vmb))
         return -1;
     unlink(filename);
     vmb->fd = open(filename, O_CREAT | O_RDWR, 0644);
@@ -80,6 +80,8 @@ _RIBS_INLINE_ int TEMPLATE(VMBUF_T,resize_to)(struct VMBUF_T *vmb, size_t new_ca
 }
 
 _RIBS_INLINE_ int TEMPLATE(VMBUF_T,close)(struct VMBUF_T *vmb) {
+    if (vmb->fd < 0)
+        return 0;
     VMFILE_FTRUNCATE(vmb->write_loc, "close");
     vmfile_free(vmb);
     return close(vmb->fd);
