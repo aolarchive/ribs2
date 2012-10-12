@@ -99,7 +99,7 @@ int ribs_logger_init(const char *filename) {
             if (0 > dup2(fd, STDOUT_FILENO) ||
                 0 > dup2(fd, STDERR_FILENO))
                 return perror("dup2"), -1;
-            pclose(fp);
+            close(fd);
          } else
             return -1;
     } else {
