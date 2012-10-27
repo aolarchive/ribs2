@@ -56,7 +56,7 @@ int hashtable_init(struct hashtable *ht, uint32_t initial_size) {
     return 0;
 }
 
-static inline struct ht_entry *hashtable_bucket(struct hashtable *ht, uint32_t bucket) {
+static inline struct ht_entry *_hashtable_bucket(struct hashtable *ht, uint32_t bucket) {
     uint32_t *slots = (uint32_t *)vmbuf_data(&ht->data);
     uint32_t buckets_ofs;
     if (bucket < HASHTABLE_INITIAL_SIZE) {
@@ -69,9 +69,9 @@ static inline struct ht_entry *hashtable_bucket(struct hashtable *ht, uint32_t b
     return (struct ht_entry *)vmbuf_data_ofs(&ht->data, buckets_ofs) + bucket;
 }
 
-static inline void hashtable_move_buckets_range(struct hashtable *ht, uint32_t new_mask, uint32_t begin, uint32_t end) {
+static inline void _hashtable_move_buckets_range(struct hashtable *ht, uint32_t new_mask, uint32_t begin, uint32_t end) {
     for (; begin < end; ++begin) {
-        struct ht_entry *e = hashtable_bucket(ht, begin);
+        struct ht_entry *e = _hashtable_bucket(ht, begin);
         uint32_t new_bkt_idx = e->hashcode & new_mask;
         /* if already in the right place skip it */
         if (begin == new_bkt_idx)
@@ -80,7 +80,7 @@ static inline void hashtable_move_buckets_range(struct hashtable *ht, uint32_t n
         /* free the bucket so it can be reused */
         e->rec = 0;
         for (;;) {
-            struct ht_entry *new_bucket = hashtable_bucket(ht, new_bkt_idx);
+            struct ht_entry *new_bucket = _hashtable_bucket(ht, new_bkt_idx);
             if (0 == new_bucket->rec) {
                 new_bucket->hashcode = e->hashcode;
                 new_bucket->rec = rec;
@@ -93,7 +93,7 @@ static inline void hashtable_move_buckets_range(struct hashtable *ht, uint32_t n
     }
 }
 
-static inline int hashtable_grow(struct hashtable *ht) {
+static inline int _hashtable_grow(struct hashtable *ht) {
     uint32_t capacity = ht->mask + 1;
     uint32_t ofs = vmbuf_alloczero(&ht->data, capacity * sizeof(struct ht_entry));
     uint32_t il2 = ilog2(capacity);
@@ -101,20 +101,20 @@ static inline int hashtable_grow(struct hashtable *ht) {
     slots[il2 - HASHTABLE_INITIAL_SIZE_BITS + 1] = ofs;
     uint32_t new_mask = (capacity << 1) - 1;
     uint32_t b = 0;
-    for (; 0 != hashtable_bucket(ht, b)->rec; ++b);
-    hashtable_move_buckets_range(ht, new_mask, b, capacity);
-    hashtable_move_buckets_range(ht, new_mask, 0, b);
+    for (; 0 != _hashtable_bucket(ht, b)->rec; ++b);
+    _hashtable_move_buckets_range(ht, new_mask, b, capacity);
+    _hashtable_move_buckets_range(ht, new_mask, 0, b);
     ht->mask = new_mask;
     return 0;
 }
 
 uint32_t hashtable_insert(struct hashtable *ht, const void *key, size_t key_len, const void *val, size_t val_len) {
-    if (unlikely(ht->size > (ht->mask >> 1)) && 0 > hashtable_grow(ht))
+    if (unlikely(ht->size > (ht->mask >> 1)) && 0 > _hashtable_grow(ht))
         return 0;
     uint32_t hc = hashcode(key, key_len);
     uint32_t bucket = hc & ht->mask;
     for (;;) {
-        struct ht_entry *e = hashtable_bucket(ht, bucket);
+        struct ht_entry *e = _hashtable_bucket(ht, bucket);
         if (0 == e->rec) {
             e->hashcode = hc;
             uint32_t ofs = vmbuf_wlocpos(&ht->data);
@@ -136,12 +136,12 @@ uint32_t hashtable_insert(struct hashtable *ht, const void *key, size_t key_len,
 }
 
 uint32_t hashtable_insert_new(struct hashtable *ht, const void *key, size_t key_len, size_t val_len) {
-    if (unlikely(ht->size > (ht->mask >> 1)) && 0 > hashtable_grow(ht))
+    if (unlikely(ht->size > (ht->mask >> 1)) && 0 > _hashtable_grow(ht))
         return 0;
     uint32_t hc = hashcode(key, key_len);
     uint32_t bucket = hc & ht->mask;
     for (;;) {
-        struct ht_entry *e = hashtable_bucket(ht, bucket);
+        struct ht_entry *e = _hashtable_bucket(ht, bucket);
         if (0 == e->rec) {
             e->hashcode = hc;
             uint32_t ofs = vmbuf_wlocpos(&ht->data);
@@ -167,7 +167,7 @@ uint32_t hashtable_lookup(struct hashtable *ht, const void *key, size_t key_len)
     uint32_t mask = ht->mask;
     uint32_t bucket = hc & mask;
     for (;;) {
-        struct ht_entry *e = hashtable_bucket(ht, bucket);
+        struct ht_entry *e = _hashtable_bucket(ht, bucket);
         uint32_t ofs = e->rec;
         if (ofs == 0)
             return 0;
@@ -176,6 +176,60 @@ uint32_t hashtable_lookup(struct hashtable *ht, const void *key, size_t key_len)
             char *k = rec + (sizeof(uint32_t) * 2);
             if (*(uint32_t *)rec == key_len && 0 == memcmp(key, k, key_len))
                 return ofs;
+        }
+        ++bucket;
+        if (bucket > mask)
+            bucket = 0;
+    }
+    return 0;
+}
+
+static inline void _hashtable_fix_chain_down(struct hashtable *ht, uint32_t mask, uint32_t bucket) {
+    for(;;) {
+        struct ht_entry *bkt = _hashtable_bucket(ht, bucket);
+        if (0 == bkt->rec) /* is end of chain? */
+            break;
+        uint32_t new_bucket = bkt->hashcode & mask; /* ideal bucket */
+        for (;;) {
+            if (bucket == new_bucket) /* no need to move */
+                break;
+            struct ht_entry *new_bkt = _hashtable_bucket(ht, new_bucket);
+            if (0 == new_bkt->rec) {
+                /* found new spot, move the bucket */
+                *new_bkt = *bkt;
+                bkt->rec = 0; /* make as deleted */
+                break;
+            }
+            ++new_bucket;
+            if (new_bucket > mask)
+                new_bucket = 0;
+        }
+        ++bucket;
+        if (bucket > mask)
+            bucket = 0;
+    }
+}
+
+uint32_t hashtable_remove(struct hashtable *ht, const void *key, size_t key_len) {
+    uint32_t hc = hashcode(key, key_len);
+    uint32_t mask = ht->mask;
+    uint32_t bucket = hc & mask;
+    for (;;) {
+        struct ht_entry *e = _hashtable_bucket(ht, bucket);
+        uint32_t ofs = e->rec;
+        if (ofs == 0)
+            return 0;
+        if (hc == e->hashcode) {
+            char *rec = vmbuf_data_ofs(&ht->data, ofs);
+            char *k = rec + (sizeof(uint32_t) * 2);
+            if (*(uint32_t *)rec == key_len && 0 == memcmp(key, k, key_len)) {
+                e->rec = 0; /* mark as deleted */
+                ++bucket;
+                if (bucket > mask)
+                    bucket = 0;
+                _hashtable_fix_chain_down(ht, mask, bucket);
+                return ofs;
+            }
         }
         ++bucket;
         if (bucket > mask)
