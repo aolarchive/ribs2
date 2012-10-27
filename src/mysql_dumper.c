@@ -169,7 +169,7 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
     }
 
     struct hashtable ht_types = HASHTABLE_INITIALIZER;
-    hashtable_init(&ht_types, 2048);
+    hashtable_init(&ht_types, 32);
     if (NULL != types) {
         struct mysql_dumper_type *t = types;
         for (; t->name; ++t) {

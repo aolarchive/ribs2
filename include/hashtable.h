@@ -32,7 +32,7 @@ struct hashtable {
 #define HASHTABLE_INITIALIZER { VMBUF_INITIALIZER, 0, 0 }
 #define HASHTABLE_MAKE(x) (x) = (struct hashtable)HASHTABLE_INITIALIZER
 
-int hashtable_init(struct hashtable *ht, uint32_t nel);
+int hashtable_init(struct hashtable *ht, uint32_t initial_size);
 uint32_t hashtable_insert(struct hashtable *ht, const void *key, size_t key_len, const void *val, size_t val_len);
 uint32_t hashtable_insert_new(struct hashtable *ht, const void *key, size_t key_len, size_t val_len);
 uint32_t hashtable_lookup(struct hashtable *ht, const void *key, size_t key_len);

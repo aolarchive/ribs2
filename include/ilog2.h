@@ -20,8 +20,7 @@
 #ifndef _ILOG2__H_
 #define _ILOG2__H_
 
-static inline uint32_t ilog2(uint32_t x)
-{
+static inline uint32_t ilog2(uint32_t x) {
     uint32_t res;
     asm ("bsr %[x], %[res]"
          : [res] "=r" (res)
@@ -29,8 +28,7 @@ static inline uint32_t ilog2(uint32_t x)
     return res;
 }
 
-static inline uint32_t next_p2(uint32_t x)
-{
+static inline uint32_t next_p2(uint32_t x) {
     return 2U << ilog2(x-1);
 }
 

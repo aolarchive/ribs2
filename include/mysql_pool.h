@@ -33,7 +33,7 @@ struct mysql_pool_entry
     struct list l;
 };
 
-int mysql_pool_init(uint32_t ht_size);
+int mysql_pool_init();
 int mysql_pool_get(struct mysql_login_info *info, struct mysql_pool_entry **mysql);
 int mysql_pool_free(struct mysql_login_info *info, struct mysql_pool_entry *mysql);
 

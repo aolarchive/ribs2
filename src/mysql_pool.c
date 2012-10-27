@@ -55,8 +55,8 @@ static inline int make_ht_key(struct vmbuf *buf, const struct mysql_login_info *
     return 0;
 }
 
-int mysql_pool_init(uint32_t ht_size) {
-    if (0 > hashtable_init(&ht_idle_connections, ht_size))
+int mysql_pool_init() {
+    if (0 > hashtable_init(&ht_idle_connections, 128))
         return -1;
     if (0 > vmbuf_init(&misc, 4096))
         return -1;
