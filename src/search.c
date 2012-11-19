@@ -20,6 +20,20 @@
 
 #include "search.h"
 
+uint32_t lower_bound(const void *key, const void *base, size_t nmemb, size_t size, int (*compar)(const void *, const void *)) {
+    uint32_t l = 0, h = nmemb;
+    while (l < h) {
+        uint32_t m = (l + h) >> 1;
+        if (0 > compar(base + m * size, key)) {
+            l = m;
+            ++l;
+        } else {
+            h = m;
+        }
+    }
+    return l;
+}
+
 const void *binary_search(const void *key, const void *base, size_t nmemb, size_t size, int (*compar)(const void *, const void *)) {
 
     size_t low = 0, high = nmemb;

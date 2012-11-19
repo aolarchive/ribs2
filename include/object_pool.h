@@ -22,8 +22,10 @@
 
 #include "ribs_defs.h"
 #include "vmbuf.h"
+#include "logger.h"
 
 #define OBJECT_POOL_INITIALIZER { 0, 0, 0, NULL, VMBUF_INITIALIZER }
+#define OBJECT_POOL_INIT(x) (x) = (struct object_pool)OBJECT_POOL_INITIALIZER
 
 struct object_pool {
     size_t object_size;

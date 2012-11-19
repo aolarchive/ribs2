@@ -41,7 +41,6 @@ SSTRL(CONNECTION_CLOSE, "close");
 static struct list* client_chains = NULL;
 static struct list* client_heads = NULL;
 static struct list free_list = LIST_INITIALIZER(free_list);
-uint32_t next_avail_head = 0;
 static struct ribs_context *idle_ctx;
 static struct hashtable ht_persistent_clients = HASHTABLE_INITIALIZER;
 

@@ -87,6 +87,7 @@ void daemon_finalize(void) {
         LOGGER_PERROR("pipe");
         exit(EXIT_FAILURE);
     }
+    close(child_is_up_pipe[1]);
 }
 
 int ribs_logger_init(const char *filename) {
@@ -130,19 +131,26 @@ static void signal_handler(int signum) {
     }
 }
 
-int ribs_set_pidfile(const char *filename) {
-    pidfile = filename;
-    struct vmfile vmf_pid = VMFILE_INITIALIZER;
-    if (0 > vmfile_init(&vmf_pid, pidfile, 4096))
-        return -1;
-    vmfile_sprintf(&vmf_pid, "%d", (int)getpid());
-    vmfile_close(&vmf_pid);
+int ribs_set_signals(void) {
     struct sigaction sa = {
         .sa_handler = signal_handler,
         .sa_flags = 0
     };
     sigaction(SIGTERM, &sa, NULL);
     sigaction(SIGINT, &sa, NULL);
-    atexit(cleanup_pidfile);
     return 0;
+}
+
+int ribs_set_pidfile(const char *filename) {
+    if (pidfile)
+        return LOGGER_ERROR("pidfile is already set"), -1;
+    pidfile = filename;
+    struct vmfile vmf_pid = VMFILE_INITIALIZER;
+    if (0 > vmfile_init(&vmf_pid, pidfile, 4096))
+        return -1;
+    vmfile_sprintf(&vmf_pid, "%d", (int)getpid());
+    vmfile_close(&vmf_pid);
+    if (0 != atexit(cleanup_pidfile))
+        return -1;
+    return ribs_set_signals();
 }

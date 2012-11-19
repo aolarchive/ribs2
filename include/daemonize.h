@@ -23,6 +23,7 @@
 int daemonize(void);
 void daemon_finalize(void);
 int ribs_logger_init(const char *filename);
+int ribs_set_signals(void);
 int ribs_set_pidfile(const char *filename);
 
 #endif // _DAEMONIZE__H_

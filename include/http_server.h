@@ -45,7 +45,7 @@ struct http_server_context {
 struct http_server {
     uint16_t port;
     struct ctx_pool ctx_pool;
-    void (*user_func)();
+    void (*user_func)(void);
     /* misc ctx */
     struct ribs_context *accept_ctx;
     struct ribs_context *idle_ctx;

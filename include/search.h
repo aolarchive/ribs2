@@ -21,7 +21,9 @@
 #define _SEARCH__H_
 
 #include <unistd.h>
+#include <stdint.h>
 
+uint32_t lower_bound(const void *key, const void *base, size_t nmemb, size_t size, int (*compar)(const void *, const void *));
 const void *binary_search(const void *key, const void *base, size_t nmemb, size_t size, int (*compar)(const void *, const void *));
 
 #endif // _SEARCH__H_

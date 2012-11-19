@@ -81,7 +81,6 @@ struct ribs_context* small_ctx_for_fd(int fd, void (*func)(void)) {
 }
 
 int epoll_worker_init(void) {
-
     struct rlimit rlim;
     if (0 > getrlimit(RLIMIT_NOFILE, &rlim))
         return LOGGER_PERROR("getrlimit(RLIMIT_NOFILE)"), -1;
