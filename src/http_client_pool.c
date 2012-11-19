@@ -231,7 +231,7 @@ void http_client_fiber_main(void) {
         /*
          * older versions of HTTP, terminated by disconnect
          */
-        for (;;yield()) {
+        for (;;http_client_yield()) {
             if ((res = vmbuf_read(&ctx->response, fd)) < 0)
                 CLIENT_ERROR();
             if (0 == res)
