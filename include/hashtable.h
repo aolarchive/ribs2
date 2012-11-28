@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012 Adap.tv, Inc.
+    Copyright (C) 2012,2013 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -22,6 +22,19 @@
 
 #include "ribs_defs.h"
 #include "vmbuf.h"
+#include "vmfile.h"
+#include "template.h"
+#include "hash_funcs.h"
+#include "ilog2.h"
+
+#define _TEMPLATE_HTBL_FUNC_HELPER(S,T,F) S ## T ##_## F
+#define TEMPLATE_HTBL_FUNC(S,T,F) _TEMPLATE_HTBL_FUNC_HELPER(S,T,F)
+
+#define _TEMPLATE_HTBL_HELPER(S,T) S ## T
+#define TEMPLATE_HTBL(S,T) _TEMPLATE_HTBL_HELPER(S,T)
+
+#define HASHTABLE_INITIAL_SIZE_BITS 5
+#define HASHTABLE_INITIAL_SIZE (1<<HASHTABLE_INITIAL_SIZE_BITS)
 
 struct hashtable {
     struct vmbuf data;
@@ -29,47 +42,33 @@ struct hashtable {
     uint32_t size;
 };
 
-#define HASHTABLE_INITIALIZER { VMBUF_INITIALIZER, 0, 0 }
-#define HASHTABLE_MAKE(x) (x) = (struct hashtable)HASHTABLE_INITIALIZER
+struct hashtablefile {
+    struct vmfile data;
+    uint32_t mask;
+    uint32_t size;
+};
 
 int hashtable_init(struct hashtable *ht, uint32_t initial_size);
-uint32_t hashtable_insert(struct hashtable *ht, const void *key, size_t key_len, const void *val, size_t val_len);
-uint32_t hashtable_insert_new(struct hashtable *ht, const void *key, size_t key_len, size_t val_len);
-uint32_t hashtable_lookup(struct hashtable *ht, const void *key, size_t key_len);
-uint32_t hashtable_remove(struct hashtable *ht, const void *key, size_t key_len);
-int hashtable_foreach(struct hashtable *ht, int (*func)(uint32_t rec));
+int hashtablefile_init_create(struct hashtablefile *ht, const char *file_name, uint32_t initial_size);
 
-static inline void *hashtable_get_key(struct hashtable *ht, uint32_t rec_ofs) {
-    char *rec = vmbuf_data_ofs(&ht->data, rec_ofs);
-    return rec + (sizeof(uint32_t) * 2);
-}
+#ifdef T
+#undef T
+#endif
 
-static inline uint32_t hashtable_get_key_size(struct hashtable *ht, uint32_t rec_ofs) {
-    char *rec = vmbuf_data_ofs(&ht->data, rec_ofs);
-    return *((uint32_t *)rec);
-}
+#ifdef TS
+#undef TS
+#endif
 
-static inline void *hashtable_get_val(struct hashtable *ht, uint32_t rec_ofs) {
-    char *rec = vmbuf_data_ofs(&ht->data, rec_ofs);
-    return rec + (sizeof(uint32_t) * 2) + *(uint32_t *)rec;
-}
+#define T
+#define TS vmbuf
+#include "_hashtable.h"
+#undef TS
+#undef T
 
-static inline uint32_t hashtable_get_val_size(struct hashtable *ht, uint32_t rec_ofs) {
-    char *rec = vmbuf_data_ofs(&ht->data, rec_ofs);
-    return *((uint32_t *)rec + 1);
-}
-
-static inline uint32_t hashtable_get_size(struct hashtable *ht) {
-    return ht->size;
-}
-
-static inline const char *hashtable_lookup_str(struct hashtable*ht, const char *key, const char *default_val) {
-    uint32_t ofs = hashtable_lookup(ht, key, strlen(key));
-    return (ofs ? hashtable_get_val(ht, ofs) : default_val);
-}
-
-static inline void hashtable_free(struct hashtable *ht) {
-    vmbuf_free(&ht->data);
-}
+#define T file
+#define TS vmfile
+#include "_hashtable.h"
+#undef TS
+#undef T
 
 #endif // _HASHTABLE__H_
