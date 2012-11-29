@@ -42,14 +42,18 @@ struct hashtable {
     uint32_t size;
 };
 
+struct hashtablefile_header {
+    uint32_t size;
+    uint32_t mask;
+};
+
 struct hashtablefile {
     struct vmfile data;
-    uint32_t mask;
-    uint32_t size;
 };
 
 int hashtable_init(struct hashtable *ht, uint32_t initial_size);
 int hashtablefile_init_create(struct hashtablefile *ht, const char *file_name, uint32_t initial_size);
+int hashtablefile_finalize(struct hashtablefile *ht);
 
 #ifdef T
 #undef T
@@ -61,13 +65,25 @@ int hashtablefile_init_create(struct hashtablefile *ht, const char *file_name, u
 
 #define T
 #define TS vmbuf
+#define HT_SIZE ht->size
+#define HT_MASK ht->mask
+#define HT_SLOT ((uint32_t *) TEMPLATE(TS, data)(&ht->data))
 #include "_hashtable.h"
+#undef HT_SIZE
+#undef HT_MASK
+#undef HT_SLOT
 #undef TS
 #undef T
 
 #define T file
 #define TS vmfile
+#define HT_SIZE (((struct hashtablefile_header *) TEMPLATE(TS, data)(&ht->data))->size)
+#define HT_MASK (((struct hashtablefile_header *) TEMPLATE(TS, data)(&ht->data))->mask)
+#define HT_SLOT ((uint32_t *) TEMPLATE(TS, data_ofs)(&ht->data, sizeof(struct hashtablefile_header)))
 #include "_hashtable.h"
+#undef HT_SIZE
+#undef HT_MASK
+#undef HT_SLOT
 #undef TS
 #undef T
 

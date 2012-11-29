@@ -44,7 +44,7 @@ int hashtable_init(struct hashtable *ht, uint32_t initial_size) {
         uint32_t s;
         for (s = 1; s < num_slots; ++s) {
             uint32_t ofs = vmbuf_alloczero(&ht->data, capacity * sizeof(struct ht_entry));
-            uint32_t *slots = (uint32_t *)vmbuf_data(&ht->data);
+            uint32_t *slots = (uint32_t *) vmbuf_data(&ht->data);
             slots[s] = ofs;
             capacity <<= 1;
         }
@@ -53,29 +53,37 @@ int hashtable_init(struct hashtable *ht, uint32_t initial_size) {
 }
 
 int hashtablefile_init_create(struct hashtablefile *ht, const char *file_name, uint32_t initial_size) {
-    size_t size = sizeof(uint32_t) * 32; // 32 slots, offs ==> buckets
+    size_t size = sizeof(struct hashtablefile_header);
+    size += sizeof(uint32_t) * 32; // 32 slots, offs ==> buckets
     size += HASHTABLE_INITIAL_SIZE * sizeof(struct ht_entry); // allocate buckets in the first slot
     if (0 > vmfile_init(&ht->data, file_name, size))
         return -1;
     vmfile_alloczero(&ht->data, size);
 
-    uint32_t *slots = (uint32_t *) vmfile_data(&ht->data);
+    uint32_t *slots = (uint32_t *) vmfile_data_ofs(&ht->data, sizeof(struct hashtablefile_header));
     slots[0] = sizeof(uint32_t) * 32;
-    ht->size = 0;
-    ht->mask = HASHTABLE_INITIAL_SIZE - 1;
+    struct hashtablefile_header *header = ((struct hashtablefile_header *) vmfile_data(&ht->data));
+    header->size = 0;
+    header->mask = HASHTABLE_INITIAL_SIZE - 1;
     if (initial_size > HASHTABLE_INITIAL_SIZE) {
         initial_size = next_p2(initial_size) << 1;
-        ht->mask = initial_size - 1;
+        header->mask = initial_size - 1;
         uint32_t num_slots = ilog2(initial_size) - HASHTABLE_INITIAL_SIZE_BITS + 1;
         uint32_t capacity = HASHTABLE_INITIAL_SIZE;
         uint32_t s;
         for (s = 1; s < num_slots; ++s) {
             uint32_t ofs = vmfile_alloczero(&ht->data, capacity * sizeof(struct ht_entry));
-            uint32_t *slots = (uint32_t *) vmfile_data(&ht->data);
+            uint32_t *slots = (uint32_t *) vmfile_data_ofs(&ht->data, sizeof(struct hashtablefile_header));
             slots[s] = ofs;
             capacity <<= 1;
         }
     }
+    return 0;
+}
+
+int hashtablefile_finalize(struct hashtablefile *ht) {
+    if (0 > vmfile_close(&ht->data))
+        return -1;
     return 0;
 }
 
@@ -89,12 +97,24 @@ int hashtablefile_init_create(struct hashtablefile *ht, const char *file_name, u
 
 #define T
 #define TS vmbuf
+#define HT_SIZE ht->size
+#define HT_MASK ht->mask
+#define HT_SLOT ((uint32_t *) TEMPLATE(TS, data)(&ht->data))
 #include "_hashtable.c"
+#undef HT_SIZE
+#undef HT_MASK
+#undef HT_SLOT
 #undef TS
 #undef T
 
 #define T file
 #define TS vmfile
+#define HT_SIZE (((struct hashtablefile_header *) TEMPLATE(TS, data)(&ht->data))->size)
+#define HT_MASK (((struct hashtablefile_header *) TEMPLATE(TS, data)(&ht->data))->mask)
+#define HT_SLOT ((uint32_t *) TEMPLATE(TS, data_ofs)(&ht->data, sizeof(struct hashtablefile_header)))
 #include "_hashtable.c"
+#undef HT_SIZE
+#undef HT_MASK
+#undef HT_SLOT
 #undef TS
 #undef T

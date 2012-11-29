@@ -21,11 +21,12 @@
 #define HASHTABLE_INITIALIZER { VMBUF_INITIALIZER, 0, 0 }
 #define HASHTABLE_MAKE(x) (x) = (struct hashtable)HASHTABLE_INITIALIZER
 
-#define HASHTABLE_VMFILE_INITIALIZER { VMFILE_INITIALIZER, 0, 0 }
-#define HASHTABLE_VMFILE_MAKE(x) (x) = (struct hashtable)HASHTABLE_VMFILE_INITIALIZER
+#define HASHTABLE_VMFILE_INITIALIZER { VMFILE_INITIALIZER }
+#define HASHTABLE_VMFILE_MAKE(x) (x) = (struct hashtablefile)HASHTABLE_VMFILE_INITIALIZER
 
 uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, insert)(struct TEMPLATE_HTBL(hashtable, T) *ht, const void *key, size_t key_len, const void *val, size_t val_len);
 uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, insert_new)(struct TEMPLATE_HTBL(hashtable, T) *ht, const void *key, size_t key_len, size_t val_len);
+uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, lookup_insert)(struct TEMPLATE_HTBL(hashtable, T) *ht, const void *key, size_t key_len, const void *val, size_t val_len);
 uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, lookup)(struct TEMPLATE_HTBL(hashtable, T) *ht, const void *key, size_t key_len);
 uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, remove)(struct TEMPLATE_HTBL(hashtable, T) *ht, const void *key, size_t key_len);
 int TEMPLATE_HTBL_FUNC(hashtable, T, foreach)(struct TEMPLATE_HTBL(hashtable, T) *ht, int (*func)(uint32_t rec));
@@ -51,7 +52,7 @@ static inline uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, get_val_size)(struct TEM
 }
 
 static inline uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, get_size)(struct TEMPLATE_HTBL(hashtable, T) *ht) {
-    return ht->size;
+    return HT_SIZE;
 }
 
 static inline const char *TEMPLATE_HTBL_FUNC(hashtable, T, lookup_str)(struct TEMPLATE_HTBL(hashtable, T) *ht, const char *key, const char *default_val) {

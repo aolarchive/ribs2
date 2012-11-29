@@ -19,7 +19,7 @@
 */
 
 static inline struct ht_entry *TEMPLATE_HTBL_FUNC(_hashtable, T, bucket)(struct TEMPLATE_HTBL(hashtable, T) *ht, uint32_t bucket) {
-    uint32_t *slots = (uint32_t *)TEMPLATE(TS, data)(&ht->data);
+    uint32_t *slots = HT_SLOT;
     uint32_t buckets_ofs;
     if (bucket < HASHTABLE_INITIAL_SIZE) {
         buckets_ofs = slots[0];
@@ -34,6 +34,8 @@ static inline struct ht_entry *TEMPLATE_HTBL_FUNC(_hashtable, T, bucket)(struct 
 static inline void TEMPLATE_HTBL_FUNC(_hashtable, T, move_buckets_range)(struct TEMPLATE_HTBL(hashtable, T) *ht, uint32_t new_mask, uint32_t begin, uint32_t end) {
     for (; begin < end; ++begin) {
         struct ht_entry *e = TEMPLATE_HTBL_FUNC(_hashtable, T, bucket)(ht, begin);
+        if (0 == e->rec)
+            continue;
         uint32_t new_bkt_idx = e->hashcode & new_mask;
         /* if already in the right place skip it */
         if (begin == new_bkt_idx)
@@ -56,25 +58,25 @@ static inline void TEMPLATE_HTBL_FUNC(_hashtable, T, move_buckets_range)(struct 
 }
 
 static inline int TEMPLATE_HTBL_FUNC(_hashtable, T, grow)(struct TEMPLATE_HTBL(hashtable, T) *ht) {
-    uint32_t capacity = ht->mask + 1;
+    uint32_t capacity = HT_MASK + 1;
     uint32_t ofs = TEMPLATE(TS, alloczero)(&ht->data, capacity * sizeof(struct ht_entry));
     uint32_t il2 = ilog2(capacity);
-    uint32_t *slots = (uint32_t *)TEMPLATE(TS, data)(&ht->data);
+    uint32_t *slots = HT_SLOT;
     slots[il2 - HASHTABLE_INITIAL_SIZE_BITS + 1] = ofs;
     uint32_t new_mask = (capacity << 1) - 1;
     uint32_t b = 0;
     for (; 0 != TEMPLATE_HTBL_FUNC(_hashtable, T, bucket)(ht, b)->rec; ++b);
     TEMPLATE_HTBL_FUNC(_hashtable, T, move_buckets_range)(ht, new_mask, b, capacity);
     TEMPLATE_HTBL_FUNC(_hashtable, T, move_buckets_range)(ht, new_mask, 0, b);
-    ht->mask = new_mask;
+    HT_MASK = new_mask;
     return 0;
 }
 
 uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, insert)(struct TEMPLATE_HTBL(hashtable, T) *ht, const void *key, size_t key_len, const void *val, size_t val_len) {
-    if (unlikely(ht->size > (ht->mask >> 1)) && 0 > TEMPLATE_HTBL_FUNC(_hashtable, T, grow)(ht))
+    if (unlikely(HT_SIZE > (HT_MASK >> 1)) && 0 > TEMPLATE_HTBL_FUNC(_hashtable, T, grow)(ht))
         return 0;
     uint32_t hc = hashcode(key, key_len);
-    uint32_t bucket = hc & ht->mask;
+    uint32_t bucket = hc & HT_MASK;
     for (;;) {
         struct ht_entry *e = TEMPLATE_HTBL_FUNC(_hashtable, T, bucket)(ht, bucket);
         if (0 == e->rec) {
@@ -86,11 +88,11 @@ uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, insert)(struct TEMPLATE_HTBL(hashtable
             rec[1] = val_len;
             TEMPLATE(TS, memcpy)(&ht->data, key, key_len);
             TEMPLATE(TS, memcpy)(&ht->data, val, val_len);
-            ++ht->size;
+            ++HT_SIZE;
             return ofs;
         } else {
             ++bucket;
-            if (bucket > ht->mask)
+            if (bucket > HT_MASK)
                 bucket = 0;
         }
     }
@@ -98,10 +100,10 @@ uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, insert)(struct TEMPLATE_HTBL(hashtable
 }
 
 uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, insert_new)(struct TEMPLATE_HTBL(hashtable, T) *ht, const void *key, size_t key_len, size_t val_len) {
-    if (unlikely(ht->size > (ht->mask >> 1)) && 0 > TEMPLATE_HTBL_FUNC(_hashtable, T, grow)(ht))
+    if (unlikely(HT_SIZE > (HT_MASK >> 1)) && 0 > TEMPLATE_HTBL_FUNC(_hashtable, T, grow)(ht))
         return 0;
     uint32_t hc = hashcode(key, key_len);
-    uint32_t bucket = hc & ht->mask;
+    uint32_t bucket = hc & HT_MASK;
     for (;;) {
         struct ht_entry *e = TEMPLATE_HTBL_FUNC(_hashtable, T, bucket)(ht, bucket);
         if (0 == e->rec) {
@@ -113,11 +115,48 @@ uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, insert_new)(struct TEMPLATE_HTBL(hasht
             rec[1] = val_len;
             TEMPLATE(TS, memcpy)(&ht->data, key, key_len);
             TEMPLATE(TS, alloc)(&ht->data, val_len);
-            ++ht->size;
+            ++HT_SIZE;
             return ofs;
         } else {
             ++bucket;
-            if (bucket > ht->mask)
+            if (bucket > HT_MASK)
+                bucket = 0;
+        }
+    }
+    return 0;
+}
+
+uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, lookup_insert)(struct TEMPLATE_HTBL(hashtable, T) *ht, const void *key, size_t key_len, const void *val, size_t val_len) {
+    uint32_t hc = hashcode(key, key_len);
+    uint32_t bucket = hc & HT_MASK;
+    for (;;) {
+        struct ht_entry *e = TEMPLATE_HTBL_FUNC(_hashtable, T, bucket)(ht, bucket);
+        if (0 == e->rec) {
+            if (unlikely(HT_SIZE > (HT_MASK >> 1))) {
+                int res = TEMPLATE_HTBL_FUNC(_hashtable, T, grow)(ht);
+                if (0 > res)
+                    return 0;
+                bucket = hc & HT_MASK;
+                continue;
+            }
+            e->hashcode = hc;
+            uint32_t ofs = TEMPLATE(TS, wlocpos)(&ht->data);
+            e->rec = ofs;
+            uint32_t *rec = (uint32_t *)TEMPLATE(TS, data_ofs)(&ht->data, TEMPLATE(TS, alloc)(&ht->data, 2 * sizeof(uint32_t)));
+            rec[0] = key_len;
+            rec[1] = val_len;
+            TEMPLATE(TS, memcpy)(&ht->data, key, key_len);
+            TEMPLATE(TS, memcpy)(&ht->data, val, val_len);
+            ++HT_SIZE;
+            return ofs;
+        } else if (hc == e->hashcode) {
+            char *rec = TEMPLATE(TS, data_ofs)(&ht->data, e->rec);
+            char *k = rec + (sizeof(uint32_t) * 2);
+            if (*(uint32_t *)rec == key_len && 0 == memcmp(key, k, key_len))
+                return e->rec;
+        } else {
+            ++bucket;
+            if (bucket > HT_MASK)
                 bucket = 0;
         }
     }
@@ -126,7 +165,7 @@ uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, insert_new)(struct TEMPLATE_HTBL(hasht
 
 uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, lookup)(struct TEMPLATE_HTBL(hashtable, T) *ht, const void *key, size_t key_len) {
     uint32_t hc = hashcode(key, key_len);
-    uint32_t mask = ht->mask;
+    uint32_t mask = HT_MASK;
     uint32_t bucket = hc & mask;
     for (;;) {
         struct ht_entry *e = TEMPLATE_HTBL_FUNC(_hashtable, T, bucket)(ht, bucket);
@@ -174,7 +213,7 @@ static inline void TEMPLATE_HTBL_FUNC(_hashtable, T, fix_chain_down)(struct TEMP
 
 uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, remove)(struct TEMPLATE_HTBL(hashtable, T) *ht, const void *key, size_t key_len) {
     uint32_t hc = hashcode(key, key_len);
-    uint32_t mask = ht->mask;
+    uint32_t mask = HT_MASK;
     uint32_t bucket = hc & mask;
     for (;;) {
         struct ht_entry *e = TEMPLATE_HTBL_FUNC(_hashtable, T, bucket)(ht, bucket);
@@ -201,9 +240,9 @@ uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, remove)(struct TEMPLATE_HTBL(hashtable
 }
 
 int TEMPLATE_HTBL_FUNC(hashtable, T, foreach)(struct TEMPLATE_HTBL(hashtable, T) *ht, int (*func)(uint32_t rec)) {
-    uint32_t capacity = ht->mask + 1;
+    uint32_t capacity = HT_MASK + 1;
     uint32_t num_slots = ilog2(capacity) - HASHTABLE_INITIAL_SIZE_BITS + 1;
-    uint32_t *slots = (uint32_t *)TEMPLATE(TS, data)(&ht->data);
+    uint32_t *slots = HT_SLOT;
     uint32_t s;
     uint32_t vect_size = HASHTABLE_INITIAL_SIZE;
     for (s = 0; s < num_slots; ++s) {
