@@ -26,16 +26,12 @@
 #include "hash_funcs.h"
 #include "ilog2.h"
 #include "file_mapper.h"
+#include "hashtablefile_header.h"
 
 #define HASHTABLE_INITIAL_SIZE_BITS 5
 #define HASHTABLE_INITIAL_SIZE (1<<HASHTABLE_INITIAL_SIZE_BITS)
 
 #define HASHTABLEFILE_READONLY_INITIALIZER { FILE_MAPPER_INITIALIZER, NULL, NULL}
-
-struct hashtablefile_header {
-    uint32_t size;
-    uint32_t mask;
-};
 
 struct hashtablefile_readonly {
     struct file_mapper fm;

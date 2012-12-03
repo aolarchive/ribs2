@@ -58,6 +58,9 @@
 #define DS_VAR_FIELD_LOADER(name)                                     \
     struct ds_var_field DS_FIELD_MAKE(DB_NAME,TABLE_NAME,name);// = DS_VAR_FIELD_INITIALIZER;
 
+#define VAR_IDX_O2M_LOADER(name)                                       \
+    struct var_index_container_o2m MACRO_CONCAT(DS_FIELD_MAKE(DB_NAME, TABLE_NAME, name), _idx);
+
 #undef DS_LOADER_STAGE
 #define DS_LOADER_STAGE 1
 
@@ -113,6 +116,12 @@
     if (0 > (res = ds_var_field_init(&(ds_loader->DS_FIELD_MAKE(DB_NAME,TABLE_NAME,name)), vmbuf_data(&vmb)))) \
         goto ds_loader_done;
 
+#undef VAR_IDX_O2M_LOADER
+#define VAR_IDX_O2M_LOADER(name)                                     \
+    vmbuf_reset(&vmb);                                                  \
+    vmbuf_sprintf(&vmb, "%s/%s/%s/%s", base_dir, DS_STRIGIFY(DB_NAME), DS_STRIGIFY(TABLE_NAME), #name); \
+    if (0 > (res = var_index_container_o2m_init(&(ds_loader->MACRO_CONCAT(DS_FIELD_MAKE(DB_NAME,TABLE_NAME,name), _idx)), vmbuf_data(&vmb)))) \
+        goto ds_loader_done;
 
 #undef DS_LOADER_STAGE
 #define DS_LOADER_STAGE 2
@@ -127,6 +136,7 @@
 #undef IDX_O2O_LOADER
 #undef IDX_O2M_LOADER
 #undef DS_VAR_FIELD_LOADER
+#undef VAR_IDX_O2M_LOADER
 
 #define DS_LOADER_BEGIN()                       \
     static const char *MACRO_CONCAT(DS_LOADER_TYPENAME,_files)[] = {
@@ -139,6 +149,9 @@
     DS_MAKE_PATH(DB_NAME,TABLE_NAME,name,".idx"),
 #define DS_VAR_FIELD_LOADER(name)               \
     DS_MAKE_PATH(DB_NAME,TABLE_NAME,name,""),
+#define VAR_IDX_O2M_LOADER(name)               \
+    DS_MAKE_PATH(DB_NAME,TABLE_NAME,name,""),       \
+    DS_MAKE_PATH(DB_NAME,TABLE_NAME,name,".idx"),
 
 #undef DS_LOADER_STAGE
 #define DS_LOADER_STAGE 3
@@ -155,7 +168,7 @@
 #undef IDX_O2O_LOADER
 #undef IDX_O2M_LOADER
 #undef DS_VAR_FIELD_LOADER
-
+#undef VAR_IDX_O2M_LOADER
 
 #endif
 

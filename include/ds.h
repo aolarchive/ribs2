@@ -32,6 +32,7 @@
 #include "template.h"
 #include "logger.h"
 #include "ds_var_field.h"
+#include "var_index_container.h"
 
 /* public interface */
 #define DS_FIELD_INITIALIZER { NULL, 0 }

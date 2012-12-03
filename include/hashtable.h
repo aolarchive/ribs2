@@ -26,6 +26,7 @@
 #include "template.h"
 #include "hash_funcs.h"
 #include "ilog2.h"
+#include "hashtablefile_header.h"
 
 #define _TEMPLATE_HTBL_FUNC_HELPER(S,T,F) S ## T ##_## F
 #define TEMPLATE_HTBL_FUNC(S,T,F) _TEMPLATE_HTBL_FUNC_HELPER(S,T,F)
@@ -40,11 +41,6 @@ struct hashtable {
     struct vmbuf data;
     uint32_t mask;
     uint32_t size;
-};
-
-struct hashtablefile_header {
-    uint32_t size;
-    uint32_t mask;
 };
 
 struct hashtablefile {

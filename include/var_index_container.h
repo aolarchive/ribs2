@@ -1,0 +1,67 @@
+/*
+    This file is part of RIBS2.0 (Robust Infrastructure for Backend Systems).
+    RIBS is an infrastructure for building great SaaS applications (but not
+    limited to).
+
+    Copyright (C) 2012 Adap.tv, Inc.
+
+    RIBS is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation, version 2.1 of the License.
+
+    RIBS is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public License
+    along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
+*/
+#ifndef _VAR_IDX_CONT__H_
+#define _VAR_IDX_CONT__H_
+
+#include <stdlib.h>
+#include <string.h>
+#include "file_mapper.h"
+#include "hashtable_readonly.h"
+#include "var_index_entry.h"
+
+#define VAR_INDEX_CONTAINER_INITIALIZER { FILE_MAPPER_INITIALIZER, HASHTABLEFILE_READONLY_INITIALIZER}
+
+struct var_index_container_o2m {
+    struct file_mapper fm;
+    struct hashtablefile_readonly ht_keys;
+};
+
+static inline int var_index_container_o2m_init(struct var_index_container_o2m *ic, const char *filename) {
+    if (0 > hashtablefile_readonly_init(&ic->ht_keys, filename))
+        return -1;
+
+    char idx_filename[strlen(filename) + 4 + 1];
+    snprintf(idx_filename, sizeof(idx_filename), "%s.idx", filename);
+    if (0 > file_mapper_init(&ic->fm, idx_filename))
+        return -1;
+
+    return 0;
+}
+
+static inline int var_index_container_o2m_lookup(struct var_index_container_o2m *ic, const char *key, size_t key_len, uint32_t **vect, uint32_t *size) {
+    uint32_t offs = hashtablefile_readonly_lookup(&ic->ht_keys, key, key_len);
+    if (0 == offs)
+        return -1;
+
+    struct index_entry *entry = (struct index_entry *) hashtablefile_readonly_get_val(&ic->ht_keys, offs);
+    *vect = ((uint32_t *) file_mapper_data(&ic->fm)) + entry->index_offs;
+    *size = entry->size;
+
+    return 0;
+}
+
+static inline int var_index_container_o2m_close(struct var_index_container_o2m *ic) {
+    if (0 > hashtablefile_readonly_close(&ic->ht_keys) || 0 > file_mapper_free(&ic->fm))
+        return -1;
+
+    return 0;
+}
+
+#endif // _VAR_IDX_CONT__H_
