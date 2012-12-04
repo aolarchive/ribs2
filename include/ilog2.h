@@ -21,11 +21,17 @@
 #define _ILOG2__H_
 
 static inline uint32_t ilog2(uint32_t x) {
+#ifndef __arm__
     uint32_t res;
     asm ("bsr %[x], %[res]"
          : [res] "=r" (res)
          : [x] "mr" (x));
     return res;
+#else
+    if (!x)
+        return 0;
+    return __builtin_clz(x) ^ 31;
+#endif
 }
 
 static inline uint32_t next_p2(uint32_t x) {

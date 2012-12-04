@@ -22,6 +22,7 @@
 .globl __ribs_context_exit
 
 ribs_swapcurcontext:
+
 #ifdef __x86_64__
         movq    current_ctx, %rsi
         /* Save the preserved registers. */
@@ -47,6 +48,7 @@ ribs_setcontext:
 
 __ribs_context_exit:
         movq    %rbx, %rdi
+        jmp     ribs_setcontext
 #endif
 
 #ifdef __i386__
@@ -71,5 +73,25 @@ ribs_setcontext:
 
 __ribs_context_exit:
         movl    %ebx, %eax
-#endif
         jmp     ribs_setcontext
+#endif
+
+#ifdef __arm__
+        ldr     r1, =current_ctx
+        ldr     r2, [r1]
+        stmia   r2, {r4-r14}
+        str     r0, [r1]
+        ldmia   r0, {r4-r14}
+        mov     pc, lr
+
+.global __ribs_context_start
+__ribs_context_start:
+        ldr     lr, =__ribs_context_exit
+        mov     pc, r5
+
+__ribs_context_exit:
+        ldr     r1, =current_ctx
+        str     r4, [r1]
+        ldmia   r4, {r4-r14}
+        mov     pc, lr
+#endif

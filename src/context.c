@@ -27,16 +27,26 @@ struct ribs_context *current_ctx = &main_ctx;
 extern void __ribs_context_exit(void);
 
 void ribs_makecontext(struct ribs_context *ctx, struct ribs_context *pctx, void (*func)(void)) {
+
+#ifndef __arm__
     /* align stack to 16 bytes, assuming function always does push rbp to align.
        func doesn't need to be aligned since it doesn't rely on stack alignment
-       (needed when using SSE instructions)
+       (x86_64: needed when using SSE instructions)
     */
-    void *sp = (unsigned long int *) ((((uintptr_t) ctx) & -16L) - sizeof(uintptr_t));
 
-    *(uintptr_t *)(sp) = (uintptr_t)&__ribs_context_exit;
-
+    void *sp = (unsigned long int *) ((((uintptr_t) ctx) & -16L) -sizeof(uintptr_t));
+    *(uintptr_t *)(sp) = (uintptr_t) &__ribs_context_exit;
     sp -= sizeof(uintptr_t);
-    *(uintptr_t *)(sp) = (uintptr_t)func;
+    *(uintptr_t *)(sp) = (uintptr_t) func;
+#else
+    /* arm: align stack to 8 bytes
+    */
+
+    void *sp = (unsigned long int *) (((uintptr_t) ctx) & -8L);
+    extern void __ribs_context_start(void);
+    ctx->linked_func_reg = (uintptr_t) &__ribs_context_start;
+    ctx->first_func_reg = (uintptr_t) func;
+#endif
 
     ctx->stack_pointer_reg = (uintptr_t) sp;
     ctx->parent_context_reg = (uintptr_t) pctx;
@@ -46,7 +56,7 @@ struct ribs_context *ribs_context_create(size_t stack_size, void (*func)(void)) 
     void *stack;
     stack = malloc(stack_size + sizeof(struct ribs_context));
     if (!stack)
-	return LOGGER_PERROR("malloc stack"), NULL;
+        return LOGGER_PERROR("malloc stack"), NULL;
     stack += stack_size;
     struct ribs_context *ctx = (struct ribs_context *)stack;
     ribs_makecontext(ctx, current_ctx, func);

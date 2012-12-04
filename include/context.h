@@ -34,9 +34,17 @@
 #endif
 
 struct ribs_context {
+#ifndef __arm__
     uintptr_t stack_pointer_reg;
     uintptr_t parent_context_reg;
     uintptr_t additional_reg[NUM_ADDITIONAL_REGS];
+#else
+    uintptr_t parent_context_reg;
+    uintptr_t first_func_reg;
+    uintptr_t additional_reg[7];
+    uintptr_t stack_pointer_reg;
+    uintptr_t linked_func_reg;
+#endif
     epoll_data_t data;
     struct ribs_context *next_free;
     int fd;
