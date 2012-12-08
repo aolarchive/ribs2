@@ -177,8 +177,8 @@ int ribs_pipe2(int pipefd[2], int flags) {
     if (0 > pipe2(pipefd, flags | O_NONBLOCK))
         return -1;
 
-    if (0 == ribs_epoll_add(pipefd[0], EPOLLIN | EPOLLOUT | EPOLLET, &main_ctx) &&
-        0 > ribs_epoll_add(pipefd[1], EPOLLIN | EPOLLOUT | EPOLLET, &main_ctx))
+    if (0 == ribs_epoll_add(pipefd[0], EPOLLIN | EPOLLET, &main_ctx) &&
+        0 == ribs_epoll_add(pipefd[1], EPOLLOUT | EPOLLET, &main_ctx))
         return 0;
 
     int my_error = errno;
