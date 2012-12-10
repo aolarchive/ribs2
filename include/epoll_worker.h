@@ -42,6 +42,7 @@ void yield(void);
 void courtesy_yield(void);
 int ribs_epoll_add(int fd, uint32_t events, struct ribs_context* ctx);
 struct ribs_context* small_ctx_for_fd(int fd, void (*func)(void));
+inline void queue_current_ctx(void);
 
 #include "../src/_epoll_worker.c"
 

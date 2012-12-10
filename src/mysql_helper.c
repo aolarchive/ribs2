@@ -148,7 +148,7 @@ int mysql_helper_stmt(struct mysql_helper *mysql_helper,
     /* TODO: move to internal vmbuf (mysql_helper), so
        mysql_stmt_execute can be called multiple times when inserting
        data */
-    size_t plengths[nparams];
+    unsigned long plengths[nparams];
     int ptypes[nparams];
     my_bool pnulls[nparams];
     MYSQL_BIND pbind[nparams];

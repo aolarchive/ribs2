@@ -138,10 +138,14 @@ inline void yield(void) {
     ribs_swapcurcontext(epoll_worker_get_last_context());
 }
 
+inline void queue_current_ctx(void) {
+    if (0 > write(queue_ctx_fd, &current_ctx, sizeof(void *)))
+        LOGGER_PERROR("unable to queue context: write");
+}
+
 inline void courtesy_yield(void) {
     if (0 == epoll_wait(ribs_epoll_fd, &last_epollev, 1, 0))
         return;
-    if (0 > write(queue_ctx_fd, &current_ctx, sizeof(void *)))
-        LOGGER_PERROR("unable to queue context: write");
+    queue_current_ctx();
     ribs_swapcurcontext(epoll_worker_get_last_context());
 }
