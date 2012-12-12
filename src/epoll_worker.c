@@ -28,6 +28,7 @@
 #include "logger.h"
 #include <fcntl.h>
 #include <setjmp.h>
+#include <errno.h>
 
 int ribs_epoll_fd = -1;
 struct epoll_event last_epollev;
@@ -118,8 +119,7 @@ int epoll_worker_init(void) {
     if (NULL == small_ctx_for_fd(pipefd[0], pipe_to_context))
         return -1;
     queue_ctx_fd = pipefd[1];
-
-    return 0;
+    return ribs_epoll_add(queue_ctx_fd, EPOLLOUT | EPOLLET, &main_ctx);
 }
 
 void epoll_worker_loop(void) {
@@ -137,9 +137,21 @@ inline void yield(void) {
     ribs_swapcurcontext(epoll_worker_get_last_context());
 }
 
-inline void queue_current_ctx(void) {
-    if (0 > write(queue_ctx_fd, &current_ctx, sizeof(void *)))
-        LOGGER_PERROR("unable to queue context: write");
+int queue_current_ctx(void) {
+    while (0 > write(queue_ctx_fd, &current_ctx, sizeof(void *))) {
+        if (EAGAIN != errno)
+            return LOGGER_PERROR("unable to queue context: write"), -1;
+        /* pipe is full!!! wait for it to clear
+           This is switching to LIFO mode, which can cause IO starvation
+           if too many contexes are trying to use this facility, very unlikely
+        */
+        LOGGER_INFO("Warning: context queue is full");
+        struct ribs_context *previous_context = epoll_worker_fd_map[queue_ctx_fd].ctx;
+        epoll_worker_fd_map[queue_ctx_fd].ctx = current_ctx;
+        yield(); // come back to me when can write
+        epoll_worker_fd_map[queue_ctx_fd].ctx = previous_context;
+    }
+    return 0;
 }
 
 inline void courtesy_yield(void) {
