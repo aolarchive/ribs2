@@ -23,6 +23,17 @@
 
 #include "ribs_defs.h"
 
+#define QUERY_INIT(q, ...) vmbuf_reset(query); vmbuf_sprintf(query, q, ##__VA_ARGS__)
+#define QUERY() (vmbuf_data(query))
+#define QUERY_LEN() (vmbuf_wlocpos(query))
+#define DUMPER(conn, db, tbl, q,...) QUERY_INIT(q, ##__VA_ARGS__); if (0 > mysql_dumper_dump(conn, base_path, db, tbl, QUERY(), QUERY_LEN(), NULL)) return -1
+#define DUMPER_WITH_TYPES(conn, db, tbl, types, q,...) QUERY_INIT(q, ##__VA_ARGS__); if (0 > mysql_dumper_dump(conn, base_path, db, tbl, QUERY(), QUERY_LEN(), types)) return -1
+#define MAKE_PAIR64(a,b) ((((uint64_t)(a)) << 32) | (b))
+
+#define INDEXER_O2O(T,db, tbl, field) if (0 > IDX_GEN_DS_FILE_O2O(T, base_path, db, tbl, field)) return -1
+#define INDEXER_O2M(T,db, tbl, field) if (0 > IDX_GEN_DS_FILE_O2M(T, base_path, db, tbl, field)) return -1
+#define VAR_INDEXER_O2O(db, tbl, field) if (0 > var_index_gen_generate_ds_file(base_path, db, tbl, field)) return -1
+
 struct mysql_login_info {
     const char *host;
     const char *user;
