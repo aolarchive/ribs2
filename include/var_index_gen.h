@@ -32,7 +32,7 @@ struct var_index_gen_fw_index {
 };
 
 static inline void _exit_clean(struct ds_var_field *var_field) {
-  ds_var_field_free(var_field);
+  	ds_var_field_free(var_field);
 }
 
 static inline int var_index_gen_fw_compar(const void *a, const void *b) {
