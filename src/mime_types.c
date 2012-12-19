@@ -28,7 +28,6 @@
 
 SSTRL(MIME_TYPES, "/etc/mime.types");
 SSTRL(MIME_DELIMS, "\t ");
-SSTRL(DEFAULT_MIME_TYPE, "text/plain");
 static struct hashtable ht_mime_types = HASHTABLE_INITIALIZER;
 
 int mime_types_init(void) {

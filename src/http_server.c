@@ -466,7 +466,7 @@ static void http_server_process_request(char *uri, char *headers) {
 }
 
 
-int http_server_sendfile(const char *filename) {
+int http_server_sendfile(const char *filename, const char *additional_headers, const char *ext) {
     if (0 == *filename)
         filename = ".";
     struct http_server_context *ctx = http_server_get_context();
@@ -484,10 +484,17 @@ int http_server_sendfile(const char *filename) {
         close(ffd);
         return 1;
     }
+
     epoll_worker_resume_events();
     vmbuf_reset(&ctx->header);
-    http_server_header_start(HTTP_STATUS_200, mime_types_by_filename(filename));
+
+    if (NULL != ext)
+        http_server_header_start(HTTP_STATUS_200, mime_types_by_ext(ext));
+    else
+        http_server_header_start(HTTP_STATUS_200, mime_types_by_filename(filename));
     vmbuf_sprintf(&ctx->header, "%s%zu", CONTENT_LENGTH, st.st_size);
+    vmbuf_strcpy(&ctx->header, additional_headers);
+
     http_server_header_close();
     int option = 1;
     if (0 > setsockopt(fd, IPPROTO_TCP, TCP_CORK, &option, sizeof(option)))

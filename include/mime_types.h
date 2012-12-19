@@ -22,6 +22,8 @@
 
 #include "ribs_defs.h"
 
+#define DEFAULT_MIME_TYPE "text/plain"
+
 int mime_types_init(void);
 const char *mime_types_by_ext(const char *ext);
 const char *mime_types_by_filename(const char *filename);
