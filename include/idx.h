@@ -35,6 +35,7 @@
 /* one to many index */
 #define IDX_GEN_DS_FILE_O2M(T, BASE, DB, TBL, FIELD) TEMPLATE(index_gen_generate_ds_file_o2m, T)(BASE, DB, TBL, FIELD)
 #define IDX_CONTAINER_O2M_LOOKUP(T,IC,KEY,VECT,SIZE) TEMPLATE(index_container_o2m_lookup, T)((IC), KEY, VECT, SIZE)
+#define IDX_CONTAINER_O2M_EXIST(T,IC,KEY) TEMPLATE(index_container_o2m_exist, T)((IC), KEY)
 
 /* internal stuff */
 #define IDX_FW_INDEX(T) struct TEMPLATE(index_gen_fw_index, T)
