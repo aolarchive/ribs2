@@ -317,5 +317,3 @@ int mysql_helper_fetch(struct mysql_helper *mysql_helper) {
     }
     return 1;
 }
-
-

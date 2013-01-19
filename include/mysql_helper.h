@@ -49,5 +49,6 @@ int mysql_helper_fetch(struct mysql_helper *mysql_helper);
 int mysql_helper_tx_begin(struct mysql_helper *mysql_helper);
 int mysql_helper_tx_commit(struct mysql_helper *mysql_helper);
 int mysql_helper_tx_rollback(struct mysql_helper *mysql_helper);
+#define mysql_helper_last_insert_id(helper) mysql_insert_id(&((helper)->mysql))
 
 #endif // _MYSQL_HELPER__H_
