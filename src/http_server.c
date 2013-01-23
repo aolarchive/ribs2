@@ -44,6 +44,7 @@
 #define ACCEPTOR_STACK_SIZE 8192
 #define MIN_HTTP_REQ_SIZE 5 // method(3) + space(1) + URI(1) + optional VER...
 #define DEFAULT_MAX_REQ_SIZE 1024*1024*1024
+#define DEFAULT_NUM_STACKS 64
 
 /* methods */
 SSTRL(HEAD, "HEAD " );
@@ -109,25 +110,16 @@ int http_server_init(struct http_server *server) {
     /*
      * context pool
      */
-    if (0 == server->stack_size || 0 == server->num_stacks) {
+    if (0 == server->num_stacks)
+        server->num_stacks = DEFAULT_NUM_STACKS;
+    if (0 == server->stack_size) {
         struct rlimit rlim;
         if (0 > getrlimit(RLIMIT_STACK, &rlim))
             return LOGGER_PERROR("getrlimit(RLIMIT_STACK)"), -1;
-
-        long total_mem = sysconf(_SC_PHYS_PAGES);
-        if (total_mem < 0)
-            return LOGGER_PERROR("sysconf"), -1;
-        total_mem *= getpagesize();
-        size_t num_ctx_in_one_map = total_mem / rlim.rlim_cur;
-        /* half of total mem to start with so we don't need to enable overcommit */
-        num_ctx_in_one_map >>= 1;
-        LOGGER_INFO("http server pool: initial=%zu, grow=%zu", num_ctx_in_one_map, num_ctx_in_one_map);
-        ctx_pool_init(&server->ctx_pool, num_ctx_in_one_map, num_ctx_in_one_map, rlim.rlim_cur, sizeof(struct http_server_context) + server->context_size);
-    } else {
-        ctx_pool_init(&server->ctx_pool, server->num_stacks, server->num_stacks, server->stack_size, sizeof(struct http_server_context) + server->context_size);
+        server->stack_size = rlim.rlim_cur;
     }
-
-
+    LOGGER_INFO("http server pool: initial=%zu, grow=%zu, stack_size=%zu", server->num_stacks, server->num_stacks, server->stack_size);
+    ctx_pool_init(&server->ctx_pool, server->num_stacks, server->num_stacks, server->stack_size, sizeof(struct http_server_context) + server->context_size);
     /*
      * listen socket
      */
