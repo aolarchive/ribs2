@@ -87,6 +87,7 @@ _RIBS_INLINE_ int vmbuf_write(struct vmbuf *vmb, int fd);
 _RIBS_INLINE_ int vmbuf_memcpy(struct vmbuf *vmb, const void *src, size_t n);
 _RIBS_INLINE_ void vmbuf_memset(struct vmbuf *vmb, int c, size_t n);
 _RIBS_INLINE_ int vmbuf_strftime(struct vmbuf *vmb, const char *format, const struct tm *tm);
+_RIBS_INLINE_ void *vmbuf_allocptr(struct vmbuf *vmb, size_t n);
 
 #include "../src/_vmbuf.c"
 #include "../src/_vmbuf_impl.c"
