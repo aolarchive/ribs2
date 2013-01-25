@@ -28,37 +28,67 @@
 #include <errno.h>
 #include <string.h>
 #include <time.h>
+#include "vm_misc.h"
+#ifdef VMBUF_T
+#undef VMBUF_T
+#endif
+#define VMBUF_T vmbuf
 
-#include "_vmbuf_preamble.h"
-#include "_vmbuf.h"
+struct vmbuf {
+    char *buf;
+    size_t capacity;
+    size_t read_loc;
+    size_t write_loc;
+};
 
 #define VMBUF_INITIALIZER { NULL, 0, 0, 0 }
+#define VMBUF_INIT(var) (var) = ((struct vmbuf)VMBUF_INITIALIZER)
 
-_RIBS_INLINE_ int TEMPLATE(VMBUF_T,init)(struct VMBUF_T *vmb, size_t initial_size) {
-    if (NULL == vmb->buf) {
-        initial_size = vmbuf_align(initial_size);
-        vmb->buf = (char *)mmap(NULL, initial_size, PROT_WRITE | PROT_READ, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-        if (MAP_FAILED == vmb->buf) {
-            perror("mmap, vmbuf_init");
-            vmb->buf = NULL;
-            return -1;
-        }
-        vmb->capacity = initial_size;
-    } else if (vmb->capacity < initial_size)
-        TEMPLATE(VMBUF_T,resize_to)(vmb, initial_size);
-    TEMPLATE(VMBUF_T,reset)(vmb);
-    return 0;
-}
+/* vmbuf */
+_RIBS_INLINE_ int vmbuf_init(struct vmbuf *vmb, size_t initial_size);
+_RIBS_INLINE_ int vmbuf_resize_to(struct vmbuf *vmb, size_t new_capacity);
+_RIBS_INLINE_ void vmbuf_make(struct vmbuf *vmb);
+_RIBS_INLINE_ void vmbuf_reset(struct vmbuf *vmb);
+_RIBS_INLINE_ int vmbuf_free(struct vmbuf *vmb);
+_RIBS_INLINE_ int vmbuf_free_most(struct vmbuf *vmb);
+_RIBS_INLINE_ int vmbuf_resize_by(struct vmbuf *vmb, size_t by);
+_RIBS_INLINE_ int vmbuf_resize_to(struct vmbuf *vmb, size_t new_capacity);
+_RIBS_INLINE_ int vmbuf_resize_if_full(struct vmbuf *vmb);
+_RIBS_INLINE_ int vmbuf_resize_if_less(struct vmbuf *vmb, size_t desired_size);
+_RIBS_INLINE_ int vmbuf_resize_no_check(struct vmbuf *vmb, size_t n);
+_RIBS_INLINE_ size_t vmbuf_alloc(struct vmbuf *vmb, size_t n);
+_RIBS_INLINE_ size_t vmbuf_alloczero(struct vmbuf *vmb, size_t n);
+_RIBS_INLINE_ size_t vmbuf_alloc_aligned(struct vmbuf *vmb, size_t n);
+_RIBS_INLINE_ size_t vmbuf_num_elements(struct vmbuf *vmb, size_t size_of_element);
+_RIBS_INLINE_ char *vmbuf_data(struct vmbuf *vmb);
+_RIBS_INLINE_ char *vmbuf_data_ofs(struct vmbuf *vmb, size_t loc);
+_RIBS_INLINE_ size_t vmbuf_wavail(struct vmbuf *vmb);
+_RIBS_INLINE_ size_t vmbuf_ravail(struct vmbuf *vmb);
+_RIBS_INLINE_ char *vmbuf_wloc(struct vmbuf *vmb);
+_RIBS_INLINE_ char *vmbuf_rloc(struct vmbuf *vmb);
+_RIBS_INLINE_ size_t vmbuf_rlocpos(struct vmbuf *vmb);
+_RIBS_INLINE_ size_t vmbuf_wlocpos(struct vmbuf *vmb);
+_RIBS_INLINE_ void vmbuf_rlocset(struct vmbuf *vmb, size_t ofs);
+_RIBS_INLINE_ void vmbuf_wlocset(struct vmbuf *vmb, size_t ofs);
+_RIBS_INLINE_ void vmbuf_rrewind(struct vmbuf *vmb, size_t by);
+_RIBS_INLINE_ void vmbuf_wrewind(struct vmbuf *vmb, size_t by);
+_RIBS_INLINE_ size_t vmbuf_capacity(struct vmbuf *vmb);
+_RIBS_INLINE_ void vmbuf_unsafe_wseek(struct vmbuf *vmb, size_t by);
+_RIBS_INLINE_ int vmbuf_wseek(struct vmbuf *vmb, size_t by);
+_RIBS_INLINE_ void vmbuf_rseek(struct vmbuf *vmb, size_t by);
+_RIBS_INLINE_ void vmbuf_rreset(struct vmbuf *vmb);
+_RIBS_INLINE_ void vmbuf_wreset(struct vmbuf *vmb);
+_RIBS_INLINE_ int vmbuf_sprintf(struct vmbuf *vmb, const char *format, ...);
+_RIBS_INLINE_ int vmbuf_vsprintf(struct vmbuf *vmb, const char *format, va_list ap);
+_RIBS_INLINE_ int vmbuf_strcpy(struct vmbuf *vmb, const char *src);
+_RIBS_INLINE_ void vmbuf_remove_last_if(struct vmbuf *vmb, char c);
+_RIBS_INLINE_ int vmbuf_read(struct vmbuf *vmb, int fd);
+_RIBS_INLINE_ int vmbuf_write(struct vmbuf *vmb, int fd);
+_RIBS_INLINE_ int vmbuf_memcpy(struct vmbuf *vmb, const void *src, size_t n);
+_RIBS_INLINE_ void vmbuf_memset(struct vmbuf *vmb, int c, size_t n);
+_RIBS_INLINE_ int vmbuf_strftime(struct vmbuf *vmb, const char *format, const struct tm *tm);
 
-_RIBS_INLINE_ int TEMPLATE(VMBUF_T,resize_to)(struct VMBUF_T *vmb, size_t new_capacity) {
-    new_capacity = TEMPLATE(VMBUF_T,align)(new_capacity);
-    char *newaddr = (char *)mremap(vmb->buf, vmb->capacity, new_capacity, MREMAP_MAYMOVE);
-    if ((void *)-1 == newaddr)
-        return perror("mremap, " STRINGIFY(VMBUF_T) "_resize_to"), -1;
-    // success
-    vmb->buf = newaddr;
-    vmb->capacity = new_capacity;
-    return 0;
-}
+#include "../src/_vmbuf.c"
+#include "../src/_vmbuf_impl.c"
 
 #endif // _VMBUF__H_

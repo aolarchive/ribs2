@@ -31,61 +31,69 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-
-#include "_vmbuf_preamble.h"
+#include "vm_misc.h"
+#ifdef VMBUF_T
+#undef VMBUF_T
+#endif
 #define VMBUF_T vmfile
-#define VMBUF_T_EXTRA                           \
-    int fd
-#include "_vmbuf.h"
+
+struct vmfile {
+    char *buf;
+    size_t capacity;
+    size_t read_loc;
+    size_t write_loc;
+    int fd;
+};
 
 #define VMFILE_INITIALIZER { NULL, 0, 0, 0, -1 }
 #define VMFILE_INIT(var) (var) = ((struct vmfile)VMFILE_INITIALIZER)
 
-_RIBS_INLINE_ int TEMPLATE(VMBUF_T,close)(struct VMBUF_T *vmb);
+/* vmfile */
+_RIBS_INLINE_ int vmfile_init(struct vmfile *vmb, const char *filename, size_t initial_size);
+_RIBS_INLINE_ int vmfile_resize_to(struct vmfile *vmb, size_t new_capacity);
+_RIBS_INLINE_ int vmfile_close(struct vmfile *vmb);
+_RIBS_INLINE_ void vmfile_make(struct vmfile *vmb);
+_RIBS_INLINE_ void vmfile_reset(struct vmfile *vmb);
+_RIBS_INLINE_ int vmfile_free(struct vmfile *vmb);
+_RIBS_INLINE_ int vmfile_free_most(struct vmfile *vmb);
+_RIBS_INLINE_ int vmfile_resize_by(struct vmfile *vmb, size_t by);
+_RIBS_INLINE_ int vmfile_resize_to(struct vmfile *vmb, size_t new_capacity);
+_RIBS_INLINE_ int vmfile_resize_if_full(struct vmfile *vmb);
+_RIBS_INLINE_ int vmfile_resize_if_less(struct vmfile *vmb, size_t desired_size);
+_RIBS_INLINE_ int vmfile_resize_no_check(struct vmfile *vmb, size_t n);
+_RIBS_INLINE_ size_t vmfile_alloc(struct vmfile *vmb, size_t n);
+_RIBS_INLINE_ size_t vmfile_alloczero(struct vmfile *vmb, size_t n);
+_RIBS_INLINE_ size_t vmfile_alloc_aligned(struct vmfile *vmb, size_t n);
+_RIBS_INLINE_ size_t vmfile_num_elements(struct vmfile *vmb, size_t size_of_element);
+_RIBS_INLINE_ char *vmfile_data(struct vmfile *vmb);
+_RIBS_INLINE_ char *vmfile_data_ofs(struct vmfile *vmb, size_t loc);
+_RIBS_INLINE_ size_t vmfile_wavail(struct vmfile *vmb);
+_RIBS_INLINE_ size_t vmfile_ravail(struct vmfile *vmb);
+_RIBS_INLINE_ char *vmfile_wloc(struct vmfile *vmb);
+_RIBS_INLINE_ char *vmfile_rloc(struct vmfile *vmb);
+_RIBS_INLINE_ size_t vmfile_rlocpos(struct vmfile *vmb);
+_RIBS_INLINE_ size_t vmfile_wlocpos(struct vmfile *vmb);
+_RIBS_INLINE_ void vmfile_rlocset(struct vmfile *vmb, size_t ofs);
+_RIBS_INLINE_ void vmfile_wlocset(struct vmfile *vmb, size_t ofs);
+_RIBS_INLINE_ void vmfile_rrewind(struct vmfile *vmb, size_t by);
+_RIBS_INLINE_ void vmfile_wrewind(struct vmfile *vmb, size_t by);
+_RIBS_INLINE_ size_t vmfile_capacity(struct vmfile *vmb);
+_RIBS_INLINE_ void vmfile_unsafe_wseek(struct vmfile *vmb, size_t by);
+_RIBS_INLINE_ int vmfile_wseek(struct vmfile *vmb, size_t by);
+_RIBS_INLINE_ void vmfile_rseek(struct vmfile *vmb, size_t by);
+_RIBS_INLINE_ void vmfile_rreset(struct vmfile *vmb);
+_RIBS_INLINE_ void vmfile_wreset(struct vmfile *vmb);
+_RIBS_INLINE_ int vmfile_sprintf(struct vmfile *vmb, const char *format, ...);
+_RIBS_INLINE_ int vmfile_vsprintf(struct vmfile *vmb, const char *format, va_list ap);
+_RIBS_INLINE_ int vmfile_strcpy(struct vmfile *vmb, const char *src);
+_RIBS_INLINE_ void vmfile_remove_last_if(struct vmfile *vmb, char c);
+_RIBS_INLINE_ int vmfile_read(struct vmfile *vmb, int fd);
+_RIBS_INLINE_ int vmfile_write(struct vmfile *vmb, int fd);
+_RIBS_INLINE_ int vmfile_memcpy(struct vmfile *vmb, const void *src, size_t n);
+_RIBS_INLINE_ void vmfile_memset(struct vmfile *vmb, int c, size_t n);
+_RIBS_INLINE_ int vmfile_strftime(struct vmfile *vmb, const char *format, const struct tm *tm);
 
-#define VMFILE_FTRUNCATE(size,funcname)                                 \
-    if (0 > ftruncate(vmb->fd, (size)))                                 \
-        return perror("ftruncate, " STRINGIFY(VMBUF_T) "_" funcname), -1;
-
-_RIBS_INLINE_ int TEMPLATE(VMBUF_T,init)(struct VMBUF_T *vmb, const char *filename, size_t initial_size) {
-    if (0 > vmfile_close(vmb))
-        return -1;
-    unlink(filename);
-    vmb->fd = open(filename, O_CREAT | O_RDWR, 0644);
-    if (vmb->fd < 0)
-        return perror("open, " STRINGIFY(VMBUF_T) "_init"), -1;
-    initial_size = vmbuf_align(initial_size);
-    VMFILE_FTRUNCATE(initial_size, "init");
-    vmb->buf = (char *)mmap(NULL, initial_size, PROT_WRITE | PROT_READ, MAP_SHARED, vmb->fd, 0);
-    if (MAP_FAILED == vmb->buf) {
-        perror("mmap, " STRINGIFY(VMBUF_T) "_init");
-        vmb->buf = NULL;
-        return -1;
-    }
-    vmb->capacity = initial_size;
-    TEMPLATE(VMBUF_T,reset)(vmb);
-    return 0;
-}
-
-_RIBS_INLINE_ int TEMPLATE(VMBUF_T,resize_to)(struct VMBUF_T *vmb, size_t new_capacity) {
-    new_capacity = vmbuf_align(new_capacity);
-    VMFILE_FTRUNCATE(new_capacity, "resize_to");
-    char *newaddr = (char *)mremap(vmb->buf, vmb->capacity, new_capacity, MREMAP_MAYMOVE);
-    if ((void *)-1 == newaddr)
-        return perror("mremap, " STRINGIFY(VMBUF_T) "_resize_to"), -1;
-    // success
-    vmb->buf = newaddr;
-    vmb->capacity = new_capacity;
-    return 0;
-}
-
-_RIBS_INLINE_ int TEMPLATE(VMBUF_T,close)(struct VMBUF_T *vmb) {
-    if (vmb->fd < 0)
-        return 0;
-    VMFILE_FTRUNCATE(vmb->write_loc, "close");
-    vmfile_free(vmb);
-    return close(vmb->fd);
-}
-
+#include "../src/_vmfile.c"
+#include "../src/_vmbuf_impl.c"
 
 #endif // _VMFILE__H_

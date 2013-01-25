@@ -22,7 +22,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include "logger.h"
-#include "vmbuf.h"
+#include "vm_misc.h"
 #include <sys/mman.h>
 
 int file_mapper_init(struct file_mapper *fm, const char *filename) {
@@ -35,7 +35,7 @@ int file_mapper_init(struct file_mapper *fm, const char *filename) {
     if (0 > fstat(fd, &st))
         return LOGGER_PERROR_FUNC("fstat %s", filename), close(fd), -1;
     fm->size = st.st_size;
-    fm->mem = (char *)mmap(NULL, vmbuf_align(fm->size), PROT_READ, MAP_SHARED, fd, 0);
+    fm->mem = (char *)mmap(NULL, RIBS_VM_ALIGN(fm->size), PROT_READ, MAP_SHARED, fd, 0);
     close(fd);
     if (MAP_FAILED == fm->mem)
         return LOGGER_PERROR_FUNC("mmap %s", filename), close(fd), fm->mem = NULL, -1;
@@ -46,7 +46,7 @@ int file_mapper_free(struct file_mapper *fm) {
     if (NULL == fm->mem)
         return 0;
     int res;
-    if (0 > (res = munmap(fm->mem, vmbuf_align(fm->size))))
+    if (0 > (res = munmap(fm->mem, RIBS_VM_ALIGN(fm->size))))
         LOGGER_PERROR_FUNC("munmap");
     fm->mem = NULL;
     fm->size = 0;

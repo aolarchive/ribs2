@@ -80,7 +80,7 @@ static inline int var_index_gen_generate_ds_file (const char *base_path, const c
     if (0 > ds_var_field_init(&var_field, filename))
         return LOGGER_ERROR("failed to init datastore"), -1;
 
-    struct hashtablefile ht_keys = HASHTABLE_VMFILE_INITIALIZER;
+    struct hashtablefile ht_keys = HASHTABLEFILE_INITIALIZER;
     char ht_filename[4096];
     if ((int)sizeof(ht_filename) <= snprintf(ht_filename, sizeof(ht_filename), "%s/%s/%s/%s", base_path, db, table, field))
         return LOGGER_ERROR("hashtable filename too long"), _exit_clean(&var_field), -1;

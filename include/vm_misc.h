@@ -1,0 +1,9 @@
+#ifndef _VM_MISC__H_
+#define _VM_MISC__H_
+
+#define RIBS_VM_PAGESIZE 4096
+#define RIBS_VM_PAGEMASK (RIBS_VM_PAGESIZE-1)
+
+#define RIBS_VM_ALIGN(x) (((x)+RIBS_VM_PAGEMASK)&~RIBS_VM_PAGEMASK)
+
+#endif // _VM_MISC__H_
