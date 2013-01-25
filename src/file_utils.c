@@ -76,5 +76,5 @@ int ribs_create_temp_file(const char *prefix) {
         return LOGGER_PERROR("mkstemp: %s", filename), -1;
     if (unlink(filename) < 0)
         return LOGGER_PERROR("unlink: %s", filename), close(fd), -1;
-        return fd;
+    return fd;
 }
