@@ -41,4 +41,6 @@
 #define UNUSED(x) ((void)(x))
 #endif
 
+#define ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
+
 #endif // _RIBS_DEFS__H_

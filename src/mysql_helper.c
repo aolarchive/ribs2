@@ -285,6 +285,162 @@ int mysql_helper_stmt(struct mysql_helper *mysql_helper,
     return 0;
 }
 
+static int _mysql_helper_init_bind_map(void *data, size_t n, struct mysql_helper_column_map *map, MYSQL_BIND *pbind, unsigned long *plengths, my_bool *pnulls) {
+    if (n == 0) return 0;
+    memset(pbind, 0, sizeof(MYSQL_BIND) * n);
+    struct mysql_helper_column_map *p;
+    size_t i;
+    MYSQL_BIND *pbind_ptr = pbind;
+    for (i = 0, p = map; i < n; ++p, ++pbind_ptr, ++i) {
+        pbind_ptr->buffer_type = p->meta.mysql_type;
+        pbind_ptr->is_unsigned = p->meta.is_unsigned;
+        switch(p->meta.type) {
+        case mysql_helper_field_type_str:
+        case mysql_helper_field_type_cstr:
+            if (NULL != MYSQL_HELPER_COL_MAP_GET_STR(data,p)) {
+                plengths[i] = strlen(MYSQL_HELPER_COL_MAP_GET_STR(data,p));
+                pnulls[i] = 0;
+            } else {
+                plengths[i] = 0;
+                pnulls[i] = 1;
+            }
+            pbind_ptr->buffer = MYSQL_HELPER_COL_MAP_GET_STR(data,p);
+            pbind_ptr->buffer_length = plengths[i];
+            pbind_ptr->length = &plengths[i];
+            break;
+        default:
+            pbind_ptr->buffer = data + p->data.ofs;
+            pnulls[i] = 0;
+            plengths[i] = p->meta.size;
+            pbind_ptr->buffer_length = plengths[i];
+            pbind_ptr->length = &plengths[i];
+        }
+        pbind_ptr->is_null = pnulls + i;
+    }
+    return 0;
+}
+
+int mysql_helper_stmt_col_map(struct mysql_helper *mysql_helper,
+                              const char *query, size_t query_len,
+                              void *params, struct mysql_helper_column_map *params_map, size_t nparams, /* primary params */
+                              void *sparams, struct mysql_helper_column_map *sparams_map, size_t nsparams, /* secondary params, used in insert ... where sparam=?... */
+                              void *result, struct mysql_helper_column_map *result_map, size_t nresult) {
+    /*
+     * 0. Cleanup from previous call
+     */
+    if (mysql_helper->stmt) {
+        mysql_stmt_close(mysql_helper->stmt);
+        mysql_helper->stmt = NULL;
+        vmbuf_reset(&mysql_helper->buf);
+    }
+    /*
+     * 1. Prepare statement
+     */
+    mysql_helper->stmt = mysql_stmt_init(&mysql_helper->mysql);
+    if (!mysql_helper->stmt)
+        return report_error(mysql_helper);
+
+    if (0 != mysql_stmt_prepare(mysql_helper->stmt, query, query_len))
+        return report_stmt_error(mysql_helper);
+    /*
+     * 2. Bind parameters if there are any
+     */
+    size_t num_all_params = nparams + nsparams;
+    uint32_t n = mysql_stmt_param_count(mysql_helper->stmt);
+    if (num_all_params != n) {
+        LOGGER_ERROR("num params != num params in query (%u != %u)", num_all_params, n);
+        return -1;
+    }
+    struct mysql_helper_column_map *p, *rend = result_map + nresult;
+    uint32_t i;
+    /* TODO: move to internal vmbuf (mysql_helper), so
+       mysql_stmt_execute can be called multiple times when inserting
+       data */
+    unsigned long plengths[num_all_params];
+    my_bool pnulls[num_all_params];
+    MYSQL_BIND pbind[num_all_params];
+    _mysql_helper_init_bind_map(params, nparams, params_map, pbind, plengths, pnulls);
+    _mysql_helper_init_bind_map(sparams, nsparams, sparams_map, pbind + nparams, plengths + nparams, pnulls + nparams);
+    if (num_all_params > 0 && 0 != mysql_stmt_bind_param(mysql_helper->stmt, pbind))
+        return report_stmt_error(mysql_helper);
+    /*
+     * 3. Prepare result field bindings
+     */
+    MYSQL_BIND bind[nresult];
+    size_t str_ofs[nresult];
+
+    if (nresult > 0) {
+        MYSQL_RES *rs = mysql_stmt_result_metadata(mysql_helper->stmt);
+        if (!rs)
+            return report_stmt_error(mysql_helper);
+        n = mysql_num_fields(rs);
+        if (n != nresult) {
+            LOGGER_ERROR("num args != num fields in query (%u != %u)", nresult, n);
+            mysql_free_result(rs);
+            return -1;
+        }
+        mysql_helper->num_fields = n;
+        MYSQL_FIELD *qfields = mysql_fetch_fields(rs);
+        size_t data_ofs = vmbuf_alloc_aligned(&mysql_helper->buf, sizeof(char **) * nresult);
+        size_t length_ofs = vmbuf_alloc_aligned(&mysql_helper->buf, sizeof(unsigned long) * nresult);
+        size_t error_ofs = vmbuf_alloc_aligned(&mysql_helper->buf, sizeof(my_bool) * nresult);
+        size_t is_null_ofs = vmbuf_alloc_aligned(&mysql_helper->buf, sizeof(my_bool) * nresult);
+        size_t is_str_ofs = vmbuf_alloc_aligned(&mysql_helper->buf, sizeof(mysql_helper->is_str[0]) * nresult);
+        /* allocate space for the strings */
+        for (i = 0, p = result_map; p != rend; ++p, ++i) {
+            if (p->meta.type == mysql_helper_field_type_str ||
+                p->meta.type == mysql_helper_field_type_cstr)
+                str_ofs[i] = vmbuf_alloc_aligned(&mysql_helper->buf, qfields[i].length + 1);
+        }
+        mysql_helper->data = (char **)vmbuf_data_ofs(&mysql_helper->buf, data_ofs);
+        mysql_helper->length = (unsigned long *)vmbuf_data_ofs(&mysql_helper->buf, length_ofs);
+        mysql_helper->is_error = (my_bool *)vmbuf_data_ofs(&mysql_helper->buf, error_ofs);
+        mysql_helper->is_null = (my_bool *)vmbuf_data_ofs(&mysql_helper->buf, is_null_ofs);
+        mysql_helper->is_str = (int8_t *)vmbuf_data_ofs(&mysql_helper->buf, is_str_ofs);
+        memset(mysql_helper->is_str, 0, sizeof(mysql_helper->is_str[0]) * nresult);
+        memset(bind, 0, sizeof(MYSQL_BIND) * nresult);
+        MYSQL_BIND *bind_ptr = bind;
+        for (i = 0, p = result_map; p != rend; ++p, ++bind_ptr, ++i) {
+            if (strcmp(qfields[i].name, p->name) != 0) {
+                LOGGER_ERROR("column name mismatch, '%s' != '%s'", qfields[i].name, p->name);
+                mysql_free_result(rs);
+                return -1;
+            }
+            bind_ptr->is_unsigned = p->meta.is_unsigned;
+            bind_ptr->is_null = &mysql_helper->is_null[i];
+            bind_ptr->error = &mysql_helper->is_error[i];
+            bind_ptr->length = &mysql_helper->length[i];
+            bind_ptr->buffer_type = p->meta.mysql_type;
+            switch(p->meta.type) {
+            case mysql_helper_field_type_str:
+            case mysql_helper_field_type_cstr:
+                bind_ptr->buffer = vmbuf_data_ofs(&mysql_helper->buf, str_ofs[i]);
+                MYSQL_HELPER_COL_MAP_GET_STR(result,p) = bind_ptr->buffer;
+                bind_ptr->buffer_length = qfields[i].length;
+                mysql_helper->is_str[i] = 1;
+                break;
+            default:
+                bind_ptr->buffer = result + p->data.ofs;
+                bind_ptr->buffer_length = p->meta.size;
+            }
+            mysql_helper->data[i] = bind_ptr->buffer;
+        }
+        mysql_free_result(rs);
+    }
+    /*
+     * 4. Execute the query
+     */
+    if (0 != mysql_stmt_execute(mysql_helper->stmt))
+        return report_stmt_error(mysql_helper);
+    /*
+     * 5. Bind result fields
+     */
+    if (nresult > 0 && 0 != mysql_stmt_bind_result(mysql_helper->stmt, bind))
+        return report_stmt_error(mysql_helper);
+
+    return 0;
+}
+
 int mysql_helper_free(struct mysql_helper *mysql_helper) {
     if (mysql_helper->stmt) {
         mysql_stmt_close(mysql_helper->stmt);
@@ -317,3 +473,49 @@ int mysql_helper_fetch(struct mysql_helper *mysql_helper) {
     }
     return 1;
 }
+
+int mysql_helper_generate_insert(struct vmbuf *outbuf, const char *table,
+                                 struct mysql_helper_column_map *params, size_t nparams,
+                                 struct mysql_helper_column_map *fixed_values, size_t nfixed_values) {
+    size_t i;
+    vmbuf_sprintf(outbuf, "INSERT INTO `%s` (", table);
+    for (i = 0; i < nparams; ++i) {
+        vmbuf_sprintf(outbuf, "%s,", params[i].name);
+    }
+    for (i = 0; i < nfixed_values; ++i) {
+        vmbuf_sprintf(outbuf, "%s,", fixed_values[i].name);
+    }
+    vmbuf_remove_last_if(outbuf, ',');
+    vmbuf_strcpy(outbuf, ") VALUES (");
+    for (i = 0; i < nparams; ++i)
+        vmbuf_strcpy(outbuf, "?,");
+    for (i = 0; i < nfixed_values; ++i)
+        vmbuf_sprintf(outbuf, "%s,", fixed_values[i].data.custom_str);
+    vmbuf_remove_last_if(outbuf, ',');
+    vmbuf_strcpy(outbuf, ")");
+    return 0;
+}
+
+
+int mysql_helper_generate_update(struct vmbuf *outbuf, const char *table,
+                                 struct mysql_helper_column_map *params, size_t nparams,
+                                 struct mysql_helper_column_map *fixed_values, size_t nfixed_values,
+                                 struct mysql_helper_column_map *wparams, size_t nwparams) {
+    size_t i;
+    vmbuf_sprintf(outbuf, "UPDATE `%s` SET", table);
+    for (i = 0; i < nparams; ++i) {
+        vmbuf_sprintf(outbuf, " `%s`=?,", params[i].name);
+    }
+    for (i = 0; i < nfixed_values; ++i) {
+        vmbuf_sprintf(outbuf, " `%s`=%s,", fixed_values[i].name, fixed_values[i].data.custom_str);
+    }
+    vmbuf_remove_last_if(outbuf, ',');
+    if (wparams) {
+        vmbuf_strcpy(outbuf, " WHERE");
+        for (i = 0; i < nwparams; ++i) {
+            vmbuf_sprintf(outbuf, "%s `%s`=?", i > 0 ? " AND" : "", wparams[i].name);
+        }
+    }
+    return 0;
+}
+
