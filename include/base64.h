@@ -8,6 +8,7 @@
 #define B64_URL_MODIFIED 2 // See tv.adap.util.URLUtils.makeUrlFriendlyBase64String(String)
 #define B64_GOOGLE_URL_FRIENDLY 3 // used for Google AdX communication
 
+#define BASE64_ENCODED_LEN(x) (((x)+2)/3*4)
 uint32_t ribs_base64_encode_len(uint32_t n);
 uint32_t ribs_base64_decode_len(uint32_t n);
 
