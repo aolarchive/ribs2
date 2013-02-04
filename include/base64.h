@@ -9,8 +9,7 @@
 #define B64_GOOGLE_URL_FRIENDLY 3 // used for Google AdX communication
 
 #define BASE64_ENCODED_LEN(x) (((x)+2)/3*4)
-uint32_t ribs_base64_encode_len(uint32_t n);
-uint32_t ribs_base64_decode_len(uint32_t n);
+#define BASE64_DECODED_LEN(x) (((x)+3)/4*3)
 
 int ribs_base64_encode(char *dst, uint32_t *dstLen, const unsigned char *src, uint32_t srcLen, int mode);
 int ribs_base64_decode(unsigned char *dst, uint32_t *dstLen, const char *src, uint32_t srcLen, int mode);

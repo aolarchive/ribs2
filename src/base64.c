@@ -37,14 +37,6 @@ static const char b64_dec_tables[][82] = {
 int _ribs_base64_encode(char *dst, uint32_t *dstLen, const unsigned char *src, uint32_t srcLen, const char b64_enc[], const char pad);
 int _ribs_base64_decode(unsigned char *dst, uint32_t *dstLen, const char *src, uint32_t srcLen, const char b64_dec[], const char pad);
 
-uint32_t ribs_base64_encode_len(uint32_t n) {
-    return 4 * ceil(n / 3.0f);
-}
-
-uint32_t ribs_base64_decode_len(uint32_t n) {
-    return 3 * ceil(n / 4.0f);
-}
-
 int ribs_base64_encode(
         char *dst,                  // Use 'base64_decode_len()' for required result buffer size
         uint32_t *dstLen,           // The length of the result string
