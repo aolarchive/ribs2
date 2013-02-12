@@ -98,6 +98,8 @@ int mysql_helper_tx_begin(struct mysql_helper *mysql_helper);
 int mysql_helper_tx_commit(struct mysql_helper *mysql_helper);
 int mysql_helper_tx_rollback(struct mysql_helper *mysql_helper);
 #define mysql_helper_last_insert_id(helper) mysql_insert_id(&((helper)->mysql))
+void mysql_helper_generate_select(struct vmbuf *outbuf, const char *table,
+                                  struct mysql_helper_column_map *columns, size_t n);
 int mysql_helper_generate_insert(struct vmbuf *outbuf, const char *table,
                                  struct mysql_helper_column_map *params, size_t nparams,
                                  struct mysql_helper_column_map *fixed_values, size_t nfixed_values);

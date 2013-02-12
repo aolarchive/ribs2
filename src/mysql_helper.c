@@ -474,6 +474,16 @@ int mysql_helper_fetch(struct mysql_helper *mysql_helper) {
     return 1;
 }
 
+void mysql_helper_generate_select(struct vmbuf *outbuf, const char *table, struct mysql_helper_column_map *columns, size_t n) {
+    vmbuf_strcpy(outbuf, "SELECT ");
+    size_t i;
+    for (i = 0; i < n; ++i) {
+        vmbuf_sprintf(outbuf, "`%s`,", columns[i].name);
+    }
+    vmbuf_remove_last_if(outbuf, ',');
+    vmbuf_sprintf(outbuf, " FROM %s", table);
+}
+
 int mysql_helper_generate_insert(struct vmbuf *outbuf, const char *table,
                                  struct mysql_helper_column_map *params, size_t nparams,
                                  struct mysql_helper_column_map *fixed_values, size_t nfixed_values) {
