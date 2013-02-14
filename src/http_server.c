@@ -373,9 +373,9 @@ void http_server_fiber_main(void) {
                 http_server_yield();
                 READ_FROM_SOCKET();
             }
-
             *content = 0; /* terminate at the first CR like in GET */
             content += SSTRLEN(CRLFCRLF);
+            size_t content_ofs = content - vmbuf_data(&ctx->request);
 
             if (strstr(vmbuf_data(&ctx->request), EXPECT_100)) {
                 vmbuf_sprintf(&ctx->header, "%s %s\r\n\r\n", HTTP_SERVER_VER, HTTP_STATUS_100);
@@ -397,7 +397,7 @@ void http_server_fiber_main(void) {
             p += SSTRLEN(CONTENT_LENGTH);
             content_length = atoi(p);
             for (;;) {
-                if (content + content_length <= vmbuf_wloc(&ctx->request))
+                if (content_ofs + content_length <= vmbuf_wlocpos(&ctx->request))
                     break;
                 http_server_yield();
                 READ_FROM_SOCKET();
@@ -413,9 +413,8 @@ void http_server_fiber_main(void) {
             *p = 0;
             p = strchrnul(URI, ' '); /* truncate http version */
             *p = 0; /* \0 at the end of URI */
-            *(content + content_length) = 0;
-
-            ctx->content = content;
+            ctx->content = vmbuf_data_ofs(&ctx->request, content_ofs);
+            *(ctx->content + content_length) = 0;
             ctx->content_len = content_length;
 
             /* minimal parsing and call user function */
