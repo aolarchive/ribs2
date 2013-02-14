@@ -567,3 +567,6 @@ int http_server_generate_dir_list(const char *URI) {
 }
 
 
+void http_server_close(struct http_server *server) {
+    close(server->accept_ctx->fd);
+}
