@@ -46,7 +46,7 @@ int lhashtable_init(struct lhashtable *lht, const char *filename) {
             return close(lht->fd), lht->fd = -1, munmap(lht->mem, st.st_size), -1;
         }
         if (0 == (LHT_GET_HEADER()->flags & LHT_FLAG_FIN))
-            LOGGER_ERROR("dirty table detected");
+            LOGGER_ERROR("dirty table detected %s ", filename);
         LHT_GET_HEADER()->flags &= ~LHT_FLAG_FIN;
         return 0;
     }
