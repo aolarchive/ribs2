@@ -36,6 +36,7 @@ struct http_headers{
     char *content_type;
     char *if_none_match;
     char *accept_language;
+    char *origin;
     uint8_t accept_encoding_mask;
     char peer_ip_addr[INET_ADDRSTRLEN];
 };

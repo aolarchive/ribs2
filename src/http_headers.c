@@ -40,6 +40,7 @@ static struct request_headers request_headers[] = {
     { "content-type",    offsetof(struct http_headers, content_type)    },
     { "if-none-match",   offsetof(struct http_headers, if_none_match)   },
     { "accept-language", offsetof(struct http_headers, accept_language) },
+    { "origin",          offsetof(struct http_headers, origin)          },
     /* terminate the list */
     { NULL, 0 }
 };
@@ -104,6 +105,7 @@ static void http_header_decode_accept_encoding(struct http_headers *h) {
 void http_headers_parse(char *headers, struct http_headers *h) {
     static char no_value[] = { '-', 0 };
     *h = (struct http_headers) {
+        no_value,
         no_value,
         no_value,
         no_value,
