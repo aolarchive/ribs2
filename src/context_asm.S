@@ -19,7 +19,7 @@
 */
 .extern current_ctx
 .globl ribs_swapcurcontext
-.globl __ribs_context_exit
+.globl __ribs_context_jump
 
 ribs_swapcurcontext:
 
@@ -46,7 +46,7 @@ ribs_setcontext:
         movq    48(%rdi), %r15
         ret
 
-__ribs_context_exit:
+__ribs_context_jump:
         movq    %rbx, %rdi
         jmp     ribs_setcontext
 #endif
@@ -71,7 +71,7 @@ ribs_setcontext:
         movl    16(%eax), %edi
         ret
 
-__ribs_context_exit:
+__ribs_context_jump:
         movl    %ebx, %eax
         jmp     ribs_setcontext
 #endif
@@ -84,8 +84,7 @@ __ribs_context_exit:
         ldmia   r0, {r4-r14}
         mov     pc, lr
 
-.global __ribs_context_start
-__ribs_context_start:
+__ribs_context_jump:
         ldr     lr, =__ribs_context_exit
         mov     pc, r5
 

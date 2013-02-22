@@ -24,7 +24,7 @@
 
 struct ribs_context main_ctx;
 struct ribs_context *current_ctx = &main_ctx;
-extern void __ribs_context_exit(void);
+extern void __ribs_context_jump(void);
 
 void ribs_makecontext(struct ribs_context *ctx, struct ribs_context *pctx, void (*func)(void)) {
 
@@ -35,7 +35,7 @@ void ribs_makecontext(struct ribs_context *ctx, struct ribs_context *pctx, void 
     */
 
     void *sp = (unsigned long int *) ((((uintptr_t) ctx) & -16L) -sizeof(uintptr_t));
-    *(uintptr_t *)(sp) = (uintptr_t) &__ribs_context_exit;
+    *(uintptr_t *)(sp) = (uintptr_t) &__ribs_context_jump;
     sp -= sizeof(uintptr_t);
     *(uintptr_t *)(sp) = (uintptr_t) func;
 #else
@@ -43,8 +43,7 @@ void ribs_makecontext(struct ribs_context *ctx, struct ribs_context *pctx, void 
     */
 
     void *sp = (unsigned long int *) (((uintptr_t) ctx) & -8L);
-    extern void __ribs_context_start(void);
-    ctx->linked_func_reg = (uintptr_t) &__ribs_context_start;
+    ctx->linked_func_reg = (uintptr_t) &__ribs_context_jump;
     ctx->first_func_reg = (uintptr_t) func;
 #endif
 
