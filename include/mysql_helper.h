@@ -31,6 +31,7 @@ struct mysql_helper {
     MYSQL mysql;
     MYSQL_STMT *stmt;
     struct vmbuf buf;
+    struct vmbuf time_buf;
     char **data;
     unsigned long *length;
     my_bool *is_error;
@@ -59,6 +60,7 @@ struct mysql_helper_column_map {
         int64_t *i64;
         uint64_t *u64;
         double *dbl;
+        struct tm *ts;
         char **str;
         const char **cstr;
         void *ptr;
@@ -77,10 +79,19 @@ struct mysql_helper_column_map {
 #define MYSQL_HELPER_COL_MAP_I64(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_LONGLONG, i64)
 #define MYSQL_HELPER_COL_MAP_U64(type,name) _MYSQL_HELPER_COL_MAP(type, name, 1, MYSQL_TYPE_LONGLONG, u64)
 #define MYSQL_HELPER_COL_MAP_DBL(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_DOUBLE, dbl)
+#define MYSQL_HELPER_COL_MAP_TS(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_DATETIME, ts)
 #define MYSQL_HELPER_COL_MAP_STR(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_STRING, str)
 #define MYSQL_HELPER_COL_MAP_CSTR(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_STRING, cstr)
 #define MYSQL_HELPER_COL_MAP_CUSTOM_STR(name,value) \
     {name,{mysql_helper_field_type_cstr,0,MYSQL_TYPE_STRING,0},{.custom_str=value}}
+
+#define MYSQL_HELPER_COL_MAP_ADD(name, class, type, buf)                \
+    do {                                                                \
+        if (*name) {                                                    \
+            struct mysql_helper_column_map __field__ = MYSQL_HELPER_COL_MAP_##type(class, name); \
+            vmbuf_memcpy(&buf, &__field__, sizeof(__field__));          \
+        }                                                               \
+    } while (0)
 
 
 int mysql_helper_connect(struct mysql_helper *mysql_helper, struct mysql_login_info *login_info);
@@ -124,6 +135,7 @@ enum {
     mysql_helper_field_type_dbl,
     mysql_helper_field_type_str,
     mysql_helper_field_type_cstr,
+    mysql_helper_field_type_ts
 };
 
 /* field declaration helper macros */
@@ -146,6 +158,7 @@ static inline const char *_mysql_helper_field_type_to_str(int type) {
         _MYSQL_HELPER_FIELD_TYPE_TO_STR(dbl);
         _MYSQL_HELPER_FIELD_TYPE_TO_STR(str);
         _MYSQL_HELPER_FIELD_TYPE_TO_STR(cstr);
+        _MYSQL_HELPER_FIELD_TYPE_TO_STR(ts);
         default: return "unknown";
     }
 }

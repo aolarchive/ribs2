@@ -22,6 +22,7 @@
 #include "vmbuf.h"
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
 
 static int report_error(struct mysql_helper *mysql_helper) {
     LOGGER_ERROR("(MySQL errno: %d) %s", mysql_errno(&mysql_helper->mysql), mysql_error(&mysql_helper->mysql));
@@ -52,8 +53,10 @@ int mysql_helper_connect(struct mysql_helper *mysql_helper, struct mysql_login_i
     b_flag = 1;
     if (0 != mysql_options(&mysql_helper->mysql, MYSQL_OPT_RECONNECT, (const char *)&b_flag))
         return report_error(mysql_helper);
-    vmbuf_make(&mysql_helper->buf); // TODO: add initializer
+    VMBUF_INIT(mysql_helper->buf);
     vmbuf_init(&mysql_helper->buf, 16384);
+    VMBUF_INIT(mysql_helper->time_buf);
+    vmbuf_init(&mysql_helper->time_buf, 4096); /* maximum of 102 timestamp bindings */
     return 0;
 }
 
@@ -285,12 +288,14 @@ int mysql_helper_stmt(struct mysql_helper *mysql_helper,
     return 0;
 }
 
-static int _mysql_helper_init_bind_map(void *data, size_t n, struct mysql_helper_column_map *map, MYSQL_BIND *pbind, unsigned long *plengths, my_bool *pnulls) {
+static int _mysql_helper_init_bind_map(void *data, size_t n, struct mysql_helper_column_map *map, MYSQL_BIND *pbind, unsigned long *plengths, my_bool *pnulls, struct vmbuf *tb) {
     if (n == 0) return 0;
     memset(pbind, 0, sizeof(MYSQL_BIND) * n);
     struct mysql_helper_column_map *p;
     size_t i;
     MYSQL_BIND *pbind_ptr = pbind;
+    MYSQL_TIME tmp;
+    struct tm *t;
     for (i = 0, p = map; i < n; ++p, ++pbind_ptr, ++i) {
         pbind_ptr->buffer_type = p->meta.mysql_type;
         pbind_ptr->is_unsigned = p->meta.is_unsigned;
@@ -307,6 +312,22 @@ static int _mysql_helper_init_bind_map(void *data, size_t n, struct mysql_helper
             pbind_ptr->buffer = MYSQL_HELPER_COL_MAP_GET_STR(data,p);
             pbind_ptr->buffer_length = plengths[i];
             pbind_ptr->length = &plengths[i];
+            break;
+        case mysql_helper_field_type_ts:
+            t = (struct tm *)(data + p->data.ofs);
+            tmp.year= t->tm_year + 1900;
+            tmp.month= t->tm_mon + 1;
+            tmp.day= t->tm_mday;
+            tmp.hour= t->tm_hour;
+            tmp.minute= t->tm_min;
+            tmp.second= t->tm_sec;
+            size_t ofs = vmbuf_wlocpos(tb);
+            if (vmbuf_capacity(tb) < ofs + sizeof(tmp))
+                return LOGGER_ERROR("too many timestamps to bind"), -1;
+            vmbuf_memcpy(tb, &tmp, sizeof(tmp));
+            pbind_ptr->buffer = (char *)((MYSQL_TIME *)vmbuf_data_ofs(tb, ofs));
+            pbind_ptr->length = 0;
+            pnulls[i] = 0;
             break;
         default:
             pbind_ptr->buffer = data + p->data.ofs;
@@ -332,6 +353,7 @@ int mysql_helper_stmt_col_map(struct mysql_helper *mysql_helper,
         mysql_stmt_close(mysql_helper->stmt);
         mysql_helper->stmt = NULL;
         vmbuf_reset(&mysql_helper->buf);
+        vmbuf_reset(&mysql_helper->time_buf);
     }
     /*
      * 1. Prepare statement
@@ -359,8 +381,8 @@ int mysql_helper_stmt_col_map(struct mysql_helper *mysql_helper,
     unsigned long plengths[num_all_params];
     my_bool pnulls[num_all_params];
     MYSQL_BIND pbind[num_all_params];
-    _mysql_helper_init_bind_map(params, nparams, params_map, pbind, plengths, pnulls);
-    _mysql_helper_init_bind_map(sparams, nsparams, sparams_map, pbind + nparams, plengths + nparams, pnulls + nparams);
+    _mysql_helper_init_bind_map(params, nparams, params_map, pbind, plengths, pnulls, &mysql_helper->time_buf);
+    _mysql_helper_init_bind_map(sparams, nsparams, sparams_map, pbind + nparams, plengths + nparams, pnulls + nparams, &mysql_helper->time_buf);
     if (num_all_params > 0 && 0 != mysql_stmt_bind_param(mysql_helper->stmt, pbind))
         return report_stmt_error(mysql_helper);
     /*
@@ -528,4 +550,3 @@ int mysql_helper_generate_update(struct vmbuf *outbuf, const char *table,
     }
     return 0;
 }
-
