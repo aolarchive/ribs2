@@ -17,11 +17,7 @@
     You should have received a copy of the GNU Lesser General Public License
     along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "ribs.h"
 #include "json.h"
-#include "vmbuf.h"
-
-#include <stdint.h>
 
 inline void json_stack_item_set(struct json_stack_item *si, char *b, char *e)
 {
@@ -234,3 +230,31 @@ void json_unescape_str(char *buf)
     }
     *out=0;
 }
+
+#define ESC_SEQ(c) *d++='\\';*d++=c;break;
+size_t json_escape_str(char *d, const char *s) {
+    char *d0 = d;
+    for(;*s;++s){
+        switch(*s){
+        case '"':
+        case '\\':
+        case '/':ESC_SEQ(*s);
+        case '\b':ESC_SEQ('b');
+        case '\f':ESC_SEQ('f');
+        case '\n':ESC_SEQ('n');
+        case '\r':ESC_SEQ('r');
+        case '\t':ESC_SEQ('t');
+        default: *d++ = *s;
+        }
+    }
+    *d = 0;
+    return d - d0;
+}
+
+size_t json_escape_str_vmb(struct vmbuf *buf, const char *s) {
+    vmbuf_resize_if_less(buf, strlen(s));
+    size_t l = json_escape_str(vmbuf_wloc(buf), s);
+    vmbuf_wseek(buf, l);
+    return l;
+}
+
