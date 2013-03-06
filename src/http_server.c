@@ -294,7 +294,7 @@ inline void http_server_write() {
             if (EAGAIN == errno) {
                 continue;
             } else {
-                close(fd);
+                ctx->persistent = 0;
                 return;
             }
         } else {
