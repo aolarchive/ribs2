@@ -85,13 +85,19 @@ struct mysql_helper_column_map {
 #define MYSQL_HELPER_COL_MAP_CUSTOM_STR(name,value) \
     {name,{mysql_helper_field_type_cstr,0,MYSQL_TYPE_STRING,0},{.custom_str=value}}
 
-#define MYSQL_HELPER_COL_MAP_ADD(name, class, type, buf)                \
+#define MYSQL_HELPER_COL_MAP_ADD_IF(name, class, type, buf)                \
     do {                                                                \
         if (*name) {                                                    \
             struct mysql_helper_column_map __field__ = MYSQL_HELPER_COL_MAP_##type(class, name); \
             vmbuf_memcpy(&buf, &__field__, sizeof(__field__));          \
         }                                                               \
     } while (0)
+
+#define MYSQL_HELPER_COL_MAP_ADD(name, class, type, buf)                \
+    {                                                                   \
+        struct mysql_helper_column_map __field__ = MYSQL_HELPER_COL_MAP_##type(class, name); \
+        vmbuf_memcpy(&buf, &__field__, sizeof(__field__));              \
+    }
 
 
 int mysql_helper_connect(struct mysql_helper *mysql_helper, struct mysql_login_info *login_info);
