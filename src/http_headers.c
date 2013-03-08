@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012 Adap.tv, Inc.
+    Copyright (C) 2012,2013 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -130,27 +130,3 @@ void http_headers_parse(char *headers, struct http_headers *h) {
     }
     http_header_decode_accept_encoding(h);
 }
-
-#if 0
-/* TODO: move to spareribs or its equivalent */
-int http_headers_fallback_x_forwarded_for(int fd, struct http_headers *h) {
-    struct sockaddr_in addr;
-    socklen_t len = sizeof(addr);
-    if (0 > getpeername(fd, (struct sockaddr*)&addr, &len)) {
-        LOGGER_PERROR("getpeername");
-        return -1;
-    }
-    uint8_t network = addr.sin_addr.s_addr & 0xFF;
-
-    if (network == 10 || network == 127)
-        return 0; // from internal network, trust the x-forwarded-for header
-
-    if (NULL == inet_ntop(AF_INET, &addr.sin_addr, h->peer_ip_addr, INET_ADDRSTRLEN))
-    {
-        LOGGER_PERROR("inet_ntop");
-        return -1;
-    }
-    h->x_forwarded_for = h->peer_ip_addr;
-    return 0;
-}
-#endif
