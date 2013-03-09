@@ -25,6 +25,7 @@
 #include <sys/types.h>
 #include <errno.h>
 #include <stdio.h>
+#include <limits.h>
 
 int _mkdir_recursive(char *file) {
     char *cur = file;
@@ -69,8 +70,9 @@ int mkdir_recursive(const char *dirname) {
 
 int ribs_create_temp_file(const char *prefix) {
     char fmt[] = "/dev/shm/%s_XXXXXX";
-    char filename[strlen(prefix) + sizeof(fmt)];
-    sprintf(filename, fmt, prefix);
+    char filename[PATH_MAX];
+    if (PATH_MAX <= snprintf(filename, PATH_MAX, fmt, prefix))
+        return LOGGER_ERROR("ribs_create_temp_file: filename too long"), -1;
     int fd = mkstemp(filename);
     if (fd < 0)
         return LOGGER_PERROR("mkstemp: %s", filename), -1;

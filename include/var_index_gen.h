@@ -20,6 +20,7 @@
 #ifndef _VAR_IDX_GEN__H_
 #define _VAR_IDX_GEN__H_
 
+#include <limits.h>
 #include "ds_var_field.h"
 #include "hashtable.h"
 #include "file_writer.h"
@@ -69,22 +70,19 @@ static inline int var_index_gen_generate_mem_o2m(struct var_index_gen_fw_index *
 }
 
 static inline int var_index_gen_generate_ds_file (const char *base_path, const char *db, const char *table, const char *field) {
-    char output_filename[4096];
-    if ((int)sizeof(output_filename) <= snprintf(output_filename, sizeof(output_filename), "%s/%s/%s/%s.idx", base_path, db, table, field))
+    char output_filename[PATH_MAX];
+    if (PATH_MAX <= snprintf(output_filename, PATH_MAX, "%s/%s/%s/%s.idx", base_path, db, table, field))
         return LOGGER_ERROR("output filename too long"), -1;
+    char filename[PATH_MAX];
+    // strlen("%s/%s/%s/%s") < strlen("%s/%s/%s/%s.idx"); not checking again
+    snprintf(filename, PATH_MAX, "%s/%s/%s/%s", base_path, db, table, field);
 
     struct ds_var_field var_field = DS_VAR_FIELD_INITIALIZER;
-    char filename[4096];
-    if ((int)sizeof(filename) <= snprintf(filename, sizeof(filename), "%s/%s/%s/%s", base_path, db, table, field))
-        return LOGGER_ERROR("input filename too long"), -1;
     if (0 > ds_var_field_init(&var_field, filename))
         return LOGGER_ERROR("failed to init datastore"), -1;
 
     struct hashtablefile ht_keys = HASHTABLEFILE_INITIALIZER;
-    char ht_filename[4096];
-    if ((int)sizeof(ht_filename) <= snprintf(ht_filename, sizeof(ht_filename), "%s/%s/%s/%s", base_path, db, table, field))
-        return LOGGER_ERROR("hashtable filename too long"), _exit_clean(&var_field), -1;
-    if (0 > hashtablefile_init_create(&ht_keys, ht_filename, var_field.num_elements))
+    if (0 > hashtablefile_init_create(&ht_keys, filename, var_field.num_elements))
         return LOGGER_ERROR("failed to init hashtablefile"), _exit_clean(&var_field), -1;
 
     struct index_entry temp_entry;

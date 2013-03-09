@@ -22,6 +22,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 #include "file_mapper.h"
 #include "hashtable_readonly.h"
 #include "var_index_entry.h"
@@ -37,9 +38,9 @@ static inline int var_index_container_o2m_init(struct var_index_container_o2m *i
     if (0 > hashtablefile_readonly_init(&ic->ht_keys, filename))
         return -1;
 
-    char idx_filename[strlen(filename) + 4 + 1];
-    snprintf(idx_filename, sizeof(idx_filename), "%s.idx", filename);
-    if (0 > file_mapper_init(&ic->fm, idx_filename))
+    char idx_filename[PATH_MAX];
+    if (PATH_MAX <= snprintf(idx_filename, PATH_MAX, "%s.idx", filename) ||
+        0 > file_mapper_init(&ic->fm, idx_filename))
         return -1;
 
     return 0;

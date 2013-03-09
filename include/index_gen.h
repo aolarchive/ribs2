@@ -17,6 +17,8 @@
     You should have received a copy of the GNU Lesser General Public License
     along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include <limits.h>
+
 struct TEMPLATE(index_gen_fw_index, T) {
     T key;
     uint32_t row_loc;
@@ -101,13 +103,13 @@ static inline int TEMPLATE(index_gen_generate_mem_o2m, T)(struct TEMPLATE(index_
 }
 
 static inline int TEMPLATE(_index_gen_generate_ds_file, T)(const char *base_path, const char *db, const char *table, const char *field, int (*coalesce_func)(struct TEMPLATE(index_gen_fw_index, T) *fw_index, size_t n, const char *filename)) {
-    char output_filename[4096];
-    if ((int)sizeof(output_filename) <= snprintf(output_filename, sizeof(output_filename), "%s/%s/%s/%s.idx", base_path, db, table, field))
+    char output_filename[PATH_MAX];
+    if (PATH_MAX <= snprintf(output_filename, PATH_MAX, "%s/%s/%s/%s.idx", base_path, db, table, field))
         return LOGGER_ERROR("filename too long"), -1;
     DS_FIELD(T) ds = DS_FIELD_INITIALIZER;
-    char filename[4096];
-    if ((int)sizeof(filename) <= snprintf(filename, sizeof(filename), "%s/%s/%s/%s", base_path, db, table, field))
-        return LOGGER_ERROR("filename too long"), -1;
+    char filename[PATH_MAX];
+    // strlen("%s/%s/%s/%s") < strlen("%s/%s/%s/%s.idx"); not checking again
+    snprintf(filename, PATH_MAX, "%s/%s/%s/%s", base_path, db, table, field);
     if (0 > DS_FIELD_INIT(T, &ds, filename))
         return LOGGER_ERROR("failed to init datastore"), -1;
 

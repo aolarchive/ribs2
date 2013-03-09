@@ -17,6 +17,7 @@
     You should have received a copy of the GNU Lesser General Public License
     along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include <limits.h>
 /*
  * one to one index
  */
@@ -55,8 +56,8 @@ static inline int TEMPLATE(index_container_o2o_init, T)(IDX_CONTAINER_O2O(T) *ic
 }
 
 static inline int TEMPLATE(index_container_o2o_init2, T)(IDX_CONTAINER_O2O(T) *ic, const char *base_path, const char *db, const char *table, const char *field) {
-    char filename[4096];
-    if ((int)sizeof(filename) <= snprintf(filename, sizeof(filename), "%s/%s/%s/%s.idx", base_path, db, table, field))
+    char filename[PATH_MAX];
+    if (PATH_MAX <= snprintf(filename, PATH_MAX, "%s/%s/%s/%s.idx", base_path, db, table, field))
         return LOGGER_ERROR("filename too long"), -1;
     return file_mapper_init(&ic->fm, filename);
 }
