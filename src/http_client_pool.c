@@ -270,12 +270,8 @@ struct http_client_context *http_client_pool_create_client(struct http_client_po
         struct sockaddr_in saddr = { .sin_family = AF_INET, .sin_port = htons(port), .sin_addr = addr };
         if (0 > connect(cfd, (struct sockaddr *)&saddr, sizeof(saddr)) && EINPROGRESS != errno)
             return LOGGER_PERROR("connect"), close(cfd), NULL;
-
-        struct epoll_event ev;
-        ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
-        ev.data.fd = cfd;
-        if (0 > epoll_ctl(ribs_epoll_fd, EPOLL_CTL_ADD, cfd, &ev))
-            return LOGGER_PERROR("epoll_ctl"), close(cfd), NULL;
+        if (0 > ribs_epoll_add(cfd, EPOLLIN | EPOLLOUT | EPOLLET, event_loop_ctx))
+            return close(cfd), NULL;
     }
     struct ribs_context *new_ctx = ctx_pool_get(&http_client_pool->ctx_pool);
     new_ctx->fd = cfd;

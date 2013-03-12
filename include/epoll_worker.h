@@ -24,7 +24,6 @@
 #include "context.h"
 #include "list.h"
 
-extern int ribs_epoll_fd;
 extern struct epoll_event last_epollev;
 
 struct epoll_worker_fd_data {

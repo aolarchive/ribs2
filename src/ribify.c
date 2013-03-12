@@ -40,7 +40,7 @@ int ribs_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     if (res < 0 && errno != EINPROGRESS) {
         return res;
     }
-    return ribs_epoll_add(sockfd, EPOLLIN | EPOLLOUT | EPOLLET, &main_ctx);
+    return ribs_epoll_add(sockfd, EPOLLIN | EPOLLOUT | EPOLLET, event_loop_ctx);
 }
 
 int ribs_fcntl(int fd, int cmd, ...) {
@@ -66,7 +66,7 @@ ssize_t ribs_read(int fd, void *buf, size_t count) {
             break;
         yield();
     }
-    epoll_worker_set_fd_ctx(fd, &main_ctx);
+    epoll_worker_set_fd_ctx(fd, event_loop_ctx);
     return res;
 }
 
@@ -79,7 +79,7 @@ ssize_t ribs_write(int fd, const void *buf, size_t count) {
             break;
         yield();
     }
-    epoll_worker_set_fd_ctx(fd, &main_ctx);
+    epoll_worker_set_fd_ctx(fd, event_loop_ctx);
     return res;
 }
 
@@ -93,7 +93,7 @@ ssize_t ribs_recvfrom(int sockfd, void *buf, size_t len, int flags,
             break;
         yield();
     }
-    epoll_worker_set_fd_ctx(sockfd, &main_ctx);
+    epoll_worker_set_fd_ctx(sockfd, event_loop_ctx);
     return res;
 }
 
@@ -106,7 +106,7 @@ ssize_t ribs_send(int sockfd, const void *buf, size_t len, int flags) {
             break;
         yield();
     }
-    epoll_worker_set_fd_ctx(sockfd, &main_ctx);
+    epoll_worker_set_fd_ctx(sockfd, event_loop_ctx);
     return res;
 }
 
@@ -119,7 +119,7 @@ ssize_t ribs_recv(int sockfd, void *buf, size_t len, int flags) {
             break;
         yield();
     }
-    epoll_worker_set_fd_ctx(sockfd, &main_ctx);
+    epoll_worker_set_fd_ctx(sockfd, event_loop_ctx);
     return res;
 }
 
@@ -132,7 +132,7 @@ ssize_t ribs_readv(int fd, const struct iovec *iov, int iovcnt) {
             break;
         yield();
     }
-    epoll_worker_set_fd_ctx(fd, &main_ctx);
+    epoll_worker_set_fd_ctx(fd, event_loop_ctx);
     return res;
 }
 
@@ -145,7 +145,7 @@ ssize_t ribs_writev(int fd, const struct iovec *iov, int iovcnt) {
             break;
         yield();
     }
-    epoll_worker_set_fd_ctx(fd, &main_ctx);
+    epoll_worker_set_fd_ctx(fd, event_loop_ctx);
     return res;
 }
 
@@ -168,7 +168,7 @@ ssize_t ribs_sendfile(int out_fd, int in_fd, off_t *offset, size_t count) {
             break;
         }
     }
-    epoll_worker_set_fd_ctx(out_fd, &main_ctx);
+    epoll_worker_set_fd_ctx(out_fd, event_loop_ctx);
     return t_res;
 }
 
@@ -177,8 +177,8 @@ int ribs_pipe2(int pipefd[2], int flags) {
     if (0 > pipe2(pipefd, flags | O_NONBLOCK))
         return -1;
 
-    if (0 == ribs_epoll_add(pipefd[0], EPOLLIN | EPOLLET, &main_ctx) &&
-        0 == ribs_epoll_add(pipefd[1], EPOLLOUT | EPOLLET, &main_ctx))
+    if (0 == ribs_epoll_add(pipefd[0], EPOLLIN | EPOLLET, event_loop_ctx) &&
+        0 == ribs_epoll_add(pipefd[1], EPOLLOUT | EPOLLET, event_loop_ctx))
         return 0;
 
     int my_error = errno;

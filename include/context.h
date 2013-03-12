@@ -51,8 +51,7 @@ struct ribs_context {
     char reserved[];
 };
 
-extern struct ribs_context main_ctx;
-extern struct ribs_context *current_ctx;
+extern struct ribs_context *current_ctx, *event_loop_ctx;
 
 extern void ribs_swapcurcontext(struct ribs_context *rctx);
 extern void ribs_makecontext(struct ribs_context *ctx, struct ribs_context *pctx, void (*func)(void));

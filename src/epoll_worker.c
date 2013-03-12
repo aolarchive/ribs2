@@ -27,13 +27,15 @@
 #include <sys/signalfd.h>
 #include "logger.h"
 #include <fcntl.h>
-#include <setjmp.h>
 #include <errno.h>
 
-int ribs_epoll_fd = -1;
+static int ribs_epoll_fd = -1;
 struct epoll_event last_epollev;
 struct epoll_worker_fd_data *epoll_worker_fd_map;
-static jmp_buf jmp_epoll_worker_exit;
+
+static struct ribs_context main_ctx;
+struct ribs_context *current_ctx = &main_ctx;
+struct ribs_context *event_loop_ctx;
 
 static int queue_ctx_fd = -1;
 
@@ -81,6 +83,10 @@ struct ribs_context* small_ctx_for_fd(int fd, void (*func)(void)) {
     return ctx;
 }
 
+static void event_loop(void) {
+    for (;;yield());
+}
+
 int epoll_worker_init(void) {
     struct rlimit rlim;
     if (0 > getrlimit(RLIMIT_NOFILE, &rlim))
@@ -112,6 +118,8 @@ int epoll_worker_init(void) {
         return -1;
 #endif
 
+    event_loop_ctx = ribs_context_create(SMALL_STACK_SIZE, event_loop);
+
     /* pipe to conetxt */
     int pipefd[2];
     if (0 > pipe2(pipefd, O_NONBLOCK))
@@ -119,17 +127,15 @@ int epoll_worker_init(void) {
     if (NULL == small_ctx_for_fd(pipefd[0], pipe_to_context))
         return -1;
     queue_ctx_fd = pipefd[1];
-    return ribs_epoll_add(queue_ctx_fd, EPOLLOUT | EPOLLET, &main_ctx);
+    return ribs_epoll_add(queue_ctx_fd, EPOLLOUT | EPOLLET, event_loop_ctx);
 }
 
 void epoll_worker_loop(void) {
-    if (0 == setjmp(jmp_epoll_worker_exit)) {
-        for (;;yield());
-    }
+    ribs_swapcurcontext(event_loop_ctx);
 }
 
 void epoll_worker_exit(void) {
-    longjmp(jmp_epoll_worker_exit, 1);
+    ribs_swapcurcontext(&main_ctx);
 }
 
 inline void yield(void) {

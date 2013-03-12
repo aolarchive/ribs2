@@ -22,8 +22,6 @@
 #include <stdio.h>
 #include "logger.h"
 
-struct ribs_context main_ctx;
-struct ribs_context *current_ctx = &main_ctx;
 extern void __ribs_context_jump(void);
 
 void ribs_makecontext(struct ribs_context *ctx, struct ribs_context *pctx, void (*func)(void)) {

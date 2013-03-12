@@ -60,7 +60,6 @@ int main(int argc, char *argv[]) {
     static struct option long_options[] = {
         {"port", 1, 0, 'p'},
         {"daemonize", 0, 0, 'd'},
-        {"help", 0, 0, 1},
         {0, 0, 0, 0}
     };
 
@@ -126,7 +125,7 @@ int main(int argc, char *argv[]) {
 
     /* run as daemon if specified */
     if (daemon_mode)
-        daemonize();
+        daemonize(), daemon_finalize();
 
     /* fork should be called here in case of multiple processes
        listening on the same socket. for file server, one process is

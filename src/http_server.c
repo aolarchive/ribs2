@@ -82,7 +82,7 @@ static void http_server_idle_handler(void) {
             yield();
         else {
             struct ribs_context *new_ctx = ctx_pool_get(&server->ctx_pool);
-            ribs_makecontext(new_ctx, &main_ctx, http_server_fiber_main_wrapper);
+            ribs_makecontext(new_ctx, event_loop_ctx, http_server_fiber_main_wrapper);
             int fd = last_epollev.data.fd;
             new_ctx->fd = fd;
             new_ctx->data.ptr = server;
