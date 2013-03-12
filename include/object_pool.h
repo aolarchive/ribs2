@@ -69,6 +69,8 @@ _RIBS_INLINE_ int object_pool_init(struct object_pool *op) {
     return (0 < op->initial_size) ? object_pool_grow(op, op->initial_size) : 0;
 }
 
+_RIBS_INLINE_ void object_pool_noop() { }
+
 #if 0 /* documentation only */
 _RIBS_INLINE_ int object_pool_free(struct object_pool *op) {
     return -1; /* not supported, we never free */
