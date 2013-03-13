@@ -31,6 +31,7 @@ struct file_mapper {
 };
 
 int file_mapper_init(struct file_mapper *fm, const char *filename);
+int file_mapper_init_rw(struct file_mapper *fm, const char *filename, size_t size);
 int file_mapper_free(struct file_mapper *fm);
 
 _RIBS_INLINE_ void *file_mapper_data(struct file_mapper *fm) {
