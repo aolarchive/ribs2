@@ -160,9 +160,13 @@ int queue_current_ctx(void) {
     return 0;
 }
 
-inline void courtesy_yield(void) {
-    if (0 == epoll_wait(ribs_epoll_fd, &last_epollev, 1, 0))
+inline void courtesy_sleep(int timeout) {
+    if (0 == epoll_wait(ribs_epoll_fd, &last_epollev, 1, timeout))
         return;
     queue_current_ctx();
     ribs_swapcurcontext(epoll_worker_get_last_context());
+}
+
+inline void courtesy_yield(void) {
+    courtesy_sleep(0);
 }
