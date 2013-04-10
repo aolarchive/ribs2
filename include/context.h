@@ -21,6 +21,7 @@
 #define _CONTEXT__H_
 
 #include "ribs_defs.h"
+#include "memalloc.h"
 #include <sys/epoll.h>
 
 #define SMALL_STACK_SIZE 4096
@@ -48,6 +49,7 @@ struct ribs_context {
     epoll_data_t data;
     struct ribs_context *next_free;
     int fd;
+    struct memalloc memalloc;
     char reserved[];
 };
 

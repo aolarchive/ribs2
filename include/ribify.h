@@ -35,6 +35,9 @@ int ribs_pipe(int pipefd[2]);
 int ribs_nanosleep(const struct timespec *req, struct timespec *rem);
 unsigned int ribs_sleep(unsigned int seconds);
 int ribs_usleep(useconds_t usec);
+void *ribs_malloc(size_t size);
+void ribs_free(void *ptr);
+void ribs_freeall(void);
 
 #ifdef UGLY_GETADDRINFO_WORKAROUND
 /* In this ugly mode ribs_getaddrinfo is not blocking but getaddrinfo_a creates threads internally */

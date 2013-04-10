@@ -33,7 +33,7 @@ static int ribs_epoll_fd = -1;
 struct epoll_event last_epollev;
 struct epoll_worker_fd_data *epoll_worker_fd_map;
 
-static struct ribs_context main_ctx;
+static struct ribs_context main_ctx = { .memalloc = MEMALLOC_INITIALIZER };
 struct ribs_context *current_ctx = &main_ctx;
 struct ribs_context *event_loop_ctx;
 

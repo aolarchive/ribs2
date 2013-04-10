@@ -34,13 +34,11 @@ struct memalloc {
     size_t avail;
     struct memalloc_block *blocks_head;
     struct memalloc_block *blocks_tail;
-    struct memalloc_block *current_block;
 };
 
-#define MEMALLOC_INITIALIZER { NULL, 0, 0, NULL, NULL, NULL }
+#define MEMALLOC_INITIALIZER { NULL, 0, 0, NULL, NULL }
 #define MEMALLOC_INITIAL_BLOCK_SIZE 131072
 
-int memalloc_init(struct memalloc *ma);
 _RIBS_INLINE_ void *memalloc_alloc(struct memalloc *ma, size_t size);
 _RIBS_INLINE_ void memalloc_reset(struct memalloc *ma);
 _RIBS_INLINE_ char *memalloc_vsprintf(struct memalloc *ma, const char *format, va_list ap);

@@ -20,37 +20,25 @@
 #include "memalloc.h"
 #include <sys/mman.h>
 #include "logger.h"
-
-int memalloc_init(struct memalloc *ma) {
-    if (unlikely(NULL != ma->blocks_head)) {
-        memalloc_reset(ma);
-    } else {
-        ma->current_block = ma->blocks_tail = (struct memalloc_block *)&ma->blocks_head;
-        ma->capacity = ma->avail = 0;
-    }
-    return 0;
-}
+#include "mempool.h"
 
 int memalloc_new_block(struct memalloc *ma) {
     size_t size;
     if (0 == ma->capacity) {
+        ma->blocks_head = NULL;
+        ma->blocks_tail = (struct memalloc_block *)&ma->blocks_head;
         size = MEMALLOC_INITIAL_BLOCK_SIZE;
     } else {
         size = ma->capacity << 1;
     }
 
-    void *mem;
-    if (ma->current_block == ma->blocks_tail) {
-        mem = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        if (mem == MAP_FAILED)
-            return LOGGER_PERROR("mmap"), -1;
-        ma->current_block = mem;
-        ma->blocks_tail->next = ma->current_block;
-        ma->blocks_tail = ma->current_block;
-    } else {
-        ma->current_block = ma->current_block->next;
-        mem = ma->current_block;
-    }
+    void *mem = mempool_alloc_chunk(size);
+    if (NULL == mem)
+        return LOGGER_ERROR("failed to allocate memory: %zu", size), -1;
+    struct memalloc_block *new_block = mem;
+    new_block->next = NULL;
+    ma->blocks_tail->next = new_block;
+    ma->blocks_tail = new_block;
 
     ma->capacity = size;
     ma->avail = size - sizeof(struct memalloc_block);

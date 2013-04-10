@@ -98,7 +98,7 @@ $(DEP): $(DIRS)
 	@echo "  (RIBIFY) $(@:../ribified/%=%) [ $@ $(RIBIFYFLAGS) ]"
 	@objcopy $(shell find /usr/lib -name $(@:../ribified/%=%)) $@ $(RIBIFYFLAGS)
 
-../bin/%: $(OBJ) $(RIBIFY:%=../ribified/%)
+../bin/%: $(OBJ) $(RIBIFY:%=../ribified/%) $(EXTRA_DEPS)
 	@echo "  (LD)     $(@:../bin/%=%)  [ -o $@ $(OBJ) $(LDFLAGS) ]"
 	@$(CC) -o $@ $(OBJ) $(LDFLAGS)
 

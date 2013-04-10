@@ -23,6 +23,7 @@
 int memalloc_new_block(struct memalloc *ma);
 #include <stdio.h>
 #include <string.h>
+#include "mempool.h"
 
 /*
  * inline functions
@@ -49,11 +50,15 @@ _RIBS_INLINE_ void *memalloc_alloc(struct memalloc *ma, size_t size) {
 
 _RIBS_INLINE_ void memalloc_reset(struct memalloc *ma) {
     if (0 < ma->capacity) {
-        ma->current_block = ma->blocks_head;
-        ma->mem = ma->current_block;
-        ma->mem += sizeof(struct memalloc_block);
-        ma->capacity = MEMALLOC_INITIAL_BLOCK_SIZE;
-        ma->avail = MEMALLOC_INITIAL_BLOCK_SIZE - sizeof(struct memalloc_block);
+        struct memalloc_block *cur_block = ma->blocks_head;
+        size_t size = MEMALLOC_INITIAL_BLOCK_SIZE;
+        for (;;size <<= 1) {
+            void *mem = cur_block;
+            cur_block = cur_block->next;
+            mempool_free_chunk(mem, size);
+            if (NULL == cur_block) break;
+        }
+        ma->avail = ma->capacity = 0;
     }
 }
 

@@ -18,6 +18,7 @@
     along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
 */
 .extern current_ctx
+.extern __ribs_context_cleanup
 .globl ribs_swapcurcontext
 .globl __ribs_context_jump
 
@@ -47,6 +48,7 @@ ribs_setcontext:
         ret
 
 __ribs_context_jump:
+        call    __ribs_context_cleanup
         movq    %rbx, %rdi
         jmp     ribs_setcontext
 #endif
@@ -72,6 +74,7 @@ ribs_setcontext:
         ret
 
 __ribs_context_jump:
+        call    __ribs_context_cleanup
         movl    %ebx, %eax
         jmp     ribs_setcontext
 #endif
@@ -89,6 +92,7 @@ __ribs_context_jump:
         mov     pc, r5
 
 __ribs_context_exit:
+        bl      __ribs_context_cleanup
         ldr     r1, =current_ctx
         str     r4, [r1]
         ldmia   r4, {r4-r14}

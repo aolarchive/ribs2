@@ -51,11 +51,15 @@ void ribs_makecontext(struct ribs_context *ctx, struct ribs_context *pctx, void 
 
 struct ribs_context *ribs_context_create(size_t stack_size, void (*func)(void)) {
     void *stack;
-    stack = malloc(stack_size + sizeof(struct ribs_context));
+    stack = calloc(1, stack_size + sizeof(struct ribs_context));
     if (!stack)
-        return LOGGER_PERROR("malloc stack"), NULL;
+        return LOGGER_PERROR("calloc stack"), NULL;
     stack += stack_size;
     struct ribs_context *ctx = (struct ribs_context *)stack;
     ribs_makecontext(ctx, current_ctx, func);
     return ctx;
+}
+
+void __ribs_context_cleanup(void) {
+    memalloc_reset(&current_ctx->memalloc);
 }
