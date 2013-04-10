@@ -231,10 +231,6 @@ void ribs_free(void *ptr) {
     UNUSED(ptr);
 }
 
-void ribs_freeall(void) {
-    return memalloc_reset(&current_ctx->memalloc);
-}
-
 #ifdef UGLY_GETADDRINFO_WORKAROUND
 int ribs_getaddrinfo(const char *node, const char *service,
                      const struct addrinfo *hints,

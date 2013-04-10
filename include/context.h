@@ -59,6 +59,7 @@ extern void ribs_swapcurcontext(struct ribs_context *rctx);
 extern void ribs_makecontext(struct ribs_context *ctx, struct ribs_context *pctx, void (*func)(void));
 
 extern struct ribs_context *ribs_context_create(size_t stack_size, void (*func)(void));
+extern void ribs_context_reset_memalloc(void);
 
 #define RIBS_RESERVED_TO_CONTEXT(ptr) ((struct ribs_context *)((char *)ptr - offsetof(struct ribs_context, reserved)))
 
