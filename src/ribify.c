@@ -17,8 +17,7 @@
     You should have received a copy of the GNU Lesser General Public License
     along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "epoll_worker.h"
-#include "logger.h"
+#include "ribs.h"
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -31,7 +30,7 @@
 #include <sys/timerfd.h>
 #include <sys/sendfile.h>
 
-int ribs_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+int _ribified_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     int flags=fcntl(sockfd, F_GETFL);
     if (0 > fcntl(sockfd, F_SETFL, flags | O_NONBLOCK))
         return LOGGER_PERROR("fcntl"), -1;
@@ -43,7 +42,7 @@ int ribs_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     return ribs_epoll_add(sockfd, EPOLLIN | EPOLLOUT | EPOLLET, event_loop_ctx);
 }
 
-int ribs_fcntl(int fd, int cmd, ...) {
+int _ribified_fcntl(int fd, int cmd, ...) {
     va_list ap;
     long arg;
 
@@ -57,7 +56,7 @@ int ribs_fcntl(int fd, int cmd, ...) {
     return fcntl(fd, cmd, arg);
 }
 
-ssize_t ribs_read(int fd, void *buf, size_t count) {
+ssize_t _ribified_read(int fd, void *buf, size_t count) {
     int res;
 
     epoll_worker_set_fd_ctx(fd, current_ctx);
@@ -70,7 +69,7 @@ ssize_t ribs_read(int fd, void *buf, size_t count) {
     return res;
 }
 
-ssize_t ribs_write(int fd, const void *buf, size_t count) {
+ssize_t _ribified_write(int fd, const void *buf, size_t count) {
     int res;
 
     epoll_worker_set_fd_ctx(fd, current_ctx);
@@ -83,7 +82,7 @@ ssize_t ribs_write(int fd, const void *buf, size_t count) {
     return res;
 }
 
-ssize_t ribs_recvfrom(int sockfd, void *buf, size_t len, int flags,
+ssize_t _ribified_recvfrom(int sockfd, void *buf, size_t len, int flags,
                       struct sockaddr *src_addr, socklen_t *addrlen) {
     int res;
 
@@ -97,7 +96,7 @@ ssize_t ribs_recvfrom(int sockfd, void *buf, size_t len, int flags,
     return res;
 }
 
-ssize_t ribs_send(int sockfd, const void *buf, size_t len, int flags) {
+ssize_t _ribified_send(int sockfd, const void *buf, size_t len, int flags) {
     int res;
 
     epoll_worker_set_fd_ctx(sockfd, current_ctx);
@@ -110,7 +109,7 @@ ssize_t ribs_send(int sockfd, const void *buf, size_t len, int flags) {
     return res;
 }
 
-ssize_t ribs_recv(int sockfd, void *buf, size_t len, int flags) {
+ssize_t _ribified_recv(int sockfd, void *buf, size_t len, int flags) {
     int res;
 
     epoll_worker_set_fd_ctx(sockfd, current_ctx);
@@ -123,7 +122,7 @@ ssize_t ribs_recv(int sockfd, void *buf, size_t len, int flags) {
     return res;
 }
 
-ssize_t ribs_readv(int fd, const struct iovec *iov, int iovcnt) {
+ssize_t _ribified_readv(int fd, const struct iovec *iov, int iovcnt) {
     int res;
 
     epoll_worker_set_fd_ctx(fd, current_ctx);
@@ -136,7 +135,7 @@ ssize_t ribs_readv(int fd, const struct iovec *iov, int iovcnt) {
     return res;
 }
 
-ssize_t ribs_writev(int fd, const struct iovec *iov, int iovcnt) {
+ssize_t _ribified_writev(int fd, const struct iovec *iov, int iovcnt) {
     int res;
 
     epoll_worker_set_fd_ctx(fd, current_ctx);
@@ -149,7 +148,7 @@ ssize_t ribs_writev(int fd, const struct iovec *iov, int iovcnt) {
     return res;
 }
 
-ssize_t ribs_sendfile(int out_fd, int in_fd, off_t *offset, size_t count) {
+ssize_t _ribified_sendfile(int out_fd, int in_fd, off_t *offset, size_t count) {
     ssize_t res;
     ssize_t t_res = 0;
 
@@ -172,7 +171,7 @@ ssize_t ribs_sendfile(int out_fd, int in_fd, off_t *offset, size_t count) {
     return t_res;
 }
 
-int ribs_pipe2(int pipefd[2], int flags) {
+int _ribified_pipe2(int pipefd[2], int flags) {
 
     if (0 > pipe2(pipefd, flags | O_NONBLOCK))
         return -1;
@@ -188,51 +187,39 @@ int ribs_pipe2(int pipefd[2], int flags) {
     return -1;
 }
 
-int ribs_pipe(int pipefd[2]) {
-    return ribs_pipe2(pipefd, 0);
+int _ribified_pipe(int pipefd[2]) {
+    return _ribified_pipe2(pipefd, 0);
 }
 
-int ribs_nanosleep(const struct timespec *req, struct timespec *rem) {
-    int tfd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
-    if (0 > tfd)
-        return LOGGER_PERROR("ribs_nanosleep: timerfd_create"), -1;
-
-    if (0 > ribs_epoll_add(tfd, EPOLLIN, current_ctx))
-        return close(tfd), -1;
-
-    struct itimerspec when = {{0,0},{req->tv_sec, req->tv_nsec}};
-    if (0 > timerfd_settime(tfd, 0, &when, NULL))
-        return LOGGER_PERROR("ribs_nanosleep: timerfd_settime"), close(tfd), -1;
-
-    yield();
+int _ribified_nanosleep(const struct timespec *req, struct timespec *rem) {
+    int tfd = ribs_sleep_init();
+    if (0 > tfd) return -1;
+    int res = ribs_nanosleep(tfd, req, rem);
     close(tfd);
-
-    if (NULL != rem)
-        rem->tv_sec = 0, rem->tv_nsec = 0;
-    return 0;
+    return res;
 }
 
-unsigned int ribs_sleep(unsigned int seconds) {
+unsigned int _ribified_sleep(unsigned int seconds) {
     struct timespec req = {seconds, 0};
-    ribs_nanosleep(&req, NULL);
+    _ribified_nanosleep(&req, NULL);
     return 0;
 }
 
-int ribs_usleep(useconds_t usec) {
+int _ribified_usleep(useconds_t usec) {
     struct timespec req = {usec/1000000L, (usec%1000000L)*1000L};
-    return ribs_nanosleep(&req, NULL);
+    return _ribified_nanosleep(&req, NULL);
 }
 
-void *ribs_malloc(size_t size) {
+void *_ribified_malloc(size_t size) {
     return memalloc_alloc(&current_ctx->memalloc, size);
 }
 
-void ribs_free(void *ptr) {
+void _ribified_free(void *ptr) {
     UNUSED(ptr);
 }
 
 #ifdef UGLY_GETADDRINFO_WORKAROUND
-int ribs_getaddrinfo(const char *node, const char *service,
+int _ribified_getaddrinfo(const char *node, const char *service,
                      const struct addrinfo *hints,
                      struct addrinfo **results) {
 

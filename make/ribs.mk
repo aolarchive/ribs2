@@ -29,25 +29,25 @@ LDFLAGS+=-L../lib
 CFLAGS+=$(OPTFLAGS) -ggdb3 -W -Wall -Werror
 
 RIBIFYFLAGS+= \
---redefine-sym write=ribs_write \
---redefine-sym read=ribs_read \
---redefine-sym connect=ribs_connect \
---redefine-sym fcntl=ribs_fcntl \
---redefine-sym recvfrom=ribs_recvfrom \
---redefine-sym send=ribs_send \
---redefine-sym recv=ribs_recv \
---redefine-sym readv=ribs_readv \
---redefine-sym writev=ribs_writev \
---redefine-sym pipe2=ribs_pipe2 \
---redefine-sym pipe=ribs_pipe \
---redefine-sym nanosleep=ribs_nanosleep \
---redefine-sym usleep=ribs_usleep \
---redefine-sym sleep=ribs_sleep \
---redefine-sym sendfile=ribs_sendfile
+--redefine-sym write=_ribified_write \
+--redefine-sym read=_ribified_read \
+--redefine-sym connect=_ribified_connect \
+--redefine-sym fcntl=_ribified_fcntl \
+--redefine-sym recvfrom=_ribified_recvfrom \
+--redefine-sym send=_ribified_send \
+--redefine-sym recv=_ribified_recv \
+--redefine-sym readv=_ribified_readv \
+--redefine-sym writev=_ribified_writev \
+--redefine-sym pipe2=_ribified_pipe2 \
+--redefine-sym pipe=_ribified_pipe \
+--redefine-sym nanosleep=_ribified_nanosleep \
+--redefine-sym usleep=_ribified_usleep \
+--redefine-sym sleep=_ribified_sleep \
+--redefine-sym sendfile=_ribified_sendfile
 
 ifdef UGLY_GETADDRINFO_WORKAROUND
 LDFLAGS+=-lanl
-RIBIFYFLAGS+=--redefine-sym getaddrinfo=ribs_getaddrinfo
+RIBIFYFLAGS+=--redefine-sym getaddrinfo=_ribified_getaddrinfo
 CFLAGS+=-DUGLY_GETADDRINFO_WORKAROUND
 endif
 
