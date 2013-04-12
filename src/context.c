@@ -60,11 +60,7 @@ struct ribs_context *ribs_context_create(size_t stack_size, void (*func)(void)) 
     return ctx;
 }
 
-void ribs_context_reset_memalloc(void) {
-    memalloc_reset(&current_ctx->memalloc);
-}
-
 void __ribs_context_cleanup(void) {
-    ribs_context_reset_memalloc();
+    memalloc_reset(&current_ctx->memalloc);
 }
 

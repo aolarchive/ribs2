@@ -211,12 +211,31 @@ int _ribified_usleep(useconds_t usec) {
 }
 
 void *_ribified_malloc(size_t size) {
-    return memalloc_alloc(&current_ctx->memalloc, size);
+    if (0 == size) return NULL;
+    void *mem = memalloc_alloc(&current_ctx->memalloc, size + sizeof(uint32_t));
+    *(uint32_t *)mem = size;
+    return mem + sizeof(uint32_t);
 }
 
 void _ribified_free(void *ptr) {
     UNUSED(ptr);
 }
+
+void *_ribified_calloc(size_t nmemb, size_t size) {
+    size_t s = nmemb * size;
+    void *mem = _ribified_malloc(s);
+    memset(mem, 0, s);
+    return mem;
+}
+
+void *_ribified_realloc(void *ptr, size_t size) {
+    if (NULL == ptr) return _ribified_malloc(size);
+    size_t old_size = *(uint32_t *)(ptr - sizeof(uint32_t));
+    void *mem = _ribified_malloc(size);
+    memcpy(mem, ptr, size > old_size ? old_size : size);
+    return mem;
+}
+
 
 #ifdef UGLY_GETADDRINFO_WORKAROUND
 int _ribified_getaddrinfo(const char *node, const char *service,

@@ -42,5 +42,6 @@
 #include "bitvect.h"
 #include "object_pool.h"
 #include "sleep.h"
+#include "malloc.h"
 
 #endif // _RIBS__H_
