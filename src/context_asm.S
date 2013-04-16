@@ -80,11 +80,38 @@ __ribs_context_jump:
 #endif
 
 #ifdef __arm__
+#ifdef __thumb2__
+.thumb
+.thumb_func
+.syntax unified
+
         ldr     r1, =current_ctx
         ldr     r2, [r1]
-        stmia   r2, {r4-r14}
+        mov     ip, sp
+        stmia   r2, {r4-r12, r14}
         str     r0, [r1]
-        ldmia   r0, {r4-r14}
+        ldmia   r0, {r4-r12, r14}
+        mov     sp, ip
+        mov     pc, lr
+
+__ribs_context_jump:
+        ldr     lr, =__ribs_context_exit + 1
+        mov     pc, r5
+
+__ribs_context_exit:
+        bl      __ribs_context_cleanup
+        ldr     r1, =current_ctx
+        str     r4, [r1]
+        ldmia   r4, {r4-r12, r14}
+        mov     sp, ip
+        mov     pc, lr
+
+#else /* __arm__ , not __thumb2__ */
+        ldr     r1, =current_ctx
+        ldr     r2, [r1]
+        stmia   r2, {r4-r11, r13, r14}
+        str     r0, [r1]
+        ldmia   r0, {r4-r11, r13, r14}
         mov     pc, lr
 
 __ribs_context_jump:
@@ -95,6 +122,7 @@ __ribs_context_exit:
         bl      __ribs_context_cleanup
         ldr     r1, =current_ctx
         str     r4, [r1]
-        ldmia   r4, {r4-r14}
+        ldmia   r4, {r4-r11, r13, r14}
         mov     pc, lr
+#endif
 #endif
