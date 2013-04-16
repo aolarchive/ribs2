@@ -28,28 +28,15 @@ endif
 LDFLAGS+=-L../lib
 CFLAGS+=$(OPTFLAGS) -ggdb3 -W -Wall -Werror
 
-RIBIFYFLAGS+= \
---redefine-sym write=_ribified_write \
---redefine-sym read=_ribified_read \
---redefine-sym connect=_ribified_connect \
---redefine-sym fcntl=_ribified_fcntl \
---redefine-sym recvfrom=_ribified_recvfrom \
---redefine-sym send=_ribified_send \
---redefine-sym recv=_ribified_recv \
---redefine-sym readv=_ribified_readv \
---redefine-sym writev=_ribified_writev \
---redefine-sym pipe2=_ribified_pipe2 \
---redefine-sym pipe=_ribified_pipe \
---redefine-sym nanosleep=_ribified_nanosleep \
---redefine-sym usleep=_ribified_usleep \
---redefine-sym sleep=_ribified_sleep \
---redefine-sym sendfile=_ribified_sendfile
+RIBIFY_SYMS+=write read connect fcntl recvfrom send recv readv writev pipe pipe2 nanosleep usleep sleep sendfile
 
 ifdef UGLY_GETADDRINFO_WORKAROUND
 LDFLAGS+=-lanl
-RIBIFYFLAGS+=--redefine-sym getaddrinfo=_ribified_getaddrinfo
+RIBIFY_SYMS+=getaddrinfo
 CFLAGS+=-DUGLY_GETADDRINFO_WORKAROUND
 endif
+
+RIBIFYFLAGS+=$(subst --redefine-sym_,--redefine-sym ,$(join $(RIBIFY_SYMS:%=--redefine-sym_%=),$(RIBIFY_SYMS:%=_ribified_%)))
 
 OBJ=$(SRC:%.c=$(OBJ_DIR)/%.o) $(ASM:%.S=$(OBJ_DIR)/%.o)
 DEP=$(SRC:%.c=$(OBJ_DIR)/%.d)
