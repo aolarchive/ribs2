@@ -17,32 +17,11 @@
     You should have received a copy of the GNU Lesser General Public License
     along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef _RIBS__H_
-#define _RIBS__H_
+#ifndef _TIMER__H_
+#define _TIMER__H_
 
 #include "ribs_defs.h"
-#include "vmbuf.h"
-#include "vmfile.h"
-#include "context.h"
-#include "ctx_pool.h"
-#include "hashtable.h"
-#include "epoll_worker.h"
-#include "logger.h"
-#include "daemonize.h"
-#include "http_server.h"
-#include "http_defs.h"
-#include "http_client_pool.h"
-#include "http_headers.h"
-#include "http_cookies.h"
-#include "file_mapper.h"
-#include "file_writer.h"
-#include "ds.h"
-#include "idx.h"
-#include "search.h"
-#include "bitvect.h"
-#include "object_pool.h"
-#include "sleep.h"
-#include "malloc.h"
-#include "timer.h"
 
-#endif // _RIBS__H_
+int ribs_timer(time_t msec, void (*handler)(void));
+
+#endif // _TIMER__H_
