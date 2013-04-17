@@ -95,10 +95,7 @@ __ribs_context_jump:
         mov     pc, lr
 
 __ribs_context_jump:
-        ldr     lr, =__ribs_context_exit + 1
-        mov     pc, r5
-
-__ribs_context_exit:
+        blx     r5
         bl      __ribs_context_cleanup
         ldr     r1, =current_ctx
         str     r4, [r1]
@@ -115,10 +112,7 @@ __ribs_context_exit:
         mov     pc, lr
 
 __ribs_context_jump:
-        ldr     lr, =__ribs_context_exit
-        mov     pc, r5
-
-__ribs_context_exit:
+        blx     r5
         bl      __ribs_context_cleanup
         ldr     r1, =current_ctx
         str     r4, [r1]
