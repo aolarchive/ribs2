@@ -62,6 +62,21 @@ _RIBS_INLINE_ void memalloc_reset(struct memalloc *ma) {
     }
 }
 
+_RIBS_INLINE_ int memalloc_is_mine(struct memalloc *ma, const void *ptr) {
+    if (0 < ma->capacity) {
+        struct memalloc_block *cur_block = ma->blocks_head;
+        size_t size = MEMALLOC_INITIAL_BLOCK_SIZE;
+        for (;;size <<= 1) {
+            void *mem = cur_block;
+            if (ptr >= mem && ptr < mem + size)
+                return 1;
+            cur_block = cur_block->next;
+            if (NULL == cur_block) break;
+        }
+    }
+    return 0;
+}
+
 _RIBS_INLINE_ char *memalloc_vsprintf(struct memalloc *ma, const char *format, va_list ap) {
     if (0 == ma->avail && 0 > memalloc_new_block(ma))
         return NULL;

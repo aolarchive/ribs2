@@ -41,6 +41,7 @@ struct memalloc {
 
 _RIBS_INLINE_ void *memalloc_alloc(struct memalloc *ma, size_t size);
 _RIBS_INLINE_ void memalloc_reset(struct memalloc *ma);
+_RIBS_INLINE_ int memalloc_is_mine(struct memalloc *ma, const void *ptr);
 _RIBS_INLINE_ char *memalloc_vsprintf(struct memalloc *ma, const char *format, va_list ap);
 _RIBS_INLINE_ char *memalloc_sprintf(struct memalloc *ma, const char *format, ...);
 _RIBS_INLINE_ void *memalloc_memcpy(struct memalloc *ma, const void *s, size_t n);
