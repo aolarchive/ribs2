@@ -212,13 +212,15 @@ int _ribified_usleep(useconds_t usec) {
 
 void *_ribified_malloc(size_t size) {
     if (0 == size) return NULL;
+    ++current_ctx->ribify_memalloc_refcount;
     void *mem = memalloc_alloc(&current_ctx->memalloc, size + sizeof(uint32_t));
     *(uint32_t *)mem = size;
     return mem + sizeof(uint32_t);
 }
 
 void _ribified_free(void *ptr) {
-    UNUSED(ptr);
+    if (NULL == ptr) return;
+    --current_ctx->ribify_memalloc_refcount;
 }
 
 void *_ribified_calloc(size_t nmemb, size_t size) {
@@ -230,6 +232,8 @@ void *_ribified_calloc(size_t nmemb, size_t size) {
 
 void *_ribified_realloc(void *ptr, size_t size) {
     if (NULL == ptr) return _ribified_malloc(size);
+    if (memalloc_is_mine(&current_ctx->memalloc, ptr))
+        --current_ctx->ribify_memalloc_refcount; // consider mine as freed
     size_t old_size = *(uint32_t *)(ptr - sizeof(uint32_t));
     void *mem = _ribified_malloc(size);
     memcpy(mem, ptr, size > old_size ? old_size : size);

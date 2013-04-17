@@ -61,6 +61,12 @@ struct ribs_context *ribs_context_create(size_t stack_size, void (*func)(void)) 
 }
 
 void __ribs_context_cleanup(void) {
-    memalloc_reset(&current_ctx->memalloc);
+    if (0 == current_ctx->ribify_memalloc_refcount)
+        memalloc_reset(&current_ctx->memalloc);
+    else {
+        LOGGER_ERROR("misbehaving ribified library didn't free() %u time(s)", current_ctx->ribify_memalloc_refcount);
+        current_ctx->ribify_memalloc_refcount = 0;
+        current_ctx->memalloc = (struct memalloc)MEMALLOC_INITIALIZER;
+    }
 }
 

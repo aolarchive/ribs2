@@ -28,7 +28,7 @@ endif
 LDFLAGS+=-L../lib
 CFLAGS+=$(OPTFLAGS) -ggdb3 -W -Wall -Werror
 
-RIBIFY_SYMS+=write read connect fcntl recvfrom send recv readv writev pipe pipe2 nanosleep usleep sleep sendfile
+RIBIFY_SYMS+=write read connect fcntl recvfrom send recv readv writev pipe pipe2 nanosleep usleep sleep sendfile malloc calloc realloc free
 
 ifdef UGLY_GETADDRINFO_WORKAROUND
 LDFLAGS+=-lanl

@@ -50,6 +50,7 @@ struct ribs_context {
     struct ribs_context *next_free;
     int fd;
     struct memalloc memalloc;
+    uint32_t ribify_memalloc_refcount;
     char reserved[];
 };
 
