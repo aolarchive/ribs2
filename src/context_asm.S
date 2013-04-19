@@ -87,36 +87,32 @@ __ribs_context_jump:
 
         ldr     r1, =current_ctx
         ldr     r2, [r1]
-        mov     ip, sp
-        stmia   r2, {r4-r12, r14}
+        str     sp, [r2, #36]
+        stmia   r2, {r4-r11, lr}
         str     r0, [r1]
-        ldmia   r0, {r4-r12, r14}
-        mov     sp, ip
-        mov     pc, lr
+        ldr     sp, [r0, #36]
+        ldmia   r0, {r4-r11, pc}
 
 __ribs_context_jump:
         blx     r5
         bl      __ribs_context_cleanup
         ldr     r1, =current_ctx
         str     r4, [r1]
-        ldmia   r4, {r4-r12, r14}
-        mov     sp, ip
-        mov     pc, lr
+        ldr     sp, [r4, #36]
+        ldmia   r4, {r4-r11, pc}
 
-#else /* __arm__ , not __thumb2__ */
+#else /* __arm__, not __thumb2__ */
         ldr     r1, =current_ctx
         ldr     r2, [r1]
-        stmia   r2, {r4-r11, r13, r14}
+        stmia   r2, {r4-r11, sp, lr}
         str     r0, [r1]
-        ldmia   r0, {r4-r11, r13, r14}
-        mov     pc, lr
+        ldmia   r0, {r4-r11, sp, pc}
 
 __ribs_context_jump:
         blx     r5
         bl      __ribs_context_cleanup
         ldr     r1, =current_ctx
         str     r4, [r1]
-        ldmia   r4, {r4-r11, r13, r14}
-        mov     pc, lr
+        ldmia   r4, {r4-r11, sp, pc}
 #endif
 #endif
