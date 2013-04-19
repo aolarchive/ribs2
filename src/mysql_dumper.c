@@ -221,7 +221,7 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
                 0 > (err = file_writer_write(&ffields[i], &ds_type, sizeof(ds_type))))
                 break;;
         }
-        size_t len = ribs_mysql_get_storage_size(field_types[i], fields[i].length);
+        len = ribs_mysql_get_storage_size(field_types[i], fields[i].length);
         if (fdschema > 0)
             dprintf(fdschema, "%03d  name = %s, size=%zu, length=%lu, type=%s (%s), is_prikey=%d, ds_type=%s\n", i, fields[i].name, len, fields[i].length, ribs_mysql_get_type_name(field_types[i]), bind[i].is_unsigned ? "unsigned" : "signed", IS_PRI_KEY(fields[i].flags), ds_type_str);
         if (is_var_length_field(field_types[i])) {
@@ -260,7 +260,6 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
      * write all rows to output files
      */
     while (0 == (mysql_err = mysql_stmt_fetch(stmt))) {
-        unsigned int i;
         int b = 0;
         for (i = 0; i < n && !b; ++i)
             b = b || error[i];

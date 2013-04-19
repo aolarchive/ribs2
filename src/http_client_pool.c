@@ -208,7 +208,6 @@ void http_client_fiber_main(void) {
             0 == SSTRNCMP(transfer_encoding_str + SSTRLEN(TRANSFER_ENCODING), "chunked")) {
             size_t chunk_start = eoh_ofs;
             size_t data_start = eoh_ofs;
-            char *p;
             for (;;) {
                 READ_MORE_DATA_STR(*(p = strchrnul((data = vmbuf_data(&ctx->response)) + chunk_start, '\r')) == 0);
                 if (0 != SSTRNCMP(CRLF, p))

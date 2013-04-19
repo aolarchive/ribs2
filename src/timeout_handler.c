@@ -36,8 +36,8 @@ static void expiration_handler(void) {
             struct epoll_worker_fd_data *fd_data = LIST_ENTRY(fd_data_list, struct epoll_worker_fd_data, timeout_chain);
             if (timercmp(&fd_data->timestamp, &ts, >)) {
                 timersub(&fd_data->timestamp, &ts, &now);
-                struct itimerspec when = {{0,0},{now.tv_sec,now.tv_usec*1000}};
-                if (0 > timerfd_settime(timeout_handler->timeout_handler_ctx->fd, 0, &when, NULL))
+                struct itimerspec whence = {{0,0},{now.tv_sec,now.tv_usec*1000}};
+                if (0 > timerfd_settime(timeout_handler->timeout_handler_ctx->fd, 0, &whence, NULL))
                     LOGGER_PERROR("timerfd_settime");
                 break;
             }

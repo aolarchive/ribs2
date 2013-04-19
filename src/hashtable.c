@@ -44,7 +44,7 @@ int hashtable_init(struct hashtable *ht, uint32_t initial_size) {
         uint32_t s;
         for (s = 1; s < num_slots; ++s) {
             uint32_t ofs = vmbuf_alloczero(&ht->data, capacity * sizeof(struct ht_entry));
-            uint32_t *slots = (uint32_t *) vmbuf_data(&ht->data);
+            slots = (uint32_t *) vmbuf_data(&ht->data);
             slots[s] = ofs;
             capacity <<= 1;
         }
@@ -73,7 +73,7 @@ int hashtablefile_init_create(struct hashtablefile *ht, const char *file_name, u
         uint32_t s;
         for (s = 1; s < num_slots; ++s) {
             uint32_t ofs = vmfile_alloczero(&ht->data, capacity * sizeof(struct ht_entry));
-            uint32_t *slots = (uint32_t *) vmfile_data_ofs(&ht->data, sizeof(struct hashtablefile_header));
+            slots = (uint32_t *) vmfile_data_ofs(&ht->data, sizeof(struct hashtablefile_header));
             slots[s] = ofs;
             capacity <<= 1;
         }
