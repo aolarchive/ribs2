@@ -274,3 +274,7 @@ _RIBS_INLINE_ void *TEMPLATE(VMBUF_T,allocptr)(struct VMBUF_T *vmb, size_t n) {
     return TEMPLATE(VMBUF_T,data_ofs)(vmb, TEMPLATE(VMBUF_T,alloc)(vmb, n));
 }
 
+_RIBS_INLINE_ int TEMPLATE(VMBUF_T,chrcpy)(struct VMBUF_T *vmb, char c) {
+    *(TEMPLATE(VMBUF_T,wloc)(vmb)) = c;
+    return TEMPLATE(VMBUF_T,wseek)(vmb, 1);
+}
