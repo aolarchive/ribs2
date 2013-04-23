@@ -57,7 +57,6 @@ _RIBS_INLINE_ void vmfile_reset(struct vmfile *vmb);
 _RIBS_INLINE_ int vmfile_free(struct vmfile *vmb);
 _RIBS_INLINE_ int vmfile_free_most(struct vmfile *vmb);
 _RIBS_INLINE_ int vmfile_resize_by(struct vmfile *vmb, size_t by);
-_RIBS_INLINE_ int vmfile_resize_to(struct vmfile *vmb, size_t new_capacity);
 _RIBS_INLINE_ int vmfile_resize_if_full(struct vmfile *vmb);
 _RIBS_INLINE_ int vmfile_resize_if_less(struct vmfile *vmb, size_t desired_size);
 _RIBS_INLINE_ int vmfile_resize_no_check(struct vmfile *vmb, size_t n);

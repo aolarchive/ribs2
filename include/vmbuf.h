@@ -52,7 +52,6 @@ _RIBS_INLINE_ void vmbuf_reset(struct vmbuf *vmb);
 _RIBS_INLINE_ int vmbuf_free(struct vmbuf *vmb);
 _RIBS_INLINE_ int vmbuf_free_most(struct vmbuf *vmb);
 _RIBS_INLINE_ int vmbuf_resize_by(struct vmbuf *vmb, size_t by);
-_RIBS_INLINE_ int vmbuf_resize_to(struct vmbuf *vmb, size_t new_capacity);
 _RIBS_INLINE_ int vmbuf_resize_if_full(struct vmbuf *vmb);
 _RIBS_INLINE_ int vmbuf_resize_if_less(struct vmbuf *vmb, size_t desired_size);
 _RIBS_INLINE_ int vmbuf_resize_no_check(struct vmbuf *vmb, size_t n);
