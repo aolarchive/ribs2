@@ -32,7 +32,7 @@
 
 #define INDEXER_O2O(T,db, tbl, field) if (0 > IDX_GEN_DS_FILE_O2O(T, base_path, db, tbl, field)) return -1
 #define INDEXER_O2M(T,db, tbl, field) if (0 > IDX_GEN_DS_FILE_O2M(T, base_path, db, tbl, field)) return -1
-#define VAR_INDEXER_O2O(db, tbl, field) if (0 > var_index_gen_generate_ds_file(base_path, db, tbl, field)) return -1
+#define VAR_INDEXER_O2M(db, tbl, field) if (0 > var_index_gen_generate_ds_file(base_path, db, tbl, field)) return -1
 
 struct mysql_login_info {
     const char *host;
