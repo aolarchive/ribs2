@@ -82,15 +82,15 @@ _RIBS_INLINE_ int vmfile_wseek(struct vmfile *vmb, size_t by);
 _RIBS_INLINE_ void vmfile_rseek(struct vmfile *vmb, size_t by);
 _RIBS_INLINE_ void vmfile_rreset(struct vmfile *vmb);
 _RIBS_INLINE_ void vmfile_wreset(struct vmfile *vmb);
-_RIBS_INLINE_ int vmfile_sprintf(struct vmfile *vmb, const char *format, ...);
-_RIBS_INLINE_ int vmfile_vsprintf(struct vmfile *vmb, const char *format, va_list ap);
+_RIBS_INLINE_ int vmfile_sprintf(struct vmfile *vmb, const char *format, ...) __attribute__ ((format (gnu_printf, 2, 3)));
+_RIBS_INLINE_ int vmfile_vsprintf(struct vmfile *vmb, const char *format, va_list ap) __attribute__ ((format (gnu_printf, 2, 0)));
 _RIBS_INLINE_ int vmfile_strcpy(struct vmfile *vmb, const char *src);
 _RIBS_INLINE_ void vmfile_remove_last_if(struct vmfile *vmb, char c);
 _RIBS_INLINE_ int vmfile_read(struct vmfile *vmb, int fd);
 _RIBS_INLINE_ int vmfile_write(struct vmfile *vmb, int fd);
 _RIBS_INLINE_ int vmfile_memcpy(struct vmfile *vmb, const void *src, size_t n);
 _RIBS_INLINE_ void vmfile_memset(struct vmfile *vmb, int c, size_t n);
-_RIBS_INLINE_ int vmfile_strftime(struct vmfile *vmb, const char *format, const struct tm *tm);
+_RIBS_INLINE_ int vmfile_strftime(struct vmfile *vmb, const char *format, const struct tm *tm) __attribute__ ((format (strftime, 2, 0)));
 _RIBS_INLINE_ void *vmfile_allocptr(struct vmfile *vmb, size_t n);
 _RIBS_INLINE_ int vmfile_chrcpy(struct vmfile *vmb, char c);
 

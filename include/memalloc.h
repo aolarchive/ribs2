@@ -42,11 +42,11 @@ struct memalloc {
 _RIBS_INLINE_ void *memalloc_alloc(struct memalloc *ma, size_t size);
 _RIBS_INLINE_ void memalloc_reset(struct memalloc *ma);
 _RIBS_INLINE_ int memalloc_is_mine(struct memalloc *ma, const void *ptr);
-_RIBS_INLINE_ char *memalloc_vsprintf(struct memalloc *ma, const char *format, va_list ap);
-_RIBS_INLINE_ char *memalloc_sprintf(struct memalloc *ma, const char *format, ...);
+_RIBS_INLINE_ char *memalloc_vsprintf(struct memalloc *ma, const char *format, va_list ap) __attribute__ ((format (gnu_printf, 2, 0)));
+_RIBS_INLINE_ char *memalloc_sprintf(struct memalloc *ma, const char *format, ...) __attribute__ ((format (gnu_printf, 2, 3)));
 _RIBS_INLINE_ void *memalloc_memcpy(struct memalloc *ma, const void *s, size_t n);
 _RIBS_INLINE_ char *memalloc_strcpy(struct memalloc *ma, const char *s);
-_RIBS_INLINE_ char *memalloc_strftime(struct memalloc *ma, const char *format, const struct tm *tm);
+_RIBS_INLINE_ char *memalloc_strftime(struct memalloc *ma, const char *format, const struct tm *tm) __attribute__ ((format (strftime, 2, 0)));
 
 #include "../src/_memalloc.c"
 

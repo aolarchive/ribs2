@@ -483,7 +483,7 @@ int http_server_sendfile(const char *filename, const char *additional_headers, c
         http_server_header_start(HTTP_STATUS_200, mime_types_by_ext(ext));
     else
         http_server_header_start(HTTP_STATUS_200, mime_types_by_filename(filename));
-    vmbuf_sprintf(&ctx->header, "%s%zu", CONTENT_LENGTH, st.st_size);
+    vmbuf_sprintf(&ctx->header, "%s%lu", CONTENT_LENGTH, st.st_size);
     vmbuf_strcpy(&ctx->header, additional_headers);
 
     http_server_header_close();
@@ -532,7 +532,7 @@ int http_server_generate_dir_list(const char *URI) {
     vmbuf_sprintf(payload, "<h1>Index of %s</h1><hr>", dir);
 
     vmbuf_sprintf(payload, "<a href=\"..\">../</a><br><br>");
-    vmbuf_sprintf(payload, "<table width=\"100%\" border=\"0\">");
+    vmbuf_sprintf(payload, "<table width=\"100%%\" border=\"0\">");
     DIR *d = opendir(dir);
     int error = 0;
     if (d) {
@@ -555,7 +555,7 @@ int http_server_generate_dir_list(const char *URI) {
             if (t)
                 vmbuf_strftime(payload, "%F %T", t);
             vmbuf_strcpy(payload, "</td>");
-            vmbuf_sprintf(payload, "<td>%zu</td>", st.st_size);
+            vmbuf_sprintf(payload, "<td>%lu</td>", st.st_size);
             vmbuf_strcpy(payload, "</tr>");
         }
         closedir(d);

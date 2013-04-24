@@ -156,7 +156,7 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
     if (len < 0) len = 4;
     char header[len];
     memset(header, '=', len);
-    vmfile_sprintf(&ds_txt, "/* %.*s[ %s ]%.*s */\n", len / 2, header, tablename, len - (len / 2), header);
+    vmfile_sprintf(&ds_txt, "/* %.*s[ %s ]%.*s */\n", (int)len / 2, header, tablename, (int)(len - (len / 2)), header);
     vmfile_sprintf(&ds_txt, "#   undef TABLE_NAME\n#   define TABLE_NAME %s\n", tablename);
     /*
      * initialize output files

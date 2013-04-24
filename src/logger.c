@@ -57,7 +57,7 @@ static void begin_log_line(const char *msg_class) {
     tmp = localtime_r(&tv.tv_sec, &tm);
     vmbuf_init(&log_buf, 4096);
     vmbuf_strftime(&log_buf, "%Y-%m-%d %H:%M:%S", tmp);
-    vmbuf_sprintf(&log_buf, ".%03d.%03d %d %s ", tv.tv_usec / 1000, tv.tv_usec % 1000, getpid(), msg_class);
+    vmbuf_sprintf(&log_buf, ".%03ld.%03ld %d %s ", tv.tv_usec / 1000, tv.tv_usec % 1000, getpid(), msg_class);
 }
 
 static inline void end_log_line(int fd) {
