@@ -25,7 +25,7 @@ _RIBS_INLINE_ struct http_client_context *http_client_get_last_context() {
 }
 
 _RIBS_INLINE_ int http_client_send_request(struct http_client_context *cctx) {
-    int fd = RIBS_RESERVED_TO_CONTEXT(cctx)->fd;
+    int fd = cctx->fd;
     int res = vmbuf_write(&cctx->request, fd);
     if (res < 0) {
         LOGGER_PERROR("write request");

@@ -28,6 +28,7 @@
 #include <netinet/in.h>
 
 struct http_client_context {
+    int fd;
     struct vmbuf request;
     struct vmbuf response;
     epoll_data_t userdata;

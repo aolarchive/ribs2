@@ -84,10 +84,11 @@ static void http_server_idle_handler(void) {
             struct ribs_context *new_ctx = ctx_pool_get(&server->ctx_pool);
             ribs_makecontext(new_ctx, event_loop_ctx, http_server_fiber_main_wrapper);
             int fd = last_epollev.data.fd;
-            new_ctx->fd = fd;
             new_ctx->data.ptr = server;
             struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
             fd_data->ctx = new_ctx;
+            struct http_server_context *ctx = (struct http_server_context *)new_ctx->reserved;
+            ctx->fd = fd;
             TIMEOUT_HANDLER_REMOVE_FD_DATA(fd_data);
             ribs_swapcurcontext(new_ctx);
         }
@@ -158,7 +159,7 @@ int http_server_init(struct http_server *server) {
         return LOGGER_PERROR("listen"), -1;
 
     server->accept_ctx = ribs_context_create(ACCEPTOR_STACK_SIZE, http_server_accept_connections);
-    server->accept_ctx->fd = lfd;
+    server->fd = lfd;
     server->accept_ctx->data.ptr = server;
 
     if (server->max_req_size == 0)
@@ -167,7 +168,7 @@ int http_server_init(struct http_server *server) {
 }
 
 int http_server_init_acceptor(struct http_server *server) {
-    if (0 > ribs_epoll_add(server->accept_ctx->fd, EPOLLIN, server->accept_ctx))
+    if (0 > ribs_epoll_add(server->fd, EPOLLIN, server->accept_ctx))
         return -1;
     return timeout_handler_init(&server->timeout_handler);
 }
@@ -177,7 +178,7 @@ static void http_server_accept_connections(void) {
     for (;; yield()) {
         struct sockaddr_in new_addr;
         socklen_t new_addr_size = sizeof(struct sockaddr_in);
-        int fd = accept4(current_ctx->fd, (struct sockaddr *)&new_addr, &new_addr_size, SOCK_CLOEXEC | SOCK_NONBLOCK);
+        int fd = accept4(server->fd, (struct sockaddr *)&new_addr, &new_addr_size, SOCK_CLOEXEC | SOCK_NONBLOCK);
         if (0 > fd)
             continue;
 
@@ -272,8 +273,9 @@ void http_server_header_content_length() {
 
 
 static inline void http_server_yield() {
+    struct http_server_context *ctx = http_server_get_context();
+    struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + ctx->fd;
     struct http_server *server = (struct http_server *)current_ctx->data.ptr;
-    struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + current_ctx->fd;
     timeout_handler_add_fd_data(&server->timeout_handler, fd_data);
     yield();
     TIMEOUT_HANDLER_REMOVE_FD_DATA(fd_data);
@@ -285,7 +287,7 @@ inline void http_server_write() {
         { vmbuf_data(&ctx->header), vmbuf_wlocpos(&ctx->header)},
         { vmbuf_data(&ctx->payload), vmbuf_wlocpos(&ctx->payload)}
     };
-    int fd = current_ctx->fd;
+    int fd = ctx->fd;
 
     ssize_t num_write;
     for (;;http_server_yield()) {
@@ -316,7 +318,7 @@ inline void http_server_write() {
 void http_server_fiber_main(void) {
     struct http_server_context *ctx = http_server_get_context();
     struct http_server *server = (struct http_server *)current_ctx->data.ptr;
-    int fd = current_ctx->fd;
+    int fd = ctx->fd;
 
     char *URI;
     char *headers;
@@ -426,7 +428,7 @@ void http_server_fiber_main(void) {
     } while(0);
 
     if (vmbuf_wlocpos(&ctx->header) > 0) {
-        epoll_worker_resume_events();
+        epoll_worker_resume_events(fd);
         http_server_write();
     }
 
@@ -452,7 +454,7 @@ static void http_server_process_request(char *uri, char *headers) {
         uri = strchrnul(uri, '/');
     }
     ctx->uri = uri;
-    epoll_worker_ignore_events();
+    epoll_worker_ignore_events(ctx->fd);
     server->user_func();
 }
 
@@ -461,7 +463,7 @@ int http_server_sendfile(const char *filename, const char *additional_headers, c
     if (0 == *filename)
         filename = ".";
     struct http_server_context *ctx = http_server_get_context();
-    int fd = current_ctx->fd;
+    int fd = ctx->fd;
     int ffd = open(filename, O_RDONLY);
     if (ffd < 0)
         return HTTP_SERVER_NOT_FOUND;
@@ -476,7 +478,7 @@ int http_server_sendfile(const char *filename, const char *additional_headers, c
         return 1;
     }
 
-    epoll_worker_resume_events();
+    epoll_worker_resume_events(ctx->fd);
     vmbuf_reset(&ctx->header);
 
     if (NULL != ext)
@@ -568,5 +570,5 @@ int http_server_generate_dir_list(const char *URI) {
 
 
 void http_server_close(struct http_server *server) {
-    close(server->accept_ctx->fd);
+    close(server->fd);
 }

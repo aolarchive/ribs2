@@ -24,7 +24,7 @@ static void expiration_handler(void) {
     uint64_t num_exp;
     struct timeout_handler *timeout_handler = (struct timeout_handler *)current_ctx->data.ptr;
     struct timeval when = {timeout_handler->timeout/1000,(timeout_handler->timeout%1000)*1000};
-    int fd = current_ctx->fd;
+    int fd = timeout_handler->fd;
     for (;;yield()) {
         if (sizeof(num_exp) != read(fd, &num_exp, sizeof(num_exp)))
             continue;
@@ -37,7 +37,7 @@ static void expiration_handler(void) {
             if (timercmp(&fd_data->timestamp, &ts, >)) {
                 timersub(&fd_data->timestamp, &ts, &now);
                 struct itimerspec whence = {{0,0},{now.tv_sec,now.tv_usec*1000}};
-                if (0 > timerfd_settime(timeout_handler->timeout_handler_ctx->fd, 0, &whence, NULL))
+                if (0 > timerfd_settime(timeout_handler->fd, 0, &whence, NULL))
                     LOGGER_PERROR("timerfd_settime");
                 break;
             }
@@ -56,7 +56,7 @@ int timeout_handler_init(struct timeout_handler *timeout_handler) {
     if (0 > tfd)
         return LOGGER_PERROR("timerfd_create"), -1;
     timeout_handler->timeout_handler_ctx = small_ctx_for_fd(tfd, expiration_handler);
-    timeout_handler->timeout_handler_ctx->fd = tfd;
+    timeout_handler->fd = tfd;
     timeout_handler->timeout_handler_ctx->data.ptr = timeout_handler;
     /*
      * timeout chain

@@ -53,7 +53,6 @@ struct ribs_context {
 #endif
     epoll_data_t data;
     struct ribs_context *next_free;
-    int fd;
     struct memalloc memalloc;
     uint32_t ribify_memalloc_refcount;
     char reserved[];

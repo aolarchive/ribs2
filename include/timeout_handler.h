@@ -30,6 +30,7 @@
 #include "logger.h"
 
 struct timeout_handler {
+    int fd;
     struct ribs_context *timeout_handler_ctx;
     struct list timeout_chain;
     time_t timeout;

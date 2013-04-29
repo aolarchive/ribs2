@@ -46,7 +46,7 @@ static struct hashtable ht_persistent_clients = HASHTABLE_INITIALIZER;
 
 void http_client_free(struct http_client_pool *client_pool, struct http_client_context *cctx) {
     if (cctx->persistent) {
-        int fd = RIBS_RESERVED_TO_CONTEXT(cctx)->fd;
+        int fd = cctx->fd;
         epoll_worker_set_fd_ctx(fd, idle_ctx);
         uint32_t ofs = hashtable_lookup(&ht_persistent_clients, &cctx->key, sizeof(struct http_client_key));
         struct list *head;
@@ -138,8 +138,9 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
     _READ_MORE_DATA(cond, )
 
 static inline void http_client_yield() {
+    struct http_client_context *ctx = (struct http_client_context *)current_ctx->reserved;
+    struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + ctx->fd;
     struct http_client_pool *client_pool = (struct http_client_pool *)current_ctx->data.ptr;
-    struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + current_ctx->fd;
     timeout_handler_add_fd_data(&client_pool->timeout_handler, fd_data);
     yield();
     TIMEOUT_HANDLER_REMOVE_FD_DATA(fd_data);
@@ -147,7 +148,7 @@ static inline void http_client_yield() {
 
 void http_client_fiber_main(void) {
     struct http_client_context *ctx = (struct http_client_context *)current_ctx->reserved;
-    int fd = current_ctx->fd;
+    int fd = ctx->fd;
     struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
     TIMEOUT_HANDLER_REMOVE_FD_DATA(fd_data);
 
@@ -273,12 +274,12 @@ struct http_client_context *http_client_pool_create_client(struct http_client_po
             return close(cfd), NULL;
     }
     struct ribs_context *new_ctx = ctx_pool_get(&http_client_pool->ctx_pool);
-    new_ctx->fd = cfd;
     new_ctx->data.ptr = http_client_pool;
     struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + cfd;
     fd_data->ctx = new_ctx;
     ribs_makecontext(new_ctx, rctx ? rctx : current_ctx, http_client_fiber_main);
     struct http_client_context *cctx = (struct http_client_context *)new_ctx->reserved;
+    cctx->fd = cfd;
     cctx->key = (struct http_client_key){ .addr = addr, .port = port };
     vmbuf_init(&cctx->request, 4096);
     vmbuf_init(&cctx->response, 4096);

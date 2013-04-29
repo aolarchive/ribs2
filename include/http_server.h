@@ -30,6 +30,7 @@
 #include "http_headers.h"
 
 struct http_server_context {
+    int fd;
     struct vmbuf request;
     struct vmbuf header;
     struct vmbuf payload;
@@ -43,6 +44,7 @@ struct http_server_context {
 };
 
 struct http_server {
+    int fd;
     uint16_t port;
     struct ctx_pool ctx_pool;
     void (*user_func)(void);
