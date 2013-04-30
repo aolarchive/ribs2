@@ -22,7 +22,8 @@
 
 static void expiration_handler(void) {
     uint64_t num_exp;
-    struct timeout_handler *timeout_handler = (struct timeout_handler *)current_ctx->data.ptr;
+    struct timeout_handler **ref = (struct timeout_handler **)current_ctx->reserved;
+    struct timeout_handler *timeout_handler = *ref;
     struct timeval when = {timeout_handler->timeout/1000,(timeout_handler->timeout%1000)*1000};
     int fd = timeout_handler->fd;
     for (;;yield()) {
@@ -55,9 +56,10 @@ int timeout_handler_init(struct timeout_handler *timeout_handler) {
     int tfd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
     if (0 > tfd)
         return LOGGER_PERROR("timerfd_create"), -1;
-    timeout_handler->timeout_handler_ctx = small_ctx_for_fd(tfd, expiration_handler);
+    timeout_handler->timeout_handler_ctx = small_ctx_for_fd(tfd, sizeof(struct timeout_handler *), expiration_handler);
     timeout_handler->fd = tfd;
-    timeout_handler->timeout_handler_ctx->data.ptr = timeout_handler;
+    struct timeout_handler **ref = (struct timeout_handler **)timeout_handler->timeout_handler_ctx->reserved;
+    *ref = timeout_handler;
     /*
      * timeout chain
      */

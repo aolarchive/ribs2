@@ -27,6 +27,11 @@
 #include "logger.h"
 #include <netinet/in.h>
 
+struct http_client_pool {
+    struct ctx_pool ctx_pool;
+    struct timeout_handler timeout_handler;
+};
+
 struct http_client_context {
     int fd;
     struct vmbuf request;
@@ -36,6 +41,7 @@ struct http_client_context {
     int http_status_code;
     char *content;
     uint32_t content_length;
+    struct http_client_pool *pool;
 
     /* TODO: add initial buffer sizes */
 
@@ -46,11 +52,6 @@ struct http_client_context {
         uint16_t port;
     } key;
 #pragma pack(pop)
-};
-
-struct http_client_pool {
-    struct ctx_pool ctx_pool;
-    struct timeout_handler timeout_handler;
 };
 
 int http_client_pool_init(struct http_client_pool *http_client_pool, size_t initial, size_t grow);

@@ -49,9 +49,9 @@ void ribs_makecontext(struct ribs_context *ctx, struct ribs_context *pctx, void 
     ctx->parent_context_reg = (uintptr_t) pctx;
 }
 
-struct ribs_context *ribs_context_create(size_t stack_size, void (*func)(void)) {
+struct ribs_context *ribs_context_create(size_t stack_size, size_t reserved_size, void (*func)(void)) {
     void *stack;
-    stack = calloc(1, stack_size + sizeof(struct ribs_context));
+    stack = calloc(1, stack_size + sizeof(struct ribs_context) + reserved_size);
     if (!stack)
         return LOGGER_PERROR("calloc stack"), NULL;
     stack += stack_size;

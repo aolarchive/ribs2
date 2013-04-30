@@ -74,8 +74,8 @@ int ribs_epoll_add(int fd, uint32_t events, struct ribs_context* ctx) {
     return 0;
 }
 
-struct ribs_context* small_ctx_for_fd(int fd, void (*func)(void)) {
-    void *ctx=ribs_context_create(SMALL_STACK_SIZE, func);
+struct ribs_context* small_ctx_for_fd(int fd, size_t reserved_size, void (*func)(void)) {
+    void *ctx=ribs_context_create(SMALL_STACK_SIZE, reserved_size, func);
     if (NULL == ctx)
         return LOGGER_PERROR("ribs_context_create"), NULL;
     if (0 > ribs_epoll_add(fd, EPOLLIN, ctx))
@@ -118,13 +118,13 @@ int epoll_worker_init(void) {
         return -1;
 #endif
 
-    event_loop_ctx = ribs_context_create(SMALL_STACK_SIZE, event_loop);
+    event_loop_ctx = ribs_context_create(SMALL_STACK_SIZE, 0, event_loop);
 
     /* pipe to conetxt */
     int pipefd[2];
     if (0 > pipe2(pipefd, O_NONBLOCK))
         return LOGGER_PERROR("pipe"), -1;
-    if (NULL == small_ctx_for_fd(pipefd[0], pipe_to_context))
+    if (NULL == small_ctx_for_fd(pipefd[0], 0, pipe_to_context))
         return -1;
     queue_ctx_fd = pipefd[1];
     return ribs_epoll_add(queue_ctx_fd, EPOLLOUT | EPOLLET, event_loop_ctx);

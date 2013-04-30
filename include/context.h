@@ -51,7 +51,6 @@ struct ribs_context {
     uintptr_t linked_func_reg;
 #endif
 #endif
-    epoll_data_t data;
     struct ribs_context *next_free;
     struct memalloc memalloc;
     uint32_t ribify_memalloc_refcount;
@@ -63,7 +62,7 @@ extern struct ribs_context *current_ctx, *event_loop_ctx;
 extern void ribs_swapcurcontext(struct ribs_context *rctx);
 extern void ribs_makecontext(struct ribs_context *ctx, struct ribs_context *pctx, void (*func)(void));
 
-extern struct ribs_context *ribs_context_create(size_t stack_size, void (*func)(void));
+extern struct ribs_context *ribs_context_create(size_t stack_size, size_t reserved_size, void (*func)(void));
 
 #define RIBS_RESERVED_TO_CONTEXT(ptr) ((struct ribs_context *)((char *)ptr - offsetof(struct ribs_context, reserved)))
 

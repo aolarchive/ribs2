@@ -71,12 +71,13 @@ static void http_server_accept_connections(void);
 
 static void http_server_fiber_main_wrapper(void) {
     http_server_fiber_main();
-    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
-    ctx_pool_put(&server->ctx_pool, current_ctx);
+    struct http_server_context *ctx = http_server_get_context();
+    ctx_pool_put(&ctx->server->ctx_pool, current_ctx);
 }
 
 static void http_server_idle_handler(void) {
-    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
+    struct http_server **server_ref = (struct http_server **)current_ctx->reserved;
+    struct http_server *server = *server_ref;
     for (;;) {
         if (last_epollev.events == EPOLLOUT)
             yield();
@@ -84,11 +85,11 @@ static void http_server_idle_handler(void) {
             struct ribs_context *new_ctx = ctx_pool_get(&server->ctx_pool);
             ribs_makecontext(new_ctx, event_loop_ctx, http_server_fiber_main_wrapper);
             int fd = last_epollev.data.fd;
-            new_ctx->data.ptr = server;
             struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
             fd_data->ctx = new_ctx;
             struct http_server_context *ctx = (struct http_server_context *)new_ctx->reserved;
             ctx->fd = fd;
+            ctx->server = server;
             TIMEOUT_HANDLER_REMOVE_FD_DATA(fd_data);
             ribs_swapcurcontext(new_ctx);
         }
@@ -106,8 +107,9 @@ int http_server_init(struct http_server *server) {
     /*
      * idle connection handler
      */
-    server->idle_ctx = ribs_context_create(SMALL_STACK_SIZE, http_server_idle_handler);
-    server->idle_ctx->data.ptr = server;
+    server->idle_ctx = ribs_context_create(SMALL_STACK_SIZE, sizeof(struct http_server *), http_server_idle_handler);
+    struct http_server **server_ref = (struct http_server **)server->idle_ctx->reserved;
+    *server_ref = server;
     /*
      * context pool
      */
@@ -158,9 +160,10 @@ int http_server_init(struct http_server *server) {
     if (0 > listen(lfd, LISTEN_BACKLOG))
         return LOGGER_PERROR("listen"), -1;
 
-    server->accept_ctx = ribs_context_create(ACCEPTOR_STACK_SIZE, http_server_accept_connections);
+    server->accept_ctx = ribs_context_create(ACCEPTOR_STACK_SIZE, sizeof(struct http_server *), http_server_accept_connections);
     server->fd = lfd;
-    server->accept_ctx->data.ptr = server;
+    server_ref = (struct http_server **)server->accept_ctx->reserved;
+    *server_ref = server;
 
     if (server->max_req_size == 0)
         server->max_req_size = DEFAULT_MAX_REQ_SIZE;
@@ -174,7 +177,8 @@ int http_server_init_acceptor(struct http_server *server) {
 }
 
 static void http_server_accept_connections(void) {
-    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
+    struct http_server **server_ref = (struct http_server **)current_ctx->reserved;
+    struct http_server *server = *server_ref;
     for (;; yield()) {
         struct sockaddr_in new_addr;
         socklen_t new_addr_size = sizeof(struct sockaddr_in);
@@ -275,8 +279,7 @@ void http_server_header_content_length() {
 static inline void http_server_yield() {
     struct http_server_context *ctx = http_server_get_context();
     struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + ctx->fd;
-    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
-    timeout_handler_add_fd_data(&server->timeout_handler, fd_data);
+    timeout_handler_add_fd_data(&ctx->server->timeout_handler, fd_data);
     yield();
     TIMEOUT_HANDLER_REMOVE_FD_DATA(fd_data);
 }
@@ -317,7 +320,7 @@ inline void http_server_write() {
 
 void http_server_fiber_main(void) {
     struct http_server_context *ctx = http_server_get_context();
-    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
+    struct http_server *server = ctx->server;
     int fd = ctx->fd;
 
     char *URI;
@@ -442,7 +445,6 @@ void http_server_fiber_main(void) {
 
 static void http_server_process_request(char *uri, char *headers) {
     struct http_server_context *ctx = http_server_get_context();
-    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
     ctx->headers = headers;
     char *query = strchrnul(uri, '?');
     if (*query)
@@ -455,7 +457,7 @@ static void http_server_process_request(char *uri, char *headers) {
     }
     ctx->uri = uri;
     epoll_worker_ignore_events(ctx->fd);
-    server->user_func();
+    ctx->server->user_func();
 }
 
 
@@ -523,7 +525,6 @@ int http_server_sendfile(const char *filename, const char *additional_headers, c
 
 int http_server_generate_dir_list(const char *URI) {
     struct http_server_context *ctx = http_server_get_context();
-    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
     struct vmbuf *payload = &ctx->payload;
     const char *dir = URI;
     if (*dir == '/') ++dir;
@@ -563,7 +564,7 @@ int http_server_generate_dir_list(const char *URI) {
         closedir(d);
     }
     vmbuf_strcpy(payload, "<tr><td colspan=3><hr></td></tr></table>");
-    vmbuf_sprintf(payload, "<address>RIBS 2.0 Port %hu</address></body>", server->port);
+    vmbuf_sprintf(payload, "<address>RIBS 2.0 Port %hu</address></body>", ctx->server->port);
     vmbuf_strcpy(payload, "</html>");
     return error;
 }

@@ -31,6 +31,7 @@
 
 struct http_server_context {
     int fd;
+    struct http_server *server;
     struct vmbuf request;
     struct vmbuf header;
     struct vmbuf payload;

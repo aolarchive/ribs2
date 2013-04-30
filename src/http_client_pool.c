@@ -104,7 +104,7 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
         for (;tmp != tmp_end; ++tmp)
             list_insert_tail(&free_list, tmp);
 
-        idle_ctx = ribs_context_create(SMALL_STACK_SIZE, http_client_idle_handler);
+        idle_ctx = ribs_context_create(SMALL_STACK_SIZE, 0, http_client_idle_handler);
 
         hashtable_init(&ht_persistent_clients, rlim.rlim_cur);
     }
@@ -140,8 +140,7 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
 static inline void http_client_yield() {
     struct http_client_context *ctx = (struct http_client_context *)current_ctx->reserved;
     struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + ctx->fd;
-    struct http_client_pool *client_pool = (struct http_client_pool *)current_ctx->data.ptr;
-    timeout_handler_add_fd_data(&client_pool->timeout_handler, fd_data);
+    timeout_handler_add_fd_data(&ctx->pool->timeout_handler, fd_data);
     yield();
     TIMEOUT_HANDLER_REMOVE_FD_DATA(fd_data);
 }
@@ -274,12 +273,12 @@ struct http_client_context *http_client_pool_create_client(struct http_client_po
             return close(cfd), NULL;
     }
     struct ribs_context *new_ctx = ctx_pool_get(&http_client_pool->ctx_pool);
-    new_ctx->data.ptr = http_client_pool;
     struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + cfd;
     fd_data->ctx = new_ctx;
     ribs_makecontext(new_ctx, rctx ? rctx : current_ctx, http_client_fiber_main);
     struct http_client_context *cctx = (struct http_client_context *)new_ctx->reserved;
     cctx->fd = cfd;
+    cctx->pool = http_client_pool;
     cctx->key = (struct http_client_key){ .addr = addr, .port = port };
     vmbuf_init(&cctx->request, 4096);
     vmbuf_init(&cctx->response, 4096);
