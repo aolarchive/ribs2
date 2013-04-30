@@ -27,6 +27,10 @@ endif
 
 LDFLAGS+=-L../lib
 CFLAGS+=$(OPTFLAGS) -ggdb3 -W -Wall -Werror
+GCCVER_GTE_4_7=$(shell expr `gcc -dumpversion` \>= 4.7)
+ifeq ($(GCCVER_GTE_4_7),1)
+CFLAGS+=-ftrack-macro-expansion=2
+endif
 
 RIBIFY_SYMS+=write read connect fcntl recvfrom send recv readv writev pipe pipe2 nanosleep usleep sleep sendfile malloc calloc realloc free
 
