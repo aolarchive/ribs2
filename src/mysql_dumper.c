@@ -107,10 +107,14 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
     MYSQL mysql;
     MYSQL_STMT *stmt = NULL;
     mysql_init(&mysql);
+    my_bool b_flag = 1;
+    if (0 != mysql_options(&mysql, MYSQL_OPT_RECONNECT, (const char *)&b_flag))
+        return report_error(&mysql);
+
     if (NULL == mysql_real_connect(&mysql, mysql_login_info->host, mysql_login_info->user, mysql_login_info->pass, mysql_login_info->db, mysql_login_info->port, NULL, CLIENT_COMPRESS))
         return report_error(&mysql);
 
-    my_bool b_flag = 0;
+    b_flag = 0;
     if (0 != mysql_options(&mysql, MYSQL_REPORT_DATA_TRUNCATION, (const char *)&b_flag))
         return report_error(&mysql);
 
