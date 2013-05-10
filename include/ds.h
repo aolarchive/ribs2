@@ -88,6 +88,7 @@ enum
     ds_type_uint64_t,
     ds_type_float,
     ds_type_double,
+    ds_type_size_t,
 };
 
 #define _DS_TYPE(x) ds_type_ ## x
@@ -106,6 +107,7 @@ static inline const char *ds_type_to_string(int64_t t) {
         _DS_TYPE_TO_STR(uint64_t);
         _DS_TYPE_TO_STR(float);
         _DS_TYPE_TO_STR(double);
+        _DS_TYPE_TO_STR(size_t);
     default:
         return "unknown";
     }
@@ -148,6 +150,10 @@ static inline const char *ds_type_to_string(int64_t t) {
 #undef T
 
 #define T double
+#include "ds_field.h"
+#undef T
+
+#define T size_t
 #include "ds_field.h"
 #undef T
 
