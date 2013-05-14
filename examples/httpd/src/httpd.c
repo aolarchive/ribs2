@@ -19,6 +19,7 @@
 */
 #include "ribs.h"
 #include <getopt.h>
+#include <unistd.h>
 /*
  * file server
  */
@@ -60,14 +61,16 @@ int main(int argc, char *argv[]) {
     static struct option long_options[] = {
         {"port", 1, 0, 'p'},
         {"daemonize", 0, 0, 'd'},
+        {"forks", 1, 0, 'f'},
         {0, 0, 0, 0}
     };
 
     int port = 8080;
     int daemon_mode = 0;
+    long forks = 0;
     while (1) {
         int option_index = 0;
-        int c = getopt_long(argc, argv, "p:d", long_options, &option_index);
+        int c = getopt_long(argc, argv, "p:f:d", long_options, &option_index);
         if (c == -1)
             break;
         switch (c) {
@@ -76,6 +79,9 @@ int main(int argc, char *argv[]) {
             break;
         case 'd':
             daemon_mode = 1;
+            break;
+        case 'f':
+            forks = atoi(optarg);
             break;
         }
     }
@@ -127,10 +133,17 @@ int main(int argc, char *argv[]) {
     if (daemon_mode)
         daemonize(), daemon_finalize();
 
-    /* fork should be called here in case of multiple processes
-       listening on the same socket. for file server, one process is
-       more than enough */
-    /* fork(); */
+    if (0 >= forks) {
+        forks = sysconf(_SC_NPROCESSORS_CONF);
+        if (0 > forks)
+            exit(EXIT_FAILURE);
+    }
+
+    for(;forks > 1;--forks){
+        if (0 >= fork()) {
+            break;
+        }
+    }
 
     /* initialize the event loop */
     if (epoll_worker_init() < 0)
