@@ -42,6 +42,7 @@ struct hashtablefile_readonly {
 int hashtablefile_readonly_init(struct hashtablefile_readonly *ht, const char *file_name);
 int hashtablefile_readonly_close(struct hashtablefile_readonly *ht);
 uint32_t hashtablefile_readonly_lookup(struct hashtablefile_readonly *ht, const void *key, size_t key_len);
+int hashtablefile_readonly_foreach(struct hashtablefile_readonly *ht, int (*func)(uint32_t rec));
 
 static inline char *_data_ofs(void *data, size_t ofs){
     return data + ofs;

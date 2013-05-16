@@ -80,3 +80,21 @@ uint32_t hashtablefile_readonly_lookup(struct hashtablefile_readonly *ht, const 
     }
     return 0;
 }
+
+int hashtablefile_readonly_foreach(struct hashtablefile_readonly *ht, int (*func)(uint32_t rec)) {
+    uint32_t capacity = ht->header->mask + 1;
+    uint32_t num_slots = ilog2(capacity) - HASHTABLE_INITIAL_SIZE_BITS + 1;
+    uint32_t *slots = (uint32_t *)_data_ofs(ht->data, sizeof(struct hashtablefile_header));
+    uint32_t s = 0;
+    uint32_t vect_size = HASHTABLE_INITIAL_SIZE;
+    for (; s < num_slots; ++s) {
+        struct ht_entry *htc = (struct ht_entry *) _data_ofs(ht->data, slots[s]);
+        struct ht_entry *hte = htc + vect_size;
+        for (; htc != hte; ++ htc) {
+            if (0 < htc->rec && 0 > func(htc->rec))
+                return -1;
+        }
+        if (s) vect_size <<= 1;
+    }
+    return 0;
+}
