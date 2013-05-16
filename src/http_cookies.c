@@ -19,34 +19,43 @@
 */
 #include "http_cookies.h"
 
-static inline void add_cookie(struct hashtable *ht, char *str) {
-    char *val = strchrnul(str, '=');
-    char c = *val;
-    if (c)
-        *val++ = 0;
-    hashtable_insert(ht, str, strlen(str), val, strlen(val) + 1);
-    if (c)
-        *--val = c;
+static inline void add_cookie(struct hashtable *ht, const char *str) {
+    const char *name = str;
+    const char *name_end = strchrnul(str, '=');
+    const char *val = *name_end ? name_end + 1 : name_end;
+
+    /* get rid of quotes */
+    const char *val_st = val, *val_st_end = val + strlen(val);
+    if ('"' == *val_st)
+        ++val_st;
+    if (val_st != val_st_end && '"' == *(val_st_end - 1))
+        --val_st_end;
+
+    size_t l = val_st_end - val_st;
+    uint32_t loc = hashtable_insert(ht, name, name_end - name, val_st, l + 1);
+    *(char *)(hashtable_get_val(ht, loc) + l) = 0;
 }
 
 int http_parse_cookies(struct hashtable *ht, char *cookies_str) {
 
     char *p = cookies_str, *s = p;
     char c;
-    while (*p) {
+    for (;;) {
         switch (*p) {
+        case 0:
         case ';':
         case ' ':
             c = *p;
             *p = 0;
-            add_cookie(ht, s);
+            if (*s)
+                add_cookie(ht, s);
             *p = c;
             for (; *p == ';' || *p == ' '; ++p);
+            if (0 == *p) return 0;
             s = p;
+            break;
         default:
             ++p;
         }
     }
-    add_cookie(ht, s);
-    return 0;
 }
