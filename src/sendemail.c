@@ -105,7 +105,6 @@ _RIBS_INLINE_ int write_data(int cfd, struct vmbuf *request) {
     if (0 > read_data(&mta->timeout_handler, cfd, &response, ofs))      \
         return LOGGER_ERROR("read_data"), -1;                           \
     CHECK_CODE(c);                                                      \
-    LOGGER_INFO("%d, %s", code, vmbuf_data_ofs(&response, ofs));        \
     ofs = vmbuf_wlocpos(&response)
 
 static int parse_response(struct vmbuf *response, size_t ofs) {
@@ -182,26 +181,40 @@ int sendemail2(struct sendemail_mta *mta, struct email *email) {
 
     READ_AND_CHECK(354);
 
-    struct iovec iov[2];
-    ssize_t nw;
-    size_t wtotal = 0;
-    size_t data_len = strlen(email->data);
-    char *end = "\r\n.\r\n";
-    iov[0].iov_base = email->data;
-    iov[0].iov_len = data_len;
-    iov[1].iov_base = end;
-    iov[1].iov_len = 5;
+    struct iovec iov[2]= {
+        [0] = {
+            .iov_base = email->data,
+            .iov_len = strlen(email->data)
+        },
+        [1] = {
+            .iov_base = "\r\n.\r\n",
+            .iov_len = 5
+        }
+    };
 
-    while (wtotal < (data_len + 5)) {
-        nw = writev(cfd, iov, 2);
-        if (0 > nw && EAGAIN == errno)
-            sendemail_yield(&mta->timeout_handler, cfd);
-        else if (0 < nw)
-            wtotal += nw;
-        else {
-            LOGGER_ERROR("writev");
-            close(cfd);
-            return -1;
+    ssize_t num_write;
+    for (;;sendemail_yield(&mta->timeout_handler, cfd)) {
+        num_write = writev(cfd, iov, iov[1].iov_len ? 2 : 1);
+        if (0 > num_write) {
+            if (EAGAIN == errno) {
+                continue;
+            } else {
+                LOGGER_ERROR("writev");
+                close(cfd);
+                return -1;
+            }
+        } else {
+            if (num_write >= (ssize_t)iov[0].iov_len) {
+                num_write -= iov[0].iov_len;
+                iov[0].iov_len = iov[1].iov_len - num_write;
+                if (iov[0].iov_len == 0)
+                    break;
+                iov[0].iov_base = iov[1].iov_base + num_write;
+                iov[1].iov_len = 0;
+            } else {
+                iov[0].iov_len -= num_write;
+                iov[0].iov_base += num_write;
+            }
         }
     }
 
@@ -220,7 +233,6 @@ int sendemail2(struct sendemail_mta *mta, struct email *email) {
             break;
     }
     *vmbuf_data(&response) = 0;
-    LOGGER_INFO("%s", vmbuf_data_ofs(&response, ofs));
     CHECK_CODE(221);
     close(cfd);
     return 0;
