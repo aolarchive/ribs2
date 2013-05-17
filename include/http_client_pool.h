@@ -58,6 +58,7 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
 void http_client_free(struct http_client_pool *client_pool, struct http_client_context *cctx);
 struct http_client_context *http_client_pool_create_client(struct http_client_pool *http_client_pool, struct in_addr addr, uint16_t port, struct ribs_context *rctx);
 int http_client_pool_get_request(struct http_client_pool *http_client_pool, struct in_addr addr, uint16_t port, const char *hostname, const char *format, ...);
+_RIBS_INLINE_ struct ribs_context *http_client_get_ribs_context(struct http_client_context *cctx);
 _RIBS_INLINE_ struct http_client_context *http_client_get_last_context();
 _RIBS_INLINE_ int http_client_send_request(struct http_client_context *cctx);
 

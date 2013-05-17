@@ -20,6 +20,10 @@
 /*
  * inline
  */
+_RIBS_INLINE_ struct ribs_context *http_client_get_ribs_context(struct http_client_context *cctx) {
+    return RIBS_RESERVED_TO_CONTEXT(cctx);
+}
+
 _RIBS_INLINE_ struct http_client_context *http_client_get_last_context() {
     return (struct http_client_context *)epoll_worker_get_last_context()->reserved;
 }
