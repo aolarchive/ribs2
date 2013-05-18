@@ -45,4 +45,12 @@ void logger_vlog_func_at(int fd, const char *filename, unsigned int linenum, con
 #define LOGGER_PERROR_FUNC(format, ...) logger_perror_func_at(LOGGER_WHERE, __FUNCTION__, format, ##__VA_ARGS__)
 #define LOGGER_PERROR_EXIT(ec, format, ...) { logger_perror_at(LOGGER_WHERE, format, ##__VA_ARGS__); exit(ec); }
 
+#ifdef DEBUG
+#define LOGGER_DEBUG(format, ...) logger_log(format, ##__VA_ARGS__)
+#define LOGGER_DEBUG_AT(format, ...) logger_log_at(LOGGER_WHERE, format, ##__VA_ARGS__)
+#else
+#define LOGGER_DEBUG(format, ...)
+#define LOGGER_DEBUG_AT(format, ...)
+#endif // DEBUG
+
 #endif // _LOGGER__H_
