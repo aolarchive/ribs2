@@ -89,6 +89,10 @@ static inline struct http_server_context *http_server_get_context(void) {
     return (struct http_server_context *)(current_ctx->reserved);
 }
 
+static inline void *http_server_get_app_context(struct http_server_context *http_server_ctx) {
+    return http_server_ctx->user_data;
+}
+
 static inline void http_server_decode_uri(char *decoded) {
     struct http_server_context *ctx = http_server_get_context();
     http_uri_decode(ctx->uri, decoded);
