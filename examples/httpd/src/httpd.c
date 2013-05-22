@@ -35,7 +35,7 @@ void simple_file_server(void) {
     const char *file = ctx->uri;
     if (*file == '/') ++file;
 
-    int res = http_server_sendfile(file, "", NULL);
+    int res = http_server_sendfile(file);
     if (0 > res) {
         /* not found */
         if (HTTP_SERVER_NOT_FOUND == res)

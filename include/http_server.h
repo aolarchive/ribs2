@@ -77,7 +77,8 @@ void http_server_response(const char *status, const char *content_type);
 void http_server_response_sprintf(const char *status, const char *content_type, const char *format, ...);
 void http_server_header_content_length();
 void http_server_fiber_main(void);
-int http_server_sendfile(const char *filename, const char *additional_headers, const char *ext);
+int http_server_sendfile(const char *filename);
+int http_server_sendfile2(const char *filename, const char *additional_headers, const char *ext);
 int http_server_generate_dir_list(const char *filename);
 void http_server_close(struct http_server *server);
 

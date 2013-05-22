@@ -460,8 +460,11 @@ static void http_server_process_request(char *uri, char *headers) {
     ctx->server->user_func();
 }
 
+int http_server_sendfile(const char *filename) {
+    return http_server_sendfile2(filename, NULL, NULL);
+}
 
-int http_server_sendfile(const char *filename, const char *additional_headers, const char *ext) {
+int http_server_sendfile2(const char *filename, const char *additional_headers, const char *ext) {
     if (0 == *filename)
         filename = ".";
     struct http_server_context *ctx = http_server_get_context();
@@ -488,7 +491,8 @@ int http_server_sendfile(const char *filename, const char *additional_headers, c
     else
         http_server_header_start(HTTP_STATUS_200, mime_types_by_filename(filename));
     vmbuf_sprintf(&ctx->header, "%s%lu", CONTENT_LENGTH, st.st_size);
-    vmbuf_strcpy(&ctx->header, additional_headers);
+    if (additional_headers)
+        vmbuf_strcpy(&ctx->header, additional_headers);
 
     http_server_header_close();
     int option = 1;
