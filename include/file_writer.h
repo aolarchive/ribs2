@@ -20,11 +20,15 @@
 #ifndef _FILE_WRITER__H_
 #define _FILE_WRITER__H_
 
+#include "ribs_defs.h"
 #include "logger.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <stdio.h>
 #include <errno.h>
+#include <sys/mman.h>
+#include <string.h>
 #include "ilog2.h"
 
 #define FILE_WRITER_INITIALIZER { -1, NULL, 0, 0, 0, 0, 1024*1024 }

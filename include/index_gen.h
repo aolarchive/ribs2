@@ -122,6 +122,7 @@ static inline int TEMPLATE(_index_gen_generate_ds_file, T)(const char *base_path
         fw->row_loc = rec - rec_begin;
     }
     int res = coalesce_func((IDX_FW_INDEX(T) *)vmbuf_data(&fw_idx), rec - rec_begin, output_filename);
+    DS_FIELD_FREE(T, &ds);
     vmbuf_free(&fw_idx);
     return res;
 }
