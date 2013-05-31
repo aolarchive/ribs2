@@ -252,20 +252,33 @@ int lhashtable_del(struct lhashtable *lht, const void *key, size_t key_len) {
     return -1;
 }
 
-void lhashtable_dump(struct lhashtable *lht) {
-    int i;
-    printf("signature: %s, version: %hu, flags: %hhu, write_loc: %llu, capacity: %llu\n",
-           LHT_GET_HEADER()->signature,
-           LHT_GET_HEADER()->version,
-           LHT_GET_HEADER()->flags,
-           (unsigned long long)LHT_GET_HEADER()->write_loc,
-           (unsigned long long)LHT_GET_HEADER()->capacity);
-    for (i = 0; i < LHT_NUM_SUB_TABLES; ++i) {
-        struct lhashtable_table *tbl = lht->mem + LHT_GET_HEADER()->tables_offsets[i];
-        printf("sub table %d\n", i);
-        printf("\tmask=%u, size=%u, next_alloc=%u, current_block=%hu\n", tbl->mask, tbl->size, tbl->next_alloc, tbl->current_block);
-        /* TODO: print keys and values */
+
+static inline int _lhashtable_subtable_foreach(struct lhashtable *lht, uint64_t sub_table_ofs, int (*callback)(uint64_t, void *), void *arg) {
+    struct lhashtable_table *tbl = LHT_GET_SUB_TABLE();
+    uint32_t mask = tbl->mask;
+    uint32_t capacity = mask + 1;
+    uint32_t num_slots = ilog2(capacity) - LHT_SUB_TABLE_MIN_BITS + 1;
+    uint64_t *slots = tbl->buckets_offsets;
+    uint32_t s;
+    uint32_t vect_size = LHT_SUB_TABLE_INITIAL_SIZE;
+    int res;
+    for (s = 0; s < num_slots; ++s) {
+        struct lhashtable_bucket *hte = (lht->mem + slots[s]), *htend = hte + vect_size;
+        for (; hte != htend; ++hte) {
+            if (0 < hte->data_ofs.u32 && 0 > (res = callback(_lhashtable_data_ofs_to_abs_ofs(tbl, &hte->data_ofs), arg)))
+                return res;
+        }
+        if (s) vect_size <<= 1;
     }
+    return 0;
+}
+
+int lhashtable_foreach(struct lhashtable *lht, int (*callback)(uint64_t, void *), void *arg) {
+    int i, res;
+    for (i = 0; i < LHT_NUM_SUB_TABLES; ++i)
+        if (0 > (res = _lhashtable_subtable_foreach(lht, LHT_GET_HEADER()->tables_offsets[i], callback, arg)))
+            return res;
+    return 0;
 }
 
 uint32_t lhashtable_size(struct lhashtable *lht) {
