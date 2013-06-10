@@ -235,6 +235,21 @@ void http_server_set_session_cookie(const char *name, const char *value, const c
     http_server_set_cookie(name, value, 0, path, NULL);
 }
 
+struct vmbuf *http_server_begin_cookie(const char *name) {
+    struct vmbuf *buf = &http_server_get_context()->header;
+    vmbuf_sprintf(buf, "\r\nSet-Cookie: %s=\"", name);
+    return buf;
+}
+
+struct vmbuf *http_server_end_cookie(time_t expires, const char *domain, const char *path) {
+    struct vmbuf *buf = &http_server_get_context()->header;
+    struct tm tm;
+    gmtime_r(&expires, &tm);
+    vmbuf_sprintf(buf, "\";Path=%s;Domain=%s;Expires=", path, domain);
+    vmbuf_strftime(buf, "%a, %d-%b-%Y %H:%M:%S %Z", &tm);
+    return buf;
+}
+
 void http_server_response(const char *status, const char *content_type) {
     struct http_server_context *ctx = http_server_get_context();
     vmbuf_reset(&ctx->header);

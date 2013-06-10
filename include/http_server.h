@@ -73,6 +73,8 @@ void http_server_header_start(const char *status, const char *content_type);
 void http_server_header_close();
 void http_server_set_cookie(const char *name, const char *value, uint32_t max_age, const char *path, const char *domain);
 void http_server_set_session_cookie(const char *name, const char *value, const char *path);
+struct vmbuf *http_server_begin_cookie(const char *name);
+struct vmbuf *http_server_end_cookie(time_t expires, const char *domain, const char *path);
 void http_server_response(const char *status, const char *content_type);
 void http_server_response_sprintf(const char *status, const char *content_type, const char *format, ...);
 void http_server_header_content_length();
