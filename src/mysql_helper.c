@@ -36,9 +36,12 @@ static int report_stmt_error(struct mysql_helper *mysql_helper) {
     return -1;
 }
 
-int mysql_helper_connect(struct mysql_helper *mysql_helper, struct mysql_login_info *login_info) {
+void mysql_helper_connect_init(struct mysql_helper *mysql_helper){
     memset(mysql_helper, 0, sizeof(struct mysql_helper));
     mysql_init(&mysql_helper->mysql);
+}
+
+int mysql_helper_real_connect(struct mysql_helper *mysql_helper, struct mysql_login_info *login_info){
     if (NULL == mysql_real_connect(&mysql_helper->mysql,
                                    login_info->host,
                                    login_info->user,
@@ -53,11 +56,17 @@ int mysql_helper_connect(struct mysql_helper *mysql_helper, struct mysql_login_i
     b_flag = 1;
     if (0 != mysql_options(&mysql_helper->mysql, MYSQL_OPT_RECONNECT, (const char *)&b_flag))
         return report_error(mysql_helper);
+
     VMBUF_INIT(mysql_helper->buf);
     vmbuf_init(&mysql_helper->buf, 16384);
     VMBUF_INIT(mysql_helper->time_buf);
     vmbuf_init(&mysql_helper->time_buf, 4096); /* maximum of 102 timestamp bindings */
     return 0;
+}
+
+int mysql_helper_connect(struct mysql_helper *mysql_helper, struct mysql_login_info *login_info) {
+    mysql_helper_connect_init(mysql_helper);
+    return mysql_helper_real_connect(mysql_helper, login_info);
 }
 
 int mysql_helper_execute(struct mysql_helper *mysql_helper, const char *query, unsigned long *affected_rows) {
