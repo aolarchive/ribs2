@@ -44,7 +44,7 @@ static struct list free_list = LIST_INITIALIZER(free_list);
 static struct ribs_context *idle_ctx;
 static struct hashtable ht_persistent_clients = HASHTABLE_INITIALIZER;
 
-void http_client_free(struct http_client_pool *client_pool, struct http_client_context *cctx) {
+void http_client_free(struct http_client_context *cctx) {
     if (cctx->persistent) {
         int fd = cctx->fd;
         epoll_worker_set_fd_ctx(fd, idle_ctx);
@@ -64,7 +64,7 @@ void http_client_free(struct http_client_pool *client_pool, struct http_client_c
         struct list *client = client_chains + fd;
         list_insert_head(head, client);
     }
-    ctx_pool_put(&client_pool->ctx_pool, RIBS_RESERVED_TO_CONTEXT(cctx));
+    ctx_pool_put(&cctx->pool->ctx_pool, RIBS_RESERVED_TO_CONTEXT(cctx));
 }
 
 /* Idle client, ignore EPOLLOUT only, close on any other event */
@@ -297,7 +297,7 @@ int http_client_pool_get_request(struct http_client_pool *http_client_pool, stru
     va_end(ap);
     vmbuf_sprintf(&cctx->request, " HTTP/1.1\r\nHost: %s\r\n\r\n", hostname);
     if (0 > http_client_send_request(cctx)) {
-        http_client_free(http_client_pool, cctx);
+        http_client_free(cctx);
         return -1;
     }
     return 0;
