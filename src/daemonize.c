@@ -26,10 +26,211 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <sys/prctl.h>
+#include <sys/wait.h>
+
 #include "logger.h"
 
 static const char *pidfile = NULL;
 static int child_is_up_pipe[2] = { -1, -1 };
+static int daemon_instance = -1;
+static int num_instances = -1;
+static pid_t *children_pids;
+
+static int _logger_init(const char *filename) {
+    int res = 0;
+    if ('|' == *filename) {
+        ++filename;
+        int fds[2];
+        if (0 > pipe(fds))
+            return LOGGER_PERROR("pipe"), -1;
+        int pid = fork();
+        if (0 > pid)
+            return -1;
+        if (0 == pid) {
+            if (0 > dup2(fds[0], STDIN_FILENO))
+                LOGGER_PERROR("dup2"), res = -1;
+            close(fds[0]);
+            close(fds[1]);
+            if (0 > execl("/bin/sh", "/bin/sh", "-c", filename, NULL))
+                LOGGER_PERROR("execl: %s", filename), res = -1;
+        } else {
+            if (0 > dup2(fds[1], STDOUT_FILENO) ||
+                0 > dup2(fds[1], STDERR_FILENO))
+                LOGGER_PERROR("dup2"), res = -1;
+            close(fds[0]);
+            close(fds[1]);
+        }
+    } else {
+        // open
+        int fd = open(filename, O_CREAT | O_WRONLY | O_APPEND, 0644);
+        if (fd < 0)
+            return LOGGER_PERROR(filename), -1;
+        if (0 > dup2(fd, STDOUT_FILENO) ||
+            0 > dup2(fd, STDERR_FILENO))
+            LOGGER_PERROR("dup2"), res = -1;
+        close(fd);
+    }
+    return res;
+}
+
+static void _cleanup_pidfile(void) {
+    if (pidfile) unlink(pidfile);
+}
+
+static int _set_pidfile(const char *filename) {
+    if (pidfile)
+        return LOGGER_ERROR("pidfile is already set"), -1;
+    pidfile = filename;
+    struct vmfile vmf_pid = VMFILE_INITIALIZER;
+    if (0 > vmfile_init(&vmf_pid, pidfile, 4096))
+        return -1;
+    vmfile_sprintf(&vmf_pid, "%d", (int)getpid());
+    vmfile_close(&vmf_pid);
+    if (0 != atexit(_cleanup_pidfile))
+        return -1;
+    return 0;
+}
+
+static void signal_handler(int signum) {
+    switch(signum) {
+    case SIGINT:
+    case SIGTERM:
+        epoll_worker_exit();
+        break;
+    default:
+        LOGGER_ERROR("unknown signal");
+    }
+}
+
+static int _set_signals(void) {
+    struct sigaction sa = {
+        .sa_handler = signal_handler,
+        .sa_flags = 0
+    };
+    sigaction(SIGTERM, &sa, NULL);
+    sigaction(SIGINT, &sa, NULL);
+    return 0;
+}
+
+static int _init_subprocesses(const char *pidfilename, int num_forks) {
+    if (0 >= num_forks) {
+        num_forks = sysconf(_SC_NPROCESSORS_CONF);
+        if (0 > num_forks)
+            exit(EXIT_FAILURE);
+    }
+    LOGGER_INFO("num forks = %d", num_forks);
+    num_instances = num_forks;
+    daemon_instance = 0;
+    children_pids = calloc(num_forks - 1, sizeof(pid_t));
+    int i;
+    for (i = 1; i < num_forks; ++i) {
+        LOGGER_INFO("starting sub-process %d", i);
+        pid_t pid = fork();
+        if (0 > pid) return LOGGER_PERROR("fork"), -1;
+        if (0 == pid) {
+            daemon_instance = i;
+            if (0 > prctl(PR_SET_PDEATHSIG, SIGTERM))
+                return LOGGER_PERROR("prctl"), -1;
+            if (0 > _set_signals())
+                return LOGGER_ERROR("failed to set signals"), -1;
+            LOGGER_INFO("sub-process %d started", i);
+            break;
+        } else
+            children_pids[i-1] = pid;
+    }
+    if (daemon_instance == 0) {
+        if (pidfilename && 0 > _set_pidfile(pidfilename))
+            return LOGGER_ERROR("failed to set pidfile"), -1;
+        if (0 > _set_signals())
+            return LOGGER_ERROR("failed to set signals"), -1;
+    }
+    return 0;
+}
+
+static int ribs_server_init_daemon(const char *pidfilename, const char *logfilename, int num_forks) {
+    if (0 > pipe(child_is_up_pipe))
+        return LOGGER_ERROR("failed to create pipe"), -1;
+
+    pid_t pid = fork();
+    if (pid < 0)
+        return LOGGER_PERROR("ribs_server_init_daemon, fork"), -1;
+
+    if (pid > 0) {
+        close(child_is_up_pipe[1]); /* close the write side */
+        /* wait for child to come up */
+        uint8_t t;
+        int res;
+        LOGGER_INFO("waiting for the child process [%d] to start...", pid);
+        if (0 >= (res = read(child_is_up_pipe[0], &t, sizeof(t)))) {
+            if (0 > res)
+                LOGGER_PERROR("pipe");
+            LOGGER_ERROR("child process failed to start");
+            return -1;
+        }
+        LOGGER_INFO("child process started successfully");
+        exit(EXIT_SUCCESS);
+    }
+    close(child_is_up_pipe[0]); /* close the read side */
+
+    umask(0);
+
+    if (0 > setsid())
+        return LOGGER_PERROR("daemonize, setsid"), -1;
+
+    int fdnull = open("/dev/null", O_RDWR);
+    if (0 > fdnull)
+        return LOGGER_PERROR("/dev/null"), -1;
+
+    dup2(fdnull, STDIN_FILENO);
+    if (logfilename) {
+        if (0 > _logger_init(logfilename))
+            return -1;
+    } else {
+        dup2(fdnull, STDOUT_FILENO);
+        dup2(fdnull, STDERR_FILENO);
+    }
+    close(fdnull);
+    LOGGER_INFO("child process started");
+    return _init_subprocesses(pidfilename, num_forks);
+}
+
+int ribs_server_init(int daemonize, const char *pidfilename, const char *logfilename, int num_forks) {
+    if (daemonize)
+        return ribs_server_init_daemon(pidfilename, logfilename, num_forks);
+    /* if (logfilename && 0 > _logger_init(logfilename)) */
+    /*     exit(EXIT_FAILURE); */
+    return _init_subprocesses(pidfilename, num_forks);
+}
+
+int ribs_server_signal_children(int sig) {
+    if (0 >= num_instances || 0 != daemon_instance)
+        return 0;
+    int i, res = 0;
+    for (i = 0; i < num_instances-1; ++i) {
+        if (0 > kill(children_pids[i], sig)) {
+            LOGGER_PERROR("kill [%d] %d", sig, children_pids[i]);
+            res = -1;
+        }
+    }
+    return res;
+}
+
+void ribs_server_start(void) {
+    daemon_finalize();
+    epoll_worker_loop();
+    if (0 >= num_instances || 0 != daemon_instance)
+        return;
+    LOGGER_INFO("sending SIGTERM to sub-processes");
+    ribs_server_signal_children(SIGTERM);
+    LOGGER_INFO("waiting for sub-processes to exit");
+    int i, status;
+    for (i = 0; i < num_instances-1; ++i) {
+        if (0 > waitpid(children_pids[i], &status, 0))
+            LOGGER_PERROR("waitpid %d", children_pids[i]);
+    }
+    LOGGER_INFO("sub-processes terminated");
+}
 
 int daemonize(void) {
     if (0 > pipe(child_is_up_pipe))
@@ -42,12 +243,11 @@ int daemonize(void) {
     }
 
     if (pid > 0) {
-        LOGGER_INFO("daemonize started (pid=%d)", pid);
         close(child_is_up_pipe[1]); /* close the write side */
         /* wait for child to come up */
         uint8_t t;
         int res;
-        LOGGER_INFO("waiting for the child process to start...");
+        LOGGER_INFO("waiting for the child process [%d] to start...", pid);
         if (0 >= (res = read(child_is_up_pipe[0], &t, sizeof(t)))) {
             if (0 > res)
                 LOGGER_PERROR("pipe");
@@ -76,10 +276,13 @@ int daemonize(void) {
     pid = getpid();
 
     LOGGER_INFO("child process started (pid=%d)", pid);
+
     return 0;
 }
 
 void daemon_finalize(void) {
+    if (daemon_instance > 0)
+        return;
     if (0 > child_is_up_pipe[1])
         return;
     uint8_t t = 0;
@@ -91,66 +294,15 @@ void daemon_finalize(void) {
 }
 
 int ribs_logger_init(const char *filename) {
-    if ('|' == *filename) {
-        // popen
-        ++filename;
-        FILE *fp = popen(filename, "w");
-        if (NULL != fp) {
-            int fd = fileno(fp);
-            if (0 > dup2(fd, STDOUT_FILENO) ||
-                0 > dup2(fd, STDERR_FILENO))
-                return perror("dup2"), -1;
-            close(fd);
-         } else
-            return -1;
-    } else {
-        // open
-        int fd = open(filename, O_CREAT | O_WRONLY | O_APPEND, 0644);
-        if (fd < 0)
-            return perror(filename), -1;
-        if (0 > dup2(fd, STDOUT_FILENO) ||
-            0 > dup2(fd, STDERR_FILENO))
-            return perror("dup2"), -1;
-        close(fd);
-    }
-    return 0;
-}
-
-static void cleanup_pidfile(void) {
-    if (pidfile) unlink(pidfile);
-}
-
-static void signal_handler(int signum) {
-    switch(signum) {
-    case SIGINT:
-    case SIGTERM:
-        epoll_worker_exit();
-        break;
-    default:
-        LOGGER_ERROR("unknown signal");
-    }
+    return _logger_init(filename);
 }
 
 int ribs_set_signals(void) {
-    struct sigaction sa = {
-        .sa_handler = signal_handler,
-        .sa_flags = 0
-    };
-    sigaction(SIGTERM, &sa, NULL);
-    sigaction(SIGINT, &sa, NULL);
-    return 0;
+    return _set_signals();
 }
 
 int ribs_set_pidfile(const char *filename) {
-    if (pidfile)
-        return LOGGER_ERROR("pidfile is already set"), -1;
-    pidfile = filename;
-    struct vmfile vmf_pid = VMFILE_INITIALIZER;
-    if (0 > vmfile_init(&vmf_pid, pidfile, 4096))
+    if (0 > _set_pidfile(filename))
         return -1;
-    vmfile_sprintf(&vmf_pid, "%d", (int)getpid());
-    vmfile_close(&vmf_pid);
-    if (0 != atexit(cleanup_pidfile))
-        return -1;
-    return ribs_set_signals();
+    return _set_signals();
 }
