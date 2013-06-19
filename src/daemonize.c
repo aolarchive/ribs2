@@ -28,6 +28,7 @@
 #include <signal.h>
 #include <sys/prctl.h>
 #include <sys/wait.h>
+#include <sys/signalfd.h>
 
 #include "logger.h"
 
@@ -92,11 +93,35 @@ static int _set_pidfile(const char *filename) {
     return 0;
 }
 
+#define CLD_ENUM_STR(x) case x: return #x
+static const char *_get_exit_reason(siginfo_t *info) {
+    switch(info->si_code) {
+        CLD_ENUM_STR(CLD_EXITED);
+        CLD_ENUM_STR(CLD_KILLED);
+        CLD_ENUM_STR(CLD_DUMPED);
+    }
+    return "UNKNOWN";
+}
+
+static void _handle_sig_child(void) {
+    siginfo_t info;
+    memset(&info, 0, sizeof(info));
+    if (0 > waitid(P_ALL, 0, &info, WEXITED | WNOWAIT | WNOHANG))
+        return LOGGER_PERROR("waitid");
+    if (info.si_pid > 0) {
+        LOGGER_ERROR("child process [%d] terminated unexpectedly: %s, status=%d", info.si_pid, _get_exit_reason(&info), info.si_status);
+        epoll_worker_exit();
+    }
+}
+
 static void signal_handler(int signum) {
     switch(signum) {
     case SIGINT:
     case SIGTERM:
         epoll_worker_exit();
+        break;
+    case SIGCHLD:
+        _handle_sig_child();
         break;
     default:
         LOGGER_ERROR("unknown signal");
@@ -110,6 +135,7 @@ static int _set_signals(void) {
     };
     sigaction(SIGTERM, &sa, NULL);
     sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGCHLD, &sa, NULL);
     return 0;
 }
 
@@ -221,6 +247,11 @@ void ribs_server_start(void) {
     epoll_worker_loop();
     if (0 >= num_instances || 0 != daemon_instance)
         return;
+    struct sigaction sa = {
+        .sa_handler = SIG_DFL,
+        .sa_flags = 0
+    };
+    sigaction(SIGCHLD, &sa, NULL);
     LOGGER_INFO("sending SIGTERM to sub-processes");
     ribs_server_signal_children(SIGTERM);
     LOGGER_INFO("waiting for sub-processes to exit");
