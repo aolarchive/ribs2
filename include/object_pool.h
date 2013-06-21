@@ -39,25 +39,26 @@ _RIBS_INLINE_ int object_pool_grow(struct object_pool *op, size_t growby) {
     size_t i;
     LOGGER_INFO("object_pool<%zu>: allocating %zu elements", op->object_size, growby);
     void *mem = calloc(growby, op->object_size);
+    vmbuf_alloc(&op->pool, growby * sizeof(uintptr_t));
     for (i = 0; i < growby; ++i, mem += op->object_size) {
         if (op->init_object)
             op->init_object(mem);
-        *(uintptr_t *)vmbuf_wloc(&op->pool) = (uintptr_t)mem;
-        vmbuf_wseek(&op->pool, sizeof(uintptr_t));
+        *(uintptr_t *)vmbuf_rloc(&op->pool) = (uintptr_t)mem;
+        vmbuf_rseek(&op->pool, sizeof(uintptr_t));
     }
     return 0;
 }
 
 _RIBS_INLINE_ void *object_pool_get(struct object_pool *op) {
-    if (0 == vmbuf_wlocpos(&op->pool) && 0 > object_pool_grow(op, op->grow))
+    if (0 == vmbuf_rlocpos(&op->pool) && 0 > object_pool_grow(op, op->grow))
         return NULL;
-    vmbuf_wrewind(&op->pool, sizeof(uintptr_t));
-    return (void *)(*(uintptr_t *)vmbuf_wloc(&op->pool));
+    vmbuf_rrewind(&op->pool, sizeof(uintptr_t));
+    return (void *)(*(uintptr_t *)vmbuf_rloc(&op->pool));
 }
 
 _RIBS_INLINE_ void object_pool_put(struct object_pool *op, void *mem) {
-    *(uintptr_t *)vmbuf_wloc(&op->pool) = (uintptr_t)mem;
-    vmbuf_unsafe_wseek(&op->pool, sizeof(uintptr_t));
+    *(uintptr_t *)vmbuf_rloc(&op->pool) = (uintptr_t)mem;
+    vmbuf_rseek(&op->pool, sizeof(uintptr_t));
     return ;
 }
 
