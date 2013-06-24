@@ -141,7 +141,7 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
     memset(null_terminate_str, 0, sizeof(int) * n);
 
     struct file_writer ffields[n];
-    struct file_writer vfields[2][n];
+    struct ds_var_field_writer vfields[n];
 
     struct vmbuf buf = VMBUF_INITIALIZER;
     vmbuf_init(&buf, 4096);
@@ -168,8 +168,7 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
     unsigned int i;
     for (i = 0; i < n; ++i) {
         file_writer_make(&ffields[i]);
-        file_writer_make(&vfields[0][i]);
-        file_writer_make(&vfields[1][i]);
+        DS_VAR_FIELD_WRITER_INIT(vfields[i]);
     }
 
     struct hashtable ht_types = HASHTABLE_INITIALIZER;
@@ -209,13 +208,7 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
 
         mkdir_for_file_recursive(vmbuf_data(&buf));
         if (is_var_length_field(field_types[i])) {
-            size_t ofs = vmbuf_wlocpos(&buf);
-            vmbuf_sprintf(&buf, ".ofs");
-            if (0 > (err = file_writer_init(&vfields[0][i], vmbuf_data(&buf))))
-                break;
-            vmbuf_wlocset(&buf, ofs);
-            vmbuf_sprintf(&buf, ".dat");
-            if (0 > (err = file_writer_init(&vfields[1][i], vmbuf_data(&buf))))
+            if (0 > (err = ds_var_field_writer_init(&vfields[i], vmbuf_data(&buf))))
                 break;
         } else {
             ds_type = get_ds_type(field_types[i], bind[i].is_unsigned);
@@ -273,13 +266,11 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
         }
         for (i = 0; i < n; ++i) {
             if (is_var_length_field(field_types[i])) {
-                size_t ofs = file_writer_wlocpos(&vfields[1][i]);
-                if (0 > (err = file_writer_write(&vfields[0][i], &ofs, sizeof(ofs))) ||
-                    0 > (err = file_writer_write(&vfields[1][i], is_null[i] ? NULL : bind[i].buffer, is_null[i] ? 0 : length[i])))
+                if (0 > (err = ds_var_field_writer_write(&vfields[i], is_null[i] ? NULL : bind[i].buffer, is_null[i] ? 0 : length[i])))
                     goto dumper_error;
                 if (null_terminate_str[i]) {
                     const char c = '\0';
-                    if (0 > (err = file_writer_write(&vfields[1][i], &c, sizeof(c))))
+                    if (0 > (err = ds_var_field_writer_append(&vfields[i], &c, sizeof(c))))
                         goto dumper_error;
                 }
             } else {
@@ -309,11 +300,8 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
      */
     for (i = 0; i < n; ++i) {
         if (is_var_length_field(field_types[i])) {
-            size_t ofs = file_writer_wlocpos(&vfields[1][i]);
-            if (0 > (err = file_writer_write(&vfields[0][i], &ofs, sizeof(ofs))))
+            if (0 > (err = ds_var_field_writer_close(&vfields[i])))
                 LOGGER_ERROR("failed to write offset");
-            file_writer_close(&vfields[0][i]);
-            file_writer_close(&vfields[1][i]);
         } else {
             file_writer_close(&ffields[i]);
         }

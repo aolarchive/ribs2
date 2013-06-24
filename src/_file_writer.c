@@ -109,14 +109,19 @@ _RIBS_INLINE_ int file_writer_write(struct file_writer *fw, const void *buf, siz
     return 0;
 }
 
+_RIBS_INLINE_ int file_writer_align(struct file_writer *fw) {
+    return file_writer_wseek(fw, ((fw->write_loc + (size_t)7) & ~((size_t)7)) - fw->write_loc);
+}
+
 _RIBS_INLINE_ int file_writer_close(struct file_writer *fw) {
+    int res = 0;
     if (fw->fd < 0)
         return 0;
     if (0 > munmap(fw->mem, fw->buffer_size))
         perror("munmap, file_writer_close");
     if (0 > ftruncate(fw->fd, fw->write_loc))
-        perror("ftruncate, file_writer_close");
+        perror("ftruncate, file_writer_close"), res = -1;
     close(fw->fd);
     fw->fd = -1;
-    return 0;
+    return res;
 }

@@ -81,6 +81,7 @@ static inline int var_index_gen_generate_ds_file (const char *base_path, const c
     if (0 > ds_var_field_init(&var_field, filename))
         return LOGGER_ERROR("failed to init datastore"), -1;
 
+    strcat(filename, ".keys");
     struct hashtablefile ht_keys = HASHTABLEFILE_INITIALIZER;
     if (0 > hashtablefile_init_create(&ht_keys, filename, var_field.num_elements))
         return LOGGER_ERROR("failed to init hashtablefile"), _exit_clean(&var_field), -1;
@@ -93,8 +94,8 @@ static inline int var_index_gen_generate_ds_file (const char *base_path, const c
     vmbuf_init(&fw_idx, sizeof(struct var_index_gen_fw_index) * var_field.num_elements);
     struct var_index_gen_fw_index *fw = (struct var_index_gen_fw_index *)vmbuf_data(&fw_idx);
     void *data = file_mapper_data(&var_field.data);
-    size_t *rec_begin = (size_t *) file_mapper_data(&var_field.ofs_table);
-    size_t *rec_end = ((size_t *) file_mapper_data(&var_field.ofs_table)) + var_field.num_elements;
+    size_t *rec_begin = var_field.ofs_table;
+    size_t *rec_end = var_field.ofs_table + var_field.num_elements;
     size_t *rec = rec_begin;
     char *str = NULL;
     for (; rec != rec_end; ++rec, ++fw) {

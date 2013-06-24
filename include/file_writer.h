@@ -52,6 +52,7 @@ _RIBS_INLINE_ size_t file_writer_wlocpos(struct file_writer *fw);
 _RIBS_INLINE_ int file_writer_wseek(struct file_writer *fw, size_t n);
 _RIBS_INLINE_ int file_writer_lseek(struct file_writer *fw, off_t offset, int whence);
 _RIBS_INLINE_ int file_writer_write(struct file_writer *fw, const void *buf, size_t size);
+_RIBS_INLINE_ int file_writer_align(struct file_writer *fw);
 _RIBS_INLINE_ int file_writer_close(struct file_writer *fw);
 
 #include "../src/_file_writer.c"
