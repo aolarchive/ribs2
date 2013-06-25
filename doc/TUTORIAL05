@@ -2,3 +2,547 @@
 '
 | TUTORIAL05 - dumping data and creating index
 `---------------------------------------------
+
+In this tutorial we will build a simple MySQL dumper. The following
+topics will be covered:
+* Dumping out the result of a query on a MySQL database
+* Creating an index on the dump
+* Loading in the dump data
+* Using an index to lookup a key
+* Retrieving data from the dump data
+
+Step 1, creating the project and make files
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Create the following directories under 'projects' (see TUTORIAL01):
+* mydump
+* mydump/src
+
+Create and edit file called mydump/src/mydumper.mk and paste
+the following lines:
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   TARGET=mydumper    # the name of the executable
+
+   SRC=mydumper.c     # list of source files
+
+   RIBIFY=libmysqlclient.a  # ribify this needed library
+
+   # we need to tell gcc where to find the include files of ribs2
+   CFLAGS+= -I ../../ribs2/include
+
+   # we need to tell the linker where to find ribs2 libraries
+   LDFLAGS+= -L ../../ribs2/lib -lribs2 -lribs2_mysql
+
+   # as well as where to find the mysql libraries
+   LDFLAGS+=-L../ribified -pthread -lribs2_mysql -lmysqlclient \
+                   -lm -lz -ldl -L../../ribs2/lib -lribs2
+
+   include ../../ribs2/make/ribs.mk  # include ribs2 make system
+.                                                                   .
+|___________________________________________________________________|
+
+This will be the make file for our dumper program, which requires
+the ribs2 library as well as the ribs2_mysql and mysqlclient
+libraries that are linked and ribified as well.
+
+Also create a simple main, mydump/src/mydumper.c
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   #include "ribs.h"
+
+   int main(void){
+      return 0;
+   }
+.                                                                   .
+|___________________________________________________________________|
+
+We will also need another program for reading in and outputting the
+data so we also need to create the file mydump/src/mydump.mk
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   TARGET=mydump    # the name of the executable
+
+   SRC=mydump.c mydump_data.c # list of source files
+
+   # we need to tell gcc where to find the include files of ribs2
+   CFLAGS+= -I ../../ribs2/include
+   # as well as include files in the local directory
+   CFLAGS+= -I .
+
+   # we need to tell the linker where to find ribs2 libraries
+   LDFLAGS+= -L ../../ribs2/lib -lribs2
+
+   include ../../ribs2/make/ribs.mk  # include ribs2 make system
+.                                                                   .
+|___________________________________________________________________|
+
+Also create a simple main in mydump/src/mydump.c
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   #include "ribs.h"
+   #include "mydump_data.h"
+
+   int main(void){
+      return 0;
+   }
+.                                                                   .
+|___________________________________________________________________|
+
+Also create:
+   mydump/src/mydump_data.h
+   mydump/src/mydump_data.c
+
+We will leave these files blank for now, but we will need them later
+
+We will also need a makefile to build these individual
+makefiles at mydump/src/Makefile
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   all:
+      @$(MAKE) -s -f mydump.mk
+      @$(MAKE) -s -f mydumper.mk
+
+   clean:
+      @$(MAKE) -s -f mydump.mk clean
+      @$(MAKE) -s -f mydumper.mk clean
+.                                                                   .
+|___________________________________________________________________|
+
+If you have a top level makefile (as implemented in TUTORIAL01 & 02),
+you should add your new project to it, this is how it should look
+(new lines are commented with '<== add this line'):
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   all:
+         @$(MAKE) -s -C ribs2          # make ribs2 first
+         @echo "[helloworld] build"
+         @$(MAKE) -s -C helloworld/src # make our project
+         @echo "[httpd] build"
+         @$(MAKE) -s -C httpd/src
+         @echo "[mydump] build"              # <== add this line
+         @$(MAKE) -s -C mydump/src           # <== add this line
+
+   clean:
+         @$(MAKE) -s -C ribs2 clean    # clean ribs2
+         @echo "[helloworld] clean"
+         @$(MAKE) -s -C helloworld/src clean  # clean our project
+         @echo "[httpd] clean"
+         @$(MAKE) -s -C httpd/src clean
+         @echo "[mydump] clean"              # <== add this line
+         @$(MAKE) -s -C mydump/src clean     # <== add this line
+.                                                                   .
+|___________________________________________________________________|
+
+Step 2, Setting up a simple, local MySQL database
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+For this a MySQL client and MySQL server must be installed.
+
+Use the command
+   $ mysql
+to open up the mySQL client
+
+Create a database 'test' using the query:
+   CREATE DATABASE test;
+
+and select to use the database 'test':
+   USE test;
+
+We now need to create our test table 'data' in 'test' database:
+   CREATE TABLE data(
+      id INT NOT NULL,
+      name VARCHAR(20) NOT NULL,
+      age INT NOT NULL,
+      PRIMARY KEY (id)
+      );
+
+And insert some values into the table:
+
+   INSERT INTO data VALUES(1, "John", 23);
+   INSERT INTO data VALUES(2, "Theodore", 30);
+   INSERT INTO data VALUES(3, "Laura", 42);
+   INSERT INTO data VALUES(4, "Bob", 28);
+
+The table can then be viewed using one of the queries:
+   SELECT id, name, age FROM data;
+or
+   SELECT * FROM data;
+
+We will use one of these queries for our dumper query
+
+With our MySQL database set up we are now ready to write some code.
+
+Step 3, Creating the Dumper
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+First we will need to include few headers and definitions to our 
+mydumper.c file. Add the following lines above your main and below 
+your ribs.h include:
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   #include "file_utils.h"
+   #include "mysql_dumper.h"
+
+   /* DB_TEST representing the name of the database
+      being connected to */
+   SSTRL(DB_TEST,            "test");
+
+   /* set the client pool timeout */
+   struct http_client_pool client_pool =
+      {.timeout_handler.timeout = 60000};
+.                                                                   .
+|___________________________________________________________________|
+
+We will also need a function for dumping the data, so add the
+following function to your mydumper.c file above your main:
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   /* the function to dump the test db data table */
+   int dump_test_data(
+      const char *base_path,
+      struct mysql_login_info login_db_test,
+      struct vmbuf *query) {
+
+      LOGGER_INFO("dumping test_table");
+
+      /* 'DUMPER' macro from mysql_common.h will dump the
+         result of the mysql query on the 'DB_TEST' db into
+         the dump 'test_table' directory */
+      DUMPER(&login_db_test, DB_TEST, "test_table",
+            "SELECT id, name, age FROM data;");
+
+      /* INDEXER_O2O macro will create a one-to-one index on
+         the table column 'id' in the 'test_table' dump */
+      INDEXER_O2O(int32_t, DB_TEST, "test_table", "id");
+
+      /* return 0 if dump and index were created successfully.
+         Macros will return -1 if an error occurs */
+      return 0;
+   }
+.                                                                   .
+|___________________________________________________________________|
+
+This will create a dump of the results of our previously used query
+on our test database into the target directory 'base_'path'
+and also create a one-to-one index of matching data type int32_t on
+the 'id' column to allow for lookup later.
+Since 'id' is unique and the primary key of the table, we create a
+one-to-one index instead of a one-to-many index on 'id'.
+
+Note: Because 'base_path' and 'query' are used in the expansion of
+   the DUMPER macro from mysql_common.h, the passed parameters of
+   dump_test_data() must be the same name.
+
+We now need to configure the database connection and
+target directory by adding the following lines to your main:
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   /* the base directory to be used/created */
+   const char *base_dir = "data";
+   /* the default test db connection string */
+   char DEFAULT_TEST_DB_CONN_STR[] = "@localhost";
+   char *test_db = DEFAULT_TEST_DB_CONN_STR;
+
+   /* create the target directory where the dump(s)
+      will be stored */
+   if( 0 > mkdir_recursive(base_dir)) {
+      LOGGER_ERROR("Failed to create target directory: [%s]",
+         base_dir);
+      exit(EXIT_FAILURE);
+   }
+   LOGGER_INFO("target directory: [%s]", base_dir);
+
+   /* the mysql_login_info struct will be used to
+      access the database */
+   struct mysql_login_info login_db_test;
+
+   /* parse the test_db connection string in case of any errors */
+   /* not necessarily used in this example unless you use a database
+      connection string other than '@localhost' */
+   if (0 > ribs_mysql_parse_db_conn_str(test_db, &login_db_test)) {
+      LOGGER_ERROR("failed to parse DB connection string: [%s]",
+          test_db);
+      exit(EXIT_FAILURE);
+   }
+   login_db_test.db = DB_TEST;
+.                                                                   .
+|___________________________________________________________________|
+
+This will create the target directory 'data' and check the 'test_db'
+connection string and verify that it is correct and then finish
+configuring 'login_db_test'.
+
+Add the following lines of code to initialize the event loop, client
+pool, query buffer and finally calling dump_test_data() to dump the
+data from our MySQL database table:
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   /* initialize the event loop */
+   if( 0 > epoll_worker_init()) {
+      LOGGER_ERROR("epoll_worker_init failed");
+      exit(EXIT_FAILURE);
+   }
+   
+   /* initialize the client pool */
+   http_client_pool_init(&client_pool, 10, 10);
+
+   /* initialize the query buffer used in dump_test_data() */
+   struct vmbuf query = VMBUF_INITIALIZER;
+   vmbuf_init(&query, 65536);
+
+   /* dump the test db data table into its target directory */
+   if( 0 > dump_test_data(base_dir, login_db_test, &query)) {
+      LOGGER_ERROR("Faied to dump data from test db");
+      exit(EXIT_FAILURE);
+   }
+
+   /* return when successful */
+   LOGGER_INFO("completed successfully");
+   exit(EXIT_SUCCESS);
+   return 0;
+.                                                                   .
+|___________________________________________________________________|
+
+Now that our dumper is finished, compile and run mydumper.c and the
+dump will be created in the data/ directory with the following files:
+
+data/
+|_ test/
+   |_ test_table/
+      |_ age
+      |_ ds.txt
+      |_ id
+      |_ id.idx
+      |_ name.dat
+      |_ name.ofs
+      |_ schema.txt
+
+Since 'id' is our index, a id.idx file is created as well.
+Since the data of 'name' is of a variable size, it requires a .dat
+file to hold its data and a .ofs file to hold the offsets of where
+the data item starts in order to retrieve the correct data item.
+
+Step 4, Loading the dump data
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In order to load our data from the dump back into mydump.c, we will
+need the additional source files mydump_data.h and mydump_data.c
+that were created earlier.
+
+First, we need to create mydump/src/mydump.ds , which is the ds file
+used to load data from the dump(s) into the program. the ds file
+will contain the same content as all of the dumps' ds.txt files, but
+it also includes a line in each table for each of the indinces
+created in that table.
+
+In our case, since we are only using one dump table, we only need
+to copy the contents of the ds.txt file in data/test/test_table/ into
+mydump/src/mydump.ds and add the additional line for the index:
+
+   IDX_O2O_LOADER(int32_t, id)
+
+which should result in our mydump.ds file looking like:
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   DS_LOADER_BEGIN()
+   /*
+    * DB: test
+    */
+   #undef DB_NAME
+   #define DB_NAME test
+   /* ============[ test_table ]============ */
+   #   undef TABLE_NAME
+   #   define TABLE_NAME test_table
+           DS_FIELD_LOADER(int32_t, id)
+           DS_VAR_FIELD_LOADER(name)
+           DS_FIELD_LOADER(int32_t, age)
+           IDX_O2O_LOADER(int32_t, id)
+   DS_LOADER_END()
+.                                                                   .
+|___________________________________________________________________|
+
+This will be needed in order to compile mydump_data.c
+
+Now that the mydump.ds file is settled, we will copy the
+following lines into mydump/src/mydump_data.h:
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   #ifndef _MYDUMP_DATA_H_
+   #define _MYDUMP_DATA_H_
+
+   #include "ribs.h"
+
+   #undef DS_LOADER_TYPENAME
+   #undef DS_LOADER_CONFIG
+
+   /* define the ds_loader type */
+   #define DS_LOADER_TYPENAME ds_loader_mydump
+   /* config to the mydump.ds file */
+   #define DS_LOADER_CONFIG "mydump.ds"
+
+   /* ds_loader.h needs to be included in both
+      mydump_data.h and mydump_data.c for
+      code generation */
+   #include "ds_loader.h"
+
+   /* data init and load functions */
+   int mydump_data_init(void);
+   int mydump_data_load(void);
+
+   /* externs to used for accessing the data */
+   extern int active;
+   extern ds_loader_mydump_t data[2];
+
+   #endif// _MYDUMP_DATA_H_
+.                                                                   .
+|___________________________________________________________________|
+
+Defining the DS_LOADER_TYPENAME will create a templated data types
+ds_loader_mydump_t and ds_loader_mydump_files, as well as a templated
+function ds_loader_mydump_init which are used in mydump_data.c.
+
+The externs allow for 'active' and 'data[]' to be called from another
+file, such as mydump.c, so that a get function does not need to be
+implemented to access these variable, aming accessing the loaded data
+simpler to code.
+
+For mydump_data.c, copy the following lines into
+mydump/src/mydump_data.c:
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   #include "ribs.h"
+   #include "mydump_data.h"
+   /* must include again for stage 1 & 2 code generation */
+   #include "ds_loader.h"
+
+   /*extern*/
+   int active = 0;
+   ds_loader_mydump_t data[2];
+
+   /* initialize the dump data */
+   int mydump_data_init(void){
+      memset(&data, 0, sizeof(data));
+      return 0;
+   }
+
+   /* load the dump data in the 'data/' directory */
+   int mydump_data_load(void) {
+      ++active;
+      if(active >1) active = 0;
+      LOGGER_INFO("listing files...");
+      const char **fn = ds_loader_mydump_files;
+      for(;*fn;++fn){
+         LOGGER_INFO("FILE: %s", *fn);
+      }
+
+      int res = ds_loader_mydump_init(&data[active], "data/");
+      LOGGER_INFO("listing files...done");
+         LOGGER_INFO("loading data...");
+      return res;
+   }
+.                                                                   .
+|___________________________________________________________________|
+
+This will initialize and load the data from the dump files into our
+program for simpler and quicker access to the data.
+
+
+Finally, copy the following lines into mydump/src/mydump.c
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+   #include "ribs.h"
+   #include "mydump_data.h"
+
+   int main(void){
+
+      /* initialize and load the dump data */
+      if (0 > mydump_data_init() ||
+                 0 > mydump_data_load())
+         exit(EXIT_FAILURE);
+
+      int id = 1;
+
+      /* get values from index where id = {1, 2, 3, 4} */
+      for(id=1; id <= 4; id++)
+         {
+         /* the other table columns */
+         int32_t age;
+         char * name;
+
+         /* location of data from index lookup */
+         uint32_t loc = 0;
+
+         /* char pointer to beginning of name in data */
+         char* result = "";
+
+         /* size of name data, since variable size */
+         size_t result_size = 0;
+
+         /* index lookup will return -1 if key not found */
+         if( 0> IDX_CONTAINER_O2O_LOOKUP(int32_t,
+                  &data[active].test_test_table_id_idx, id, &loc))
+         {
+            printf("index key [%d] not found\n", id);
+         }
+
+         /* else retrieve results */
+         else {
+            /* get age at loc */
+            age = DS_FIELD_GET_VAL(&data[active].test_test_table_age,
+                            loc);
+
+            /* get char pointer at beginning of data at loc */
+            ds_var_field_get(&data[active].test_test_table_name,
+                     loc, &result, &result_size);
+            
+            /* allocate memory to name according to result size */
+            name = ribs_malloc(result_size + 1);
+
+            /* copy over 'result_size' number of characters
+               from result into name */
+            strncpy(name, result, result_size);
+
+            /* print result */
+            printf("| %d | %s | %d |\n", id, name, age);
+         }
+      }
+      return 0;
+      }
+.                                                                   .
+|___________________________________________________________________|
+
+In order to retrieve the data, it must first be looked up by the
+index and a key, and then located in the data to get the value.
+In the case of a variable length data type such as a string,
+ds_var_field_get() will give the result pointer to the beginning of
+the string, as well as the length of the string, which then can be
+copied over using strncpy().
+
+Note: To access indices or feilds/columns of the dumps' tables in
+order to lookup or get a value from a feild, since the dump has been
+loaded into memory, it can easily be accessed using the 'data[active]'
+extern from mydump_data.h in the format of:
+
+   data[active].<databaseName>_<dumpTableName>_<fieldName> for fields
+or
+   data[active].<databaseName>_<dumpTableName>_<indexName>_idx for indices
+
+Examples of this can be seen in the INDEX_CONTAINER_O2O_LOOKUP and
+DS_FIELD_GET_VAL macros.
+
+
+Compile and run your mydump.c and it should ouput the data from
+the dump, which should be the same data from before in our MySQL
+database.
+

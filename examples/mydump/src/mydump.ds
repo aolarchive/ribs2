@@ -1,0 +1,14 @@
+DS_LOADER_BEGIN()
+/*
+ * DB: test
+ */
+#undef DB_NAME
+#define DB_NAME test
+/* ============[ test_table ]============ */
+#   undef TABLE_NAME
+#   define TABLE_NAME test_table
+        DS_FIELD_LOADER(int32_t, id)
+        DS_VAR_FIELD_LOADER(name)
+        DS_FIELD_LOADER(int32_t, age)
+        IDX_O2O_LOADER(int32_t, id)
+DS_LOADER_END()
