@@ -138,7 +138,7 @@
 #undef DS_VAR_FIELD_LOADER
 #undef VAR_IDX_O2M_LOADER
 
-#define DS_LOADER_BEGIN()                       \
+#define DS_LOADER_BEGIN()                      \
     static const char *MACRO_CONCAT(DS_LOADER_TYPENAME,_files)[] = {
 #define DS_LOADER_END() NULL };
 #define DS_FIELD_LOADER(T,name)                 \
@@ -149,8 +149,8 @@
     DS_MAKE_PATH(DB_NAME,TABLE_NAME,name,".idx"),
 #define DS_VAR_FIELD_LOADER(name)               \
     DS_MAKE_PATH(DB_NAME,TABLE_NAME,name,""),
-#define VAR_IDX_O2M_LOADER(name)               \
-    DS_MAKE_PATH(DB_NAME,TABLE_NAME,name,""),       \
+#define VAR_IDX_O2M_LOADER(name)                        \
+    DS_MAKE_PATH(DB_NAME,TABLE_NAME,name,".keys"),      \
     DS_MAKE_PATH(DB_NAME,TABLE_NAME,name,".idx"),
 
 #undef DS_LOADER_STAGE
