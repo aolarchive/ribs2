@@ -61,6 +61,7 @@ struct mysql_helper_column_map {
         uint64_t *u64;
         double *dbl;
         struct tm *ts;
+        uint64_t *ts_unix;
         char **str;
         const char **cstr;
         void *ptr;
@@ -80,6 +81,7 @@ struct mysql_helper_column_map {
 #define MYSQL_HELPER_COL_MAP_U64(type,name) _MYSQL_HELPER_COL_MAP(type, name, 1, MYSQL_TYPE_LONGLONG, u64)
 #define MYSQL_HELPER_COL_MAP_DBL(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_DOUBLE, dbl)
 #define MYSQL_HELPER_COL_MAP_TS(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_DATETIME, ts)
+#define MYSQL_HELPER_COL_MAP_TS_UNIX(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_LONGLONG, ts_unix)
 #define MYSQL_HELPER_COL_MAP_STR(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_STRING, str)
 #define MYSQL_HELPER_COL_MAP_CSTR(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_STRING, cstr)
 #define MYSQL_HELPER_COL_MAP_CUSTOM_STR(name,value) \
@@ -144,7 +146,8 @@ enum {
     mysql_helper_field_type_dbl,
     mysql_helper_field_type_str,
     mysql_helper_field_type_cstr,
-    mysql_helper_field_type_ts
+    mysql_helper_field_type_ts,
+    mysql_helper_field_type_ts_unix
 };
 
 /* field declaration helper macros */
@@ -168,6 +171,7 @@ static inline const char *_mysql_helper_field_type_to_str(int type) {
         _MYSQL_HELPER_FIELD_TYPE_TO_STR(str);
         _MYSQL_HELPER_FIELD_TYPE_TO_STR(cstr);
         _MYSQL_HELPER_FIELD_TYPE_TO_STR(ts);
+        _MYSQL_HELPER_FIELD_TYPE_TO_STR(ts_unix);
         default: return "unknown";
     }
 }

@@ -509,7 +509,11 @@ void mysql_helper_generate_select(struct vmbuf *outbuf, const char *table, struc
     vmbuf_strcpy(outbuf, "SELECT ");
     size_t i;
     for (i = 0; i < n; ++i) {
-        vmbuf_sprintf(outbuf, "`%s`,", columns[i].name);
+        if (columns[i].meta.type == mysql_helper_field_type_ts_unix) {
+            vmbuf_sprintf(outbuf, "UNIX_TIMESTAMP(`%s`),", columns[i].name);
+        } else {
+            vmbuf_sprintf(outbuf, "`%s`,", columns[i].name);
+        }
     }
     vmbuf_remove_last_if(outbuf, ',');
     vmbuf_sprintf(outbuf, " FROM %s", table);
@@ -528,8 +532,13 @@ int mysql_helper_generate_insert(struct vmbuf *outbuf, const char *table,
     }
     vmbuf_remove_last_if(outbuf, ',');
     vmbuf_strcpy(outbuf, ") VALUES (");
-    for (i = 0; i < nparams; ++i)
-        vmbuf_strcpy(outbuf, "?,");
+    for (i = 0; i < nparams; ++i) {
+        if (params[i].meta.type == mysql_helper_field_type_ts_unix) {
+            vmbuf_strcpy(outbuf, "FROM_UNIXTIME(?),");
+        } else {
+            vmbuf_strcpy(outbuf, "?,");
+        }
+    }
     for (i = 0; i < nfixed_values; ++i)
         vmbuf_sprintf(outbuf, "%s,", fixed_values[i].data.custom_str);
     vmbuf_remove_last_if(outbuf, ',');
@@ -545,7 +554,11 @@ int mysql_helper_generate_update(struct vmbuf *outbuf, const char *table,
     size_t i;
     vmbuf_sprintf(outbuf, "UPDATE `%s` SET", table);
     for (i = 0; i < nparams; ++i) {
-        vmbuf_sprintf(outbuf, " `%s`=?,", params[i].name);
+        if (params[i].meta.type == mysql_helper_field_type_ts_unix) {
+            vmbuf_sprintf(outbuf, "`%s`=FROM_UNIXTIME(?),", params[i].name);
+        } else {
+            vmbuf_sprintf(outbuf, "`%s`=?,", params[i].name);
+        }
     }
     for (i = 0; i < nfixed_values; ++i) {
         vmbuf_sprintf(outbuf, " `%s`=%s,", fixed_values[i].name, fixed_values[i].data.custom_str);
