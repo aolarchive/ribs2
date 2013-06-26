@@ -1,0 +1,305 @@
+ _________________________________________________
+'
+| TUTORIAL06 - Using MongoDB C driver using ribify
+`-------------------------------------------------
+
+In this tutorial we will connect to a MongoDB instance.
+The following topics will be covered:
+* Ribifying a 3rd party library
+* Object Pools
+* Returning text output from the server
+* Working with MongoDB and BSON
+
+Step 0, install and seutp MongoDB
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1. On Debian based Linux you can simply run:
+$ sudo apt-get install mongodb
+
+2. To create a collection with some test data use the CLI tool
+provided with the mongodb package:
+
+$ mongo
+MongoDB shell version: 2.2.4
+connecting to: test
+> show dbs
+local    (empty)
+> use tutorial06
+switched to db tutorial06
+> db.tutorial06.insert({name: "first", num: 1})
+> db.tutorial06.insert({name: "second", num: 2})
+> db.tutorial06.insert({name: "third", num: 3})
+> db.tutorial06.find({})
+{ "_id" : ObjectId("51c9046eff59dedaf3b61999"),
+  "name" : "first", "num" : 1 }
+{ "_id" : ObjectId("51c90474ff59dedaf3b6199a"),
+  "name" : "second", "num" : 2 }
+{ "_id" : ObjectId("51c9047aff59dedaf3b6199b"),
+  "name" : "third", "num" : 3 }
+> exit
+bye
+
+Now we have a MongoDB collection with 3 documents.
+
+Step 1, get mongo-c-driver from github
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In your 'projects' directory (see TUTORIAL01) run:
+$ git clone https://github.com/mongodb/mongo-c-driver.git
+
+Checkout v0.7.1 tag
+$ cd mongo-c-driver
+$ git checkout v0.7.1
+
+Step 2, create your new project
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+This project will build on the result of TUTORIAL01: Hello, world!
+
+Create a copy of your helloworld project or copy the solution from
+ribs2/doc/examples/helloworld to the 'projects' directory
+
+Rename helloworld directory and helloworld.c to mongotest and
+mongotest.c. Your directory structure under 'projects' should look
+like this:
+
+[projects]
+|-- [ribs2]
+|   |... skip ...
+|   `-- [src]
+|-- [mongo-c-driver]
+|   |... skip ...
+|-- [mongotest]           - the directory for this tutorial
+|   `-- [src]             - the directory for the source code
+|       |-- mongotest.c   - the code for this tutorial
+|       `-- Makefile      - project's make file
+`-- Makefile              - your top level make file
+
+Step 3, update make files
+~~~~~~~~~~~~~~~~~~~~~~~~~
+We have to add mongo-c-driver and the new mongotest project to
+the top-level Makefile. In the end the top level Makefile should
+look like this:
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+all:
+    @$(MAKE) -s -C ribs2          # make ribs2 first
+    @echo "[mongo-c-driver] build"
+    @$(MAKE) -s -C mongo-c-driver # make mongo-c-driver
+    @echo "[mongotest] build"
+    @$(MAKE) -s -C mongotest/src  # make our project
+clean:
+    @$(MAKE) -s -C ribs2 clean           # clean ribs2
+    @echo "[mongo-c-driver] clean"
+    @$(MAKE) -s -C mongo-c-driver clean  # clean mongo-c-driver
+    @echo "[mongotest] clean"
+    @$(MAKE) -s -C mongotest/src clean   # clean our project
+.                                                                   .
+|___________________________________________________________________|
+
+We also have to change the mongotest project Makefile.
+
+1. Change the source and target from helloworld to mongotest.
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+TARGET=mongotest
+SRC=mongotest.c
+.                                                                   .
+|___________________________________________________________________|
+
+
+2. Instruct the RIBS make system to 'ribify' mongo-c-driver.
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+RIBIFY=libmongoc.a libbson.a
+RIBIFY_LIB_PATH=../../mongo-c-driver
+.                                                                   .
+|___________________________________________________________________|
+
+
+2. Add include path for the mongo-c-driver header files.
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+CFLAGS+= -I ../../ribs2/include -I ../../mongo-c-driver/src
+.                                                                   .
+|___________________________________________________________________|
+
+
+3. Include ribified Mongo and BSON libraries
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+LDFLAGS+= -L ../ribified -L ../../ribs2/lib -lmongoc -lbson -lribs2
+.                                                                   .
+|___________________________________________________________________|
+
+In the end the project Makefile should look like this
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+TARGET=mongotest
+SRC=mongotest.c
+
+RIBIFY=libmongoc.a libbson.a
+RIBIFY_LIB_PATH=../../mongo-c-driver
+
+CFLAGS+= -I ../../ribs2/include -I ../../mongo-c-driver/src
+LDFLAGS+= -L ../ribified -L ../../ribs2/lib -lmongoc -lbson -lribs2
+
+include ../../ribs2/make/ribs.mk
+.                                                                   .
+|___________________________________________________________________|
+
+Run make in 'projects' directory to build mongo-c-driver, ribs2, and
+mongotest project.
+
+Step 4, add a mongo connection pool to your application
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. Include mongo c driver in your application.
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+#define MONGO_HAVE_STDINT
+#define MONGO_HAVE_UNISTD
+#define MONGO_USE__INT64
+
+#include "ribs.h"
+#include "mongo.h"
+.                                                                   .
+|___________________________________________________________________|
+
+
+2. Define a function that initializes a MongoDB connection.
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+static void mongo_conn_init(void *mem) {
+    mongo *m = (mongo *)mem;
+
+    if (mongo_client(m, "127.0.0.1", 27017) != MONGO_OK) {
+        printf("Failed to connect to MongoDB!\n");
+        exit(EXIT_FAILURE);
+    }
+}
+.                                                                   .
+|___________________________________________________________________|
+
+
+3. Declare the object pool and give it a pointer to the init function.
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+struct object_pool mongo_conn_pool = {
+    .object_size = sizeof(mongo),
+    .initial_size = 32,
+    .grow = 32,
+    .init_object = mongo_conn_init, /* initializer function */
+    VMBUF_INITIALIZER
+};
+.                                                                   .
+|___________________________________________________________________|
+
+
+4. Initialize the object pool in main(). The following code should
+go somewhere after epoll_worker_init() and before epoll_worker_loop()
+at the end of main(). Connecting to MongoDB requires Epoll worker to
+be active.
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+/* initialize mongodb connection pool */
+if (0 > object_pool_init(&mongo_conn_pool)) {
+    printf("mongo connection pool init failed!\n");
+    exit(EXIT_FAILURE);
+}
+.                                                                   .
+|___________________________________________________________________|
+
+
+Step 4, query mongodb in request handler
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Here's what the new 'my_server()' function would look like.
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+static void my_server(void) {
+    /* Use the global http_server_get_context() function to get a
+       pointer to the current http server context. */
+    struct http_server_context *http_ctx = http_server_get_context();
+    bson empty;
+
+    /* Get a mongodb connection from the pool. This will auto-
+     * matically create a new connect if necessary and initialize
+     * it. */
+    mongo *conn = object_pool_get(&mongo_conn_pool);
+    mongo_cursor cursor;
+    mongo_cursor_init(&cursor, conn, "tutorial06.tutorial06");
+    mongo_cursor_set_query(&cursor, bson_empty(&empty));
+
+    bson_iterator i;
+    while (mongo_cursor_next(&cursor) == MONGO_OK) {
+        bson_iterator_init(&i, (bson *)mongo_cursor_bson(&cursor));
+
+        /* Iterate through the BSON object and emit some basic JSON */
+        vmbuf_strcpy(&http_ctx->payload, "{");
+        while (bson_iterator_next(&i)) {
+            bson_type t = bson_iterator_type(&i);
+            if (t == 0)
+                break;
+            const char *key = bson_iterator_key(&i);
+            switch ( t ) {
+            case BSON_DOUBLE:
+                vmbuf_sprintf(&http_ctx->payload, "\"%s\": %.2f," , key,
+                              bson_iterator_double(&i));
+                break;
+            case BSON_STRING:
+                vmbuf_sprintf(&http_ctx->payload, "\"%s\": \"%s\",", key,
+                              bson_iterator_string(&i));
+                break;
+            default:
+                break;
+            }
+        }
+        vmbuf_remove_last_if(&http_ctx->payload, ',');
+        vmbuf_strcpy(&http_ctx->payload, "},");
+    }
+    vmbuf_remove_last_if(&http_ctx->payload, ',');
+
+    mongo_cursor_destroy(&cursor);
+    object_pool_put(&mongo_conn_pool, conn);
+    http_server_response(HTTP_STATUS_200, HTTP_CONTENT_TYPE_TEXT_PLAIN);
+}
+.                                                                   .
+|___________________________________________________________________|
+
+You can now test the performance of your new server (throughput and
+latency), we will be using apache benchmark which is part of
+apache2-utils package.
+ ___________________________________________________________________
+|                                                                   |
+.                                                                   .
+# Re-build the project and dependencies. In 'projects' run:
+$ make clean
+$ make
+
+# run the server
+$ ./mongotest/bin/mongotest &
+
+# test that the server outputs the expected records from MongoDB
+$ curl "http://localhost:8080/"
+{"name": "first","num": 1.00},
+{"name": "second","num": 2.00},
+{"name": "third","num": 3.00}
+
+# run apache-benchmark
+$ ab -kc8 -n 1000000 http://localhost:8080/
+
+# -k for persistent connections, -c for concurrency of 8,
+# -n for 1 million requests
+
+# stop the server with:
+$ kill `pidof mongotest`
+.                                                                   .
+|___________________________________________________________________|
