@@ -23,6 +23,7 @@
 int ribs_server_init(int daemonize, const char *pidfilename, const char *logfilename, int num_forks);
 int ribs_server_signal_children(int sig);
 void ribs_server_start(void);
+int ribs_get_daemon_instance(void);
 int daemonize(void);
 void daemon_finalize(void);
 int ribs_logger_init(const char *filename);

@@ -34,7 +34,7 @@
 
 static const char *pidfile = NULL;
 static int child_is_up_pipe[2] = { -1, -1 };
-static int daemon_instance = -1;
+static int daemon_instance = 0;
 static int num_instances = -1;
 static pid_t *children_pids;
 
@@ -117,6 +117,10 @@ static void _handle_sig_child(void) {
 static void signal_handler(int signum) {
     switch(signum) {
     case SIGINT:
+        if (0 != daemon_instance) {
+            LOGGER_INFO("ignoring SIGINT in child process");
+            break;
+        }
     case SIGTERM:
         epoll_worker_exit();
         break;
@@ -135,7 +139,7 @@ static int _set_signals(void) {
     };
     sigaction(SIGTERM, &sa, NULL);
     sigaction(SIGINT, &sa, NULL);
-    sigaction(SIGCHLD, &sa, NULL);
+    if (0 == daemon_instance) sigaction(SIGCHLD, &sa, NULL);
     return 0;
 }
 
@@ -161,16 +165,14 @@ static int _init_subprocesses(const char *pidfilename, int num_forks) {
             if (0 > _set_signals())
                 return LOGGER_ERROR("failed to set signals"), -1;
             LOGGER_INFO("sub-process %d started", i);
-            break;
+            return 0;
         } else
             children_pids[i-1] = pid;
     }
-    if (daemon_instance == 0) {
-        if (pidfilename && 0 > _set_pidfile(pidfilename))
-            return LOGGER_ERROR("failed to set pidfile"), -1;
-        if (0 > _set_signals())
-            return LOGGER_ERROR("failed to set signals"), -1;
-    }
+    if (pidfilename && 0 > _set_pidfile(pidfilename))
+        return LOGGER_ERROR("failed to set pidfile"), -1;
+    if (0 > _set_signals())
+        return LOGGER_ERROR("failed to set signals"), -1;
     return 0;
 }
 
@@ -261,6 +263,10 @@ void ribs_server_start(void) {
             LOGGER_PERROR("waitpid %d", children_pids[i]);
     }
     LOGGER_INFO("sub-processes terminated");
+}
+
+int ribs_get_daemon_instance(void) {
+    return daemon_instance;
 }
 
 int daemonize(void) {
