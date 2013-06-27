@@ -27,6 +27,8 @@
 #define _DS_STRIGIFY(x) #x
 #define DS_STRIGIFY(x) _DS_STRIGIFY(x)
 
+int ds_loader_verify_files(const char *path, const char **files);
+
 #ifdef DS_LOADER_STAGE
 #   undef DS_LOADER_STAGE
 #endif
