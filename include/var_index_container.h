@@ -35,10 +35,11 @@ struct var_index_container_o2m {
 };
 
 static inline int var_index_container_o2m_init(struct var_index_container_o2m *ic, const char *filename) {
-    if (0 > hashtablefile_readonly_init(&ic->ht_keys, filename))
+    char idx_filename[PATH_MAX];
+    if (PATH_MAX <= snprintf(idx_filename, PATH_MAX, "%s.keys", filename) ||
+        0 > hashtablefile_readonly_init(&ic->ht_keys, idx_filename))
         return -1;
 
-    char idx_filename[PATH_MAX];
     if (PATH_MAX <= snprintf(idx_filename, PATH_MAX, "%s.idx", filename) ||
         0 > file_mapper_init(&ic->fm, idx_filename))
         return -1;
