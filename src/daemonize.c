@@ -38,6 +38,10 @@ static int daemon_instance = 0;
 static int num_instances = -1;
 static pid_t *children_pids;
 static pid_t logger_pid = -1;
+static int sigfd = -1;
+static struct ribs_context *sigfd_ctx = NULL;
+
+#define SIG_CHLD_STACK_SIZE 128*1024
 
 static int _logger_init(const char *filename) {
     int res = 0;
@@ -106,36 +110,54 @@ static const char *_get_exit_reason(siginfo_t *info) {
 }
 
 static void _handle_sig_child(void) {
-    siginfo_t info;
-    memset(&info, 0, sizeof(info));
-    for (;;) {
-        info.si_pid = 0;
-        if (0 > waitid(P_ALL, 0, &info, WEXITED | WNOHANG))
-            return LOGGER_PERROR("waitid");
-        if (0 == info.si_pid)
-            return; /* no more events */
-        if (logger_pid == info.si_pid) {
-            char fname[256];
-            snprintf(fname, sizeof(fname), "%s-%d.crash.log", program_invocation_short_name, getpid());
-            fname[sizeof(fname)-1] = 0;
-            int fd = creat(fname, 0644);
-            if (0 <= fd) {
-                dup2(fd, STDOUT_FILENO);
-                dup2(fd, STDERR_FILENO);
-                close(fd);
-                LOGGER_ERROR("logger [%d] terminated unexpectedly: %s, status=%d", info.si_pid, _get_exit_reason(&info), info.si_status);
+    struct signalfd_siginfo sfd_info;
+    for (;;yield()) {
+        for (;;) {
+            ssize_t res = read(sigfd, &sfd_info, sizeof(struct signalfd_siginfo));
+            if (0 > res) {
+                if (errno != EAGAIN)
+                    LOGGER_PERROR("read from signal fd");
+                break;
             }
-            epoll_worker_exit();
-        }
-        int i;
-        for (i = 0; i < num_instances-1; ++i) {
-            /* check if it is our pid */
-            if (children_pids[i] == info.si_pid ) {
-                children_pids[i] = 0; /* mark pid as handled */
-                LOGGER_ERROR("child process [%d] terminated unexpectedly: %s, status=%d", info.si_pid, _get_exit_reason(&info), info.si_status);
-                epoll_worker_exit();
+            if (sizeof(struct signalfd_siginfo) != res) {
+                LOGGER_ERROR("failed to read from signal fd, incorrect size");
+                continue;
+            }
+            siginfo_t info;
+            memset(&info, 0, sizeof(info));
+            for (;;) {
+                info.si_pid = 0;
+                if (0 > waitid(P_ALL, 0, &info, WEXITED | WNOHANG) && ECHILD != errno) {
+                    LOGGER_PERROR("waitid");
+                    break;
+                }
+                if (0 == info.si_pid)
+                    break; /* no more events */
+                if (logger_pid == (pid_t)info.si_pid) {
+                    char fname[256];
+                    snprintf(fname, sizeof(fname), "%s-%d.crash.log", program_invocation_short_name, getpid());
+                    fname[sizeof(fname)-1] = 0;
+                    int fd = creat(fname, 0644);
+                    if (0 <= fd) {
+                        dup2(fd, STDOUT_FILENO);
+                        dup2(fd, STDERR_FILENO);
+                        close(fd);
+                        LOGGER_ERROR("logger [%d] terminated unexpectedly: %s, status=%d", info.si_pid, _get_exit_reason(&info), info.si_status);
+                    }
+                    epoll_worker_exit();
+                }
+                int i;
+                for (i = 0; i < num_instances-1; ++i) {
+                    /* check if it is our pid */
+                    if (children_pids[i] == (pid_t)info.si_pid) {
+                        children_pids[i] = 0; /* mark pid as handled */
+                        LOGGER_ERROR("child process [%d] terminated unexpectedly: %s, status=%d", info.si_pid, _get_exit_reason(&info), info.si_status);
+                        epoll_worker_exit();
+                    }
+                }
             }
         }
+
     }
 }
 
@@ -149,9 +171,6 @@ static void signal_handler(int signum) {
     case SIGTERM:
         epoll_worker_exit();
         break;
-    case SIGCHLD:
-        _handle_sig_child();
-        break;
     default:
         LOGGER_ERROR("unknown signal");
     }
@@ -164,7 +183,17 @@ static int _set_signals(void) {
     };
     sigaction(SIGTERM, &sa, NULL);
     sigaction(SIGINT, &sa, NULL);
-    sigaction(SIGCHLD, &sa, NULL);
+
+    sigset_t sigset;
+    sigemptyset(&sigset);
+    sigaddset(&sigset, SIGCHLD);
+    if (0 > sigprocmask(SIG_BLOCK, &sigset, NULL))
+        return LOGGER_PERROR("sigprocmask"), -1;
+    sigfd = signalfd(-1, &sigset, SFD_NONBLOCK | SFD_CLOEXEC);
+    if (0 > sigfd)
+        return LOGGER_PERROR("signalfd"), -1;
+    if (NULL == (sigfd_ctx = ribs_context_create(SIG_CHLD_STACK_SIZE, 0, _handle_sig_child)))
+        return -1;
     return 0;
 }
 
@@ -271,14 +300,11 @@ int ribs_server_signal_children(int sig) {
 
 void ribs_server_start(void) {
     daemon_finalize();
+    if (0 <= sigfd && 0 > ribs_epoll_add(sigfd, EPOLLIN, sigfd_ctx))
+        return LOGGER_ERROR("ribs_epoll_add: sigfd");
     epoll_worker_loop();
     if (0 >= num_instances || 0 != daemon_instance)
         return;
-    struct sigaction sa = {
-        .sa_handler = SIG_DFL,
-        .sa_flags = 0
-    };
-    sigaction(SIGCHLD, &sa, NULL);
     LOGGER_INFO("sending SIGTERM to sub-processes");
     ribs_server_signal_children(SIGTERM);
     LOGGER_INFO("waiting for sub-processes to exit");
