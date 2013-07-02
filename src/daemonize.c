@@ -37,13 +37,14 @@ static int child_is_up_pipe[2] = { -1, -1 };
 static int daemon_instance = 0;
 static int num_instances = -1;
 static pid_t *children_pids;
+static pid_t logger_pid = -1;
 
 static int _logger_init(const char *filename) {
     int res = 0;
     if ('|' == *filename) {
         ++filename;
         int fds[2];
-        if (0 > pipe(fds))
+        if (0 > pipe2(fds, O_CLOEXEC))
             return LOGGER_PERROR("pipe"), -1;
         int pid = fork();
         if (0 > pid)
@@ -56,6 +57,7 @@ static int _logger_init(const char *filename) {
             if (0 > execl("/bin/sh", "/bin/sh", "-c", filename, NULL))
                 LOGGER_PERROR("execl: %s", filename), res = -1;
         } else {
+            logger_pid = pid;
             if (0 > dup2(fds[1], STDOUT_FILENO) ||
                 0 > dup2(fds[1], STDERR_FILENO))
                 LOGGER_PERROR("dup2"), res = -1;
@@ -106,11 +108,34 @@ static const char *_get_exit_reason(siginfo_t *info) {
 static void _handle_sig_child(void) {
     siginfo_t info;
     memset(&info, 0, sizeof(info));
-    if (0 > waitid(P_ALL, 0, &info, WEXITED | WNOWAIT | WNOHANG))
-        return LOGGER_PERROR("waitid");
-    if (info.si_pid > 0) {
-        LOGGER_ERROR("child process [%d] terminated unexpectedly: %s, status=%d", info.si_pid, _get_exit_reason(&info), info.si_status);
-        epoll_worker_exit();
+    for (;;) {
+        info.si_pid = 0;
+        if (0 > waitid(P_ALL, 0, &info, WEXITED | WNOHANG))
+            return LOGGER_PERROR("waitid");
+        if (0 == info.si_pid)
+            return; /* no more events */
+        if (logger_pid == info.si_pid) {
+            char fname[256];
+            snprintf(fname, sizeof(fname), "%s-%d.crash.log", program_invocation_short_name, getpid());
+            fname[sizeof(fname)-1] = 0;
+            int fd = creat(fname, 0644);
+            if (0 <= fd) {
+                dup2(fd, STDOUT_FILENO);
+                dup2(fd, STDERR_FILENO);
+                close(fd);
+                LOGGER_ERROR("logger [%d] terminated unexpectedly: %s, status=%d", info.si_pid, _get_exit_reason(&info), info.si_status);
+            }
+            epoll_worker_exit();
+        }
+        int i;
+        for (i = 0; i < num_instances-1; ++i) {
+            /* check if it is our pid */
+            if (children_pids[i] == info.si_pid ) {
+                children_pids[i] = 0; /* mark pid as handled */
+                LOGGER_ERROR("child process [%d] terminated unexpectedly: %s, status=%d", info.si_pid, _get_exit_reason(&info), info.si_status);
+                epoll_worker_exit();
+            }
+        }
     }
 }
 
@@ -139,7 +164,7 @@ static int _set_signals(void) {
     };
     sigaction(SIGTERM, &sa, NULL);
     sigaction(SIGINT, &sa, NULL);
-    if (0 == daemon_instance) sigaction(SIGCHLD, &sa, NULL);
+    sigaction(SIGCHLD, &sa, NULL);
     return 0;
 }
 
@@ -177,7 +202,7 @@ static int _init_subprocesses(const char *pidfilename, int num_forks) {
 }
 
 static int ribs_server_init_daemon(const char *pidfilename, const char *logfilename, int num_forks) {
-    if (0 > pipe(child_is_up_pipe))
+    if (0 > pipe2(child_is_up_pipe, O_CLOEXEC))
         return LOGGER_ERROR("failed to create pipe"), -1;
 
     pid_t pid = fork();
@@ -236,7 +261,7 @@ int ribs_server_signal_children(int sig) {
         return 0;
     int i, res = 0;
     for (i = 0; i < num_instances-1; ++i) {
-        if (0 > kill(children_pids[i], sig)) {
+        if (0 < children_pids[i] && 0 > kill(children_pids[i], sig)) {
             LOGGER_PERROR("kill [%d] %d", sig, children_pids[i]);
             res = -1;
         }
@@ -259,7 +284,7 @@ void ribs_server_start(void) {
     LOGGER_INFO("waiting for sub-processes to exit");
     int i, status;
     for (i = 0; i < num_instances-1; ++i) {
-        if (0 > waitpid(children_pids[i], &status, 0))
+        if (0 < children_pids[i] && 0 > waitpid(children_pids[i], &status, 0))
             LOGGER_PERROR("waitpid %d", children_pids[i]);
     }
     LOGGER_INFO("sub-processes terminated");
@@ -270,7 +295,7 @@ int ribs_get_daemon_instance(void) {
 }
 
 int daemonize(void) {
-    if (0 > pipe(child_is_up_pipe))
+    if (0 > pipe2(child_is_up_pipe, O_CLOEXEC))
         return LOGGER_ERROR("failed to create pipe"), -1;
 
     pid_t pid = fork();
