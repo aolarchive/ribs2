@@ -87,7 +87,7 @@ _RIBS_INLINE_ void http_uri_decode_query_params(char *query_params, struct hasht
         size_t l = strlen(query_params);
         uint32_t htofs = hashtable_lookup(params, query_params, l);
         if (!htofs) {
-            htofs = hashtable_insert_new(params, query_params, l, p - p2);
+            htofs = hashtable_insert_alloc(params, query_params, l, p - p2);
             http_uri_decode(p2, hashtable_get_val(params, htofs));
         }
 

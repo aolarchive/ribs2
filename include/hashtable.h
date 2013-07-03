@@ -23,19 +23,36 @@
 #include "ribs_defs.h"
 #include "vmbuf.h"
 
-#define HASHTABLE_INITIALIZER { VMBUF_INITIALIZER, 0, 0 }
+#define HASHTABLE_INITIALIZER { VMBUF_INITIALIZER }
 #define HASHTABLE_MAKE(x) (x) = (struct hashtable)HASHTABLE_INITIALIZER
 
 struct hashtable {
     struct vmbuf data;
+};
+
+struct hashtable_header {
     uint32_t mask;
     uint32_t size;
+    uint32_t free_list;
+    uint32_t slots[32];
+};
+
+union hashtable_rec {
+    struct {
+        uint32_t key_size;
+        uint32_t val_size;
+        char data[];
+    } rec;
+    struct {
+        uint32_t next;
+        uint32_t size;
+    } free_rec;
 };
 
 /* hashtable */
 int hashtable_init(struct hashtable *ht, uint32_t initial_size);
 uint32_t hashtable_insert(struct hashtable *ht, const void *key, size_t key_len, const void *val, size_t val_len);
-uint32_t hashtable_insert_new(struct hashtable *ht, const void *key, size_t key_len, size_t val_len);
+uint32_t hashtable_insert_alloc(struct hashtable *ht, const void *key, size_t key_len, size_t val_len);
 uint32_t hashtable_lookup_insert(struct hashtable *ht, const void *key, size_t key_len, const void *val, size_t val_len);
 uint32_t hashtable_lookup(struct hashtable *ht, const void *key, size_t key_len);
 uint32_t hashtable_remove(struct hashtable *ht, const void *key, size_t key_len);
