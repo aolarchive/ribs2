@@ -252,7 +252,6 @@ int lhashtable_del(struct lhashtable *lht, const void *key, size_t key_len) {
     return -1;
 }
 
-
 static inline int _lhashtable_subtable_foreach(struct lhashtable *lht, uint64_t sub_table_ofs, int (*callback)(uint64_t, void *), void *arg) {
     struct lhashtable_table *tbl = LHT_GET_SUB_TABLE();
     uint32_t mask = tbl->mask;

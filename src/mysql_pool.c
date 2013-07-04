@@ -27,8 +27,10 @@ static struct vmbuf misc;
 
 static int create_entry(struct list *l) {
     struct mysql_pool_entry *entry = (struct mysql_pool_entry *)calloc(1, sizeof(struct mysql_pool_entry));
-    if (!mysql_init(&(entry->helper.mysql)))
+    if (!mysql_init(&(entry->helper.mysql))) {
+        free(entry);
         return -1;
+    }
     list_insert_head(l, &entry->l);
     return 0;
 }
