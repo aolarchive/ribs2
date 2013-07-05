@@ -47,7 +47,7 @@ static struct request_headers request_headers[] = {
 
 
 int http_headers_init() {
-    if (hashtable_get_size(&ht_request_headers) > 0)
+    if (hashtable_is_initialized(&ht_request_headers))
         return 1;
     hashtable_init(&ht_request_headers, 64);
     struct request_headers *rh = request_headers;

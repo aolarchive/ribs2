@@ -20,14 +20,14 @@
 #ifndef _HASHTABLE__H_
 #define _HASHTABLE__H_
 
-#include "ribs_defs.h"
-#include "vmbuf.h"
+#include "vmallocator.h"
+#include <string.h>
 
-#define HASHTABLE_INITIALIZER { VMBUF_INITIALIZER }
+#define HASHTABLE_INITIALIZER { VMALLOCATOR_INITIALIZER }
 #define HASHTABLE_MAKE(x) (x) = (struct hashtable)HASHTABLE_INITIALIZER
 
 struct hashtable {
-    struct vmbuf data;
+    struct vmallocator data;
 };
 
 struct hashtable_header {
@@ -37,7 +37,14 @@ struct hashtable_header {
     uint32_t slots[32];
 };
 
-union hashtable_rec {
+struct hashtable_rec {
+    uint32_t key_size;
+    void *key;
+    uint32_t val_size;
+    void *val;
+};
+
+union hashtable_internal_rec {
     struct {
         uint32_t key_size;
         uint32_t val_size;
@@ -51,6 +58,9 @@ union hashtable_rec {
 
 /* hashtable */
 int hashtable_init(struct hashtable *ht, uint32_t initial_size);
+int hashtable_create(struct hashtable *ht, uint32_t initial_size, const char *filename);
+int hashtable_open(struct hashtable *ht, uint32_t initial_size, const char *filename, int flags);
+int hashtable_close(struct hashtable *ht);
 uint32_t hashtable_insert(struct hashtable *ht, const void *key, size_t key_len, const void *val, size_t val_len);
 uint32_t hashtable_insert_alloc(struct hashtable *ht, const void *key, size_t key_len, size_t val_len);
 uint32_t hashtable_lookup_insert(struct hashtable *ht, const void *key, size_t key_len, const void *val, size_t val_len);
@@ -64,6 +74,9 @@ static inline uint32_t hashtable_get_val_size(struct hashtable *ht, uint32_t rec
 static inline uint32_t hashtable_get_size(struct hashtable *ht);
 static inline const char *hashtable_lookup_str(struct hashtable *ht, const char *key, const char *default_val);
 static inline void hashtable_free(struct hashtable *ht);
+static inline struct hashtable_rec hashtable_get_rec(struct hashtable *ht, uint32_t rec_ofs);
+static inline int hashtable_is_initialized(struct hashtable *ht);
+static inline size_t hashtable_get_size_bytes(struct hashtable *ht);
 
 #include "../src/_hashtable.c"
 

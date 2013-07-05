@@ -22,6 +22,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <sys/mman.h>
 #include "hashtable.h"
 #include "sstr.h"
 #include "logger.h"
@@ -31,7 +32,7 @@ SSTRL(MIME_DELIMS, "\t ");
 static struct hashtable ht_mime_types = HASHTABLE_INITIALIZER;
 
 int mime_types_init(void) {
-    if (hashtable_get_size(&ht_mime_types) > 0)
+    if (hashtable_is_initialized(&ht_mime_types))
         return 1;
     LOGGER_INFO("initializing mime types");
     int fd = open(MIME_TYPES, O_RDONLY);
