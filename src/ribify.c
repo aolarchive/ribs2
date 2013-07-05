@@ -56,95 +56,84 @@ int _ribified_fcntl(int fd, int cmd, ...) {
     return fcntl(fd, cmd, arg);
 }
 
+inline static int yield_if_eagain(int sockfd) {
+    if (errno != EAGAIN)
+        return 0;
+    epoll_worker_set_fd_ctx(sockfd, current_ctx);
+    yield();
+    epoll_worker_set_fd_ctx(sockfd, event_loop_ctx);
+    return 1;
+}
+
 ssize_t _ribified_read(int fd, void *buf, size_t count) {
     int res;
-
-    epoll_worker_set_fd_ctx(fd, current_ctx);
-    while ((res = read(fd, buf, count)) < 0) {
-        if (errno != EAGAIN)
-            break;
-        yield();
-    }
-    epoll_worker_set_fd_ctx(fd, event_loop_ctx);
+    while ((res = read(fd, buf, count)) < 0 &&
+           yield_if_eagain(fd));
     return res;
 }
 
 ssize_t _ribified_write(int fd, const void *buf, size_t count) {
     int res;
+    while ((res = write(fd, buf, count)) < 0 &&
+           yield_if_eagain(fd));
+    return res;
+}
 
-    epoll_worker_set_fd_ctx(fd, current_ctx);
-    while ((res = write(fd, buf, count)) < 0) {
-        if (errno != EAGAIN)
-            break;
-        yield();
-    }
-    epoll_worker_set_fd_ctx(fd, event_loop_ctx);
+ssize_t _ribified_recv(int sockfd, void *buf, size_t len, int flags) {
+    int res;
+    while ((res = recv(sockfd, buf, len, flags)) < 0 &&
+           yield_if_eagain(sockfd));
     return res;
 }
 
 ssize_t _ribified_recvfrom(int sockfd, void *buf, size_t len, int flags,
                       struct sockaddr *src_addr, socklen_t *addrlen) {
     int res;
+    while ((res = recvfrom(sockfd, buf, len, flags, src_addr, addrlen)) < 0 &&
+           yield_if_eagain(sockfd));
+    return res;
+}
 
-    epoll_worker_set_fd_ctx(sockfd, current_ctx);
-    while ((res = recvfrom(sockfd, buf, len, flags, src_addr, addrlen)) < 0) {
-        if (errno != EAGAIN)
-            break;
-        yield();
-    }
-    epoll_worker_set_fd_ctx(sockfd, event_loop_ctx);
+ssize_t _ribified_recvmsg(int sockfd, struct msghdr *msg, int flags) {
+    int res;
+    while ((res = recvmsg(sockfd, msg, flags)) < 0 &&
+           yield_if_eagain(sockfd));
     return res;
 }
 
 ssize_t _ribified_send(int sockfd, const void *buf, size_t len, int flags) {
     int res;
-
-    epoll_worker_set_fd_ctx(sockfd, current_ctx);
-    while ((res = send(sockfd, buf, len, flags)) < 0) {
-        if (errno != EAGAIN)
-            break;
-        yield();
-    }
-    epoll_worker_set_fd_ctx(sockfd, event_loop_ctx);
+    while ((res = send(sockfd, buf, len, flags)) < 0 &&
+           yield_if_eagain(sockfd));
     return res;
 }
 
-ssize_t _ribified_recv(int sockfd, void *buf, size_t len, int flags) {
+ssize_t _ribified_sendto(int sockfd, const void *buf, size_t len, int flags,
+                         const struct sockaddr *dest_addr, socklen_t addrlen) {
     int res;
+    while ((res = sendto(sockfd, buf, len, flags, dest_addr, addrlen)) < 0 &&
+           yield_if_eagain(sockfd));
+    return res;
+}
 
-    epoll_worker_set_fd_ctx(sockfd, current_ctx);
-    while ((res = recv(sockfd, buf, len, flags)) < 0) {
-        if (errno != EAGAIN)
-            break;
-        yield();
-    }
-    epoll_worker_set_fd_ctx(sockfd, event_loop_ctx);
+ssize_t _ribified_sendmsg(int sockfd, const struct msghdr *msg, int flags) {
+    int res;
+    while ((res = sendmsg(sockfd, msg, flags)) < 0 &&
+           yield_if_eagain(sockfd));
     return res;
 }
 
 ssize_t _ribified_readv(int fd, const struct iovec *iov, int iovcnt) {
     int res;
-
-    epoll_worker_set_fd_ctx(fd, current_ctx);
-    while ((res = readv(fd, iov, iovcnt)) < 0) {
-        if (errno != EAGAIN)
-            break;
-        yield();
-    }
-    epoll_worker_set_fd_ctx(fd, event_loop_ctx);
+    while ((res = readv(fd, iov, iovcnt)) < 0 &&
+           yield_if_eagain(fd));
     return res;
 }
 
 ssize_t _ribified_writev(int fd, const struct iovec *iov, int iovcnt) {
     int res;
-
-    epoll_worker_set_fd_ctx(fd, current_ctx);
-    while ((res = writev(fd, iov, iovcnt)) < 0) {
-        if (errno != EAGAIN)
-            break;
-        yield();
-    }
-    epoll_worker_set_fd_ctx(fd, event_loop_ctx);
+    while ((res = writev(fd, iov, iovcnt)) < 0 &&
+           yield_if_eagain(fd));
     return res;
 }
 
@@ -152,8 +141,7 @@ ssize_t _ribified_sendfile(int out_fd, int in_fd, off_t *offset, size_t count) {
     ssize_t res;
     ssize_t t_res = 0;
 
-    epoll_worker_set_fd_ctx(out_fd, current_ctx);
-    for(;;yield()) {
+    for(;;) {
         res = sendfile(out_fd, in_fd, offset, count);
         if (0 < res) {
             t_res += res;
@@ -162,12 +150,11 @@ ssize_t _ribified_sendfile(int out_fd, int in_fd, off_t *offset, size_t count) {
                 break;
             continue;
         }
-        if (errno != EAGAIN) {
+        if (!yield_if_eagain(out_fd)) {
             t_res = res;
             break;
         }
     }
-    epoll_worker_set_fd_ctx(out_fd, event_loop_ctx);
     return t_res;
 }
 
