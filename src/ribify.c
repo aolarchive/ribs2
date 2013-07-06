@@ -139,23 +139,9 @@ ssize_t _ribified_writev(int fd, const struct iovec *iov, int iovcnt) {
 
 ssize_t _ribified_sendfile(int out_fd, int in_fd, off_t *offset, size_t count) {
     ssize_t res;
-    ssize_t t_res = 0;
-
-    for(;;) {
-        res = sendfile(out_fd, in_fd, offset, count);
-        if (0 < res) {
-            t_res += res;
-            count -= res;
-            if (0 == count)
-                break;
-            continue;
-        }
-        if (!yield_if_eagain(out_fd)) {
-            t_res = res;
-            break;
-        }
-    }
-    return t_res;
+    while ((res = sendfile(out_fd, in_fd, offset, count)) < 0 &&
+           yield_if_eagain(out_fd));
+    return res;
 }
 
 int _ribified_pipe2(int pipefd[2], int flags) {
