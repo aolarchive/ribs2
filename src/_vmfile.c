@@ -58,5 +58,7 @@ _RIBS_INLINE_ int TEMPLATE(VMBUF_T,close)(struct VMBUF_T *vmb) {
         return 0;
     VMFILE_FTRUNCATE(vmb->write_loc, "close");
     vmfile_free(vmb);
-    return close(vmb->fd);
+    int res = close(vmb->fd);
+    vmb->fd = -1;
+    return res;
 }
