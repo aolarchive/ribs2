@@ -18,47 +18,8 @@
     along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "hashtable.h"
-#include "hash_funcs.h"
-#include "ilog2.h"
-
-#define HASHTABLE_INITIAL_SIZE_BITS 5
-#define HASHTABLE_INITIAL_SIZE (1<<HASHTABLE_INITIAL_SIZE_BITS)
-
-
-struct ht_entry {
-    uint32_t hashcode;
-    uint32_t rec;
-};
-
-int hashtable_init(struct hashtable *ht, uint32_t initial_size) {
-    size_t size = sizeof(uint32_t) * 32; // 32 slots, offs ==> buckets
-    size += HASHTABLE_INITIAL_SIZE * sizeof(struct ht_entry); // allocate buckets in the first slot
-    if (0 > vmbuf_init(&ht->data, size))
-        return -1;
-    vmbuf_alloczero(&ht->data, size);
-    uint32_t *slots = (uint32_t *)vmbuf_data(&ht->data);
-    slots[0] = sizeof(uint32_t) * 32;
-    ht->size = 0;
-    ht->mask = HASHTABLE_INITIAL_SIZE - 1;
-    if (initial_size > HASHTABLE_INITIAL_SIZE) {
-        initial_size = next_p2(initial_size) << 1;
-        ht->mask = initial_size - 1;
-        uint32_t num_slots = ilog2(initial_size) - HASHTABLE_INITIAL_SIZE_BITS + 1;
-        uint32_t capacity = HASHTABLE_INITIAL_SIZE;
-        uint32_t s;
-        for (s = 1; s < num_slots; ++s) {
-            uint32_t ofs = vmbuf_alloczero(&ht->data, capacity * sizeof(struct ht_entry));
-            uint32_t *slots = (uint32_t *)vmbuf_data(&ht->data);
-            slots[s] = ofs;
-            capacity <<= 1;
-        }
-    }
-    return 0;
-}
-
-static inline struct ht_entry *_hashtable_bucket(struct hashtable *ht, uint32_t bucket) {
-    uint32_t *slots = (uint32_t *)vmbuf_data(&ht->data);
+static inline struct ht_entry *TEMPLATE_HTBL_FUNC(_hashtable, T, bucket)(struct TEMPLATE_HTBL(hashtable, T) *ht, uint32_t bucket) {
+    uint32_t *slots = HT_SLOT;
     uint32_t buckets_ofs;
     if (bucket < HASHTABLE_INITIAL_SIZE) {
         buckets_ofs = slots[0];
@@ -67,12 +28,14 @@ static inline struct ht_entry *_hashtable_bucket(struct hashtable *ht, uint32_t 
         bucket -= 1 << il2; /* offset within the vector */
         buckets_ofs = slots[il2 - HASHTABLE_INITIAL_SIZE_BITS + 1];
     }
-    return (struct ht_entry *)vmbuf_data_ofs(&ht->data, buckets_ofs) + bucket;
+    return (struct ht_entry *)TEMPLATE(TS, data_ofs)(&ht->data, buckets_ofs) + bucket;
 }
 
-static inline void _hashtable_move_buckets_range(struct hashtable *ht, uint32_t new_mask, uint32_t begin, uint32_t end) {
+static inline void TEMPLATE_HTBL_FUNC(_hashtable, T, move_buckets_range)(struct TEMPLATE_HTBL(hashtable, T) *ht, uint32_t new_mask, uint32_t begin, uint32_t end) {
     for (; begin < end; ++begin) {
-        struct ht_entry *e = _hashtable_bucket(ht, begin);
+        struct ht_entry *e = TEMPLATE_HTBL_FUNC(_hashtable, T, bucket)(ht, begin);
+        if (0 == e->rec)
+            continue;
         uint32_t new_bkt_idx = e->hashcode & new_mask;
         /* if already in the right place skip it */
         if (begin == new_bkt_idx)
@@ -81,7 +44,7 @@ static inline void _hashtable_move_buckets_range(struct hashtable *ht, uint32_t 
         /* free the bucket so it can be reused */
         e->rec = 0;
         for (;;) {
-            struct ht_entry *new_bucket = _hashtable_bucket(ht, new_bkt_idx);
+            struct ht_entry *new_bucket = TEMPLATE_HTBL_FUNC(_hashtable, T, bucket)(ht, new_bkt_idx);
             if (0 == new_bucket->rec) {
                 new_bucket->hashcode = e->hashcode;
                 new_bucket->rec = rec;
@@ -94,123 +57,123 @@ static inline void _hashtable_move_buckets_range(struct hashtable *ht, uint32_t 
     }
 }
 
-static inline int _hashtable_grow(struct hashtable *ht) {
-    uint32_t capacity = ht->mask + 1;
-    uint32_t ofs = vmbuf_alloczero(&ht->data, capacity * sizeof(struct ht_entry));
+static inline int TEMPLATE_HTBL_FUNC(_hashtable, T, grow)(struct TEMPLATE_HTBL(hashtable, T) *ht) {
+    uint32_t capacity = HT_MASK + 1;
+    uint32_t ofs = TEMPLATE(TS, alloczero)(&ht->data, capacity * sizeof(struct ht_entry));
     uint32_t il2 = ilog2(capacity);
-    uint32_t *slots = (uint32_t *)vmbuf_data(&ht->data);
+    uint32_t *slots = HT_SLOT;
     slots[il2 - HASHTABLE_INITIAL_SIZE_BITS + 1] = ofs;
     uint32_t new_mask = (capacity << 1) - 1;
     uint32_t b = 0;
-    for (; 0 != _hashtable_bucket(ht, b)->rec; ++b);
-    _hashtable_move_buckets_range(ht, new_mask, b, capacity);
-    _hashtable_move_buckets_range(ht, new_mask, 0, b);
-    ht->mask = new_mask;
+    for (; 0 != TEMPLATE_HTBL_FUNC(_hashtable, T, bucket)(ht, b)->rec; ++b);
+    TEMPLATE_HTBL_FUNC(_hashtable, T, move_buckets_range)(ht, new_mask, b, capacity);
+    TEMPLATE_HTBL_FUNC(_hashtable, T, move_buckets_range)(ht, new_mask, 0, b);
+    HT_MASK = new_mask;
     return 0;
 }
 
-uint32_t hashtable_insert(struct hashtable *ht, const void *key, size_t key_len, const void *val, size_t val_len) {
-    if (unlikely(ht->size > (ht->mask >> 1)) && 0 > _hashtable_grow(ht))
+uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, insert)(struct TEMPLATE_HTBL(hashtable, T) *ht, const void *key, size_t key_len, const void *val, size_t val_len) {
+    if (unlikely(HT_SIZE > (HT_MASK >> 1)) && 0 > TEMPLATE_HTBL_FUNC(_hashtable, T, grow)(ht))
         return 0;
     uint32_t hc = hashcode(key, key_len);
-    uint32_t bucket = hc & ht->mask;
+    uint32_t bucket = hc & HT_MASK;
     for (;;) {
-        struct ht_entry *e = _hashtable_bucket(ht, bucket);
+        struct ht_entry *e = TEMPLATE_HTBL_FUNC(_hashtable, T, bucket)(ht, bucket);
         if (0 == e->rec) {
             e->hashcode = hc;
-            uint32_t ofs = vmbuf_wlocpos(&ht->data);
+            uint32_t ofs = TEMPLATE(TS, wlocpos)(&ht->data);
             e->rec = ofs;
-            uint32_t *rec = (uint32_t *)vmbuf_data_ofs(&ht->data, vmbuf_alloc(&ht->data, 2 * sizeof(uint32_t)));
+            uint32_t *rec = (uint32_t *)TEMPLATE(TS, data_ofs)(&ht->data, TEMPLATE(TS, alloc)(&ht->data, 2 * sizeof(uint32_t)));
             rec[0] = key_len;
             rec[1] = val_len;
-            vmbuf_memcpy(&ht->data, key, key_len);
-            vmbuf_memcpy(&ht->data, val, val_len);
-            ++ht->size;
+            TEMPLATE(TS, memcpy)(&ht->data, key, key_len);
+            TEMPLATE(TS, memcpy)(&ht->data, val, val_len);
+            ++HT_SIZE;
             return ofs;
         } else {
             ++bucket;
-            if (bucket > ht->mask)
+            if (bucket > HT_MASK)
                 bucket = 0;
         }
     }
     return 0;
 }
 
-uint32_t hashtable_insert_new(struct hashtable *ht, const void *key, size_t key_len, size_t val_len) {
-    if (unlikely(ht->size > (ht->mask >> 1)) && 0 > _hashtable_grow(ht))
+uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, insert_new)(struct TEMPLATE_HTBL(hashtable, T) *ht, const void *key, size_t key_len, size_t val_len) {
+    if (unlikely(HT_SIZE > (HT_MASK >> 1)) && 0 > TEMPLATE_HTBL_FUNC(_hashtable, T, grow)(ht))
         return 0;
     uint32_t hc = hashcode(key, key_len);
-    uint32_t bucket = hc & ht->mask;
+    uint32_t bucket = hc & HT_MASK;
     for (;;) {
-        struct ht_entry *e = _hashtable_bucket(ht, bucket);
+        struct ht_entry *e = TEMPLATE_HTBL_FUNC(_hashtable, T, bucket)(ht, bucket);
         if (0 == e->rec) {
             e->hashcode = hc;
-            uint32_t ofs = vmbuf_wlocpos(&ht->data);
+            uint32_t ofs = TEMPLATE(TS, wlocpos)(&ht->data);
             e->rec = ofs;
-            uint32_t *rec = (uint32_t *)vmbuf_data_ofs(&ht->data, vmbuf_alloc(&ht->data, 2 * sizeof(uint32_t)));
+            uint32_t *rec = (uint32_t *)TEMPLATE(TS, data_ofs)(&ht->data, TEMPLATE(TS, alloc)(&ht->data, 2 * sizeof(uint32_t)));
             rec[0] = key_len;
             rec[1] = val_len;
-            vmbuf_memcpy(&ht->data, key, key_len);
-            vmbuf_alloc(&ht->data, val_len);
-            ++ht->size;
+            TEMPLATE(TS, memcpy)(&ht->data, key, key_len);
+            TEMPLATE(TS, alloc)(&ht->data, val_len);
+            ++HT_SIZE;
             return ofs;
         } else {
             ++bucket;
-            if (bucket > ht->mask)
+            if (bucket > HT_MASK)
                 bucket = 0;
         }
     }
     return 0;
 }
 
-uint32_t hashtable_lookup_insert(struct hashtable *ht, const void *key, size_t key_len, const void *val, size_t val_len) {
+uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, lookup_insert)(struct TEMPLATE_HTBL(hashtable, T) *ht, const void *key, size_t key_len, const void *val, size_t val_len) {
     uint32_t hc = hashcode(key, key_len);
-    uint32_t bucket = hc & ht->mask;
+    uint32_t bucket = hc & HT_MASK;
     for (;;) {
-        struct ht_entry *e = _hashtable_bucket(ht, bucket);
+        struct ht_entry *e = TEMPLATE_HTBL_FUNC(_hashtable, T, bucket)(ht, bucket);
         if (0 == e->rec) {
-            if (unlikely(ht->size > (ht->mask >> 1))) {
-                int res = _hashtable_grow(ht);
+            if (unlikely(HT_SIZE > (HT_MASK >> 1))) {
+                int res = TEMPLATE_HTBL_FUNC(_hashtable, T, grow)(ht);
                 if (0 > res)
                     return 0;
-                bucket = hc & ht->mask;
+                bucket = hc & HT_MASK;
                 continue;
             }
             e->hashcode = hc;
-            uint32_t ofs = vmbuf_wlocpos(&ht->data);
+            uint32_t ofs = TEMPLATE(TS, wlocpos)(&ht->data);
             e->rec = ofs;
-            uint32_t *rec = (uint32_t *)vmbuf_data_ofs(&ht->data, vmbuf_alloc(&ht->data, 2 * sizeof(uint32_t)));
+            uint32_t *rec = (uint32_t *)TEMPLATE(TS, data_ofs)(&ht->data, TEMPLATE(TS, alloc)(&ht->data, 2 * sizeof(uint32_t)));
             rec[0] = key_len;
             rec[1] = val_len;
-            vmbuf_memcpy(&ht->data, key, key_len);
-            vmbuf_memcpy(&ht->data, val, val_len);
-            ++ht->size;
+            TEMPLATE(TS, memcpy)(&ht->data, key, key_len);
+            TEMPLATE(TS, memcpy)(&ht->data, val, val_len);
+            ++HT_SIZE;
             return ofs;
         } else if (hc == e->hashcode) {
-            char *rec = vmbuf_data_ofs(&ht->data, e->rec);
+            char *rec = TEMPLATE(TS, data_ofs)(&ht->data, e->rec);
             char *k = rec + (sizeof(uint32_t) * 2);
             if (*(uint32_t *)rec == key_len && 0 == memcmp(key, k, key_len))
                 return e->rec;
         } else {
             ++bucket;
-            if (bucket > ht->mask)
+            if (bucket > HT_MASK)
                 bucket = 0;
         }
     }
     return 0;
 }
 
-uint32_t hashtable_lookup(struct hashtable *ht, const void *key, size_t key_len) {
+uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, lookup)(struct TEMPLATE_HTBL(hashtable, T) *ht, const void *key, size_t key_len) {
     uint32_t hc = hashcode(key, key_len);
-    uint32_t mask = ht->mask;
+    uint32_t mask = HT_MASK;
     uint32_t bucket = hc & mask;
     for (;;) {
-        struct ht_entry *e = _hashtable_bucket(ht, bucket);
+        struct ht_entry *e = TEMPLATE_HTBL_FUNC(_hashtable, T, bucket)(ht, bucket);
         uint32_t ofs = e->rec;
         if (ofs == 0)
             return 0;
         if (hc == e->hashcode) {
-            char *rec = vmbuf_data_ofs(&ht->data, ofs);
+            char *rec = TEMPLATE(TS, data_ofs)(&ht->data, ofs);
             char *k = rec + (sizeof(uint32_t) * 2);
             if (*(uint32_t *)rec == key_len && 0 == memcmp(key, k, key_len))
                 return ofs;
@@ -222,16 +185,16 @@ uint32_t hashtable_lookup(struct hashtable *ht, const void *key, size_t key_len)
     return 0;
 }
 
-static inline void _hashtable_fix_chain_down(struct hashtable *ht, uint32_t mask, uint32_t bucket) {
+static inline void TEMPLATE_HTBL_FUNC(_hashtable, T, fix_chain_down)(struct TEMPLATE_HTBL(hashtable, T) *ht, uint32_t mask, uint32_t bucket) {
     for(;;) {
-        struct ht_entry *bkt = _hashtable_bucket(ht, bucket);
+        struct ht_entry *bkt = TEMPLATE_HTBL_FUNC(_hashtable, T, bucket)(ht, bucket);
         if (0 == bkt->rec) /* is end of chain? */
             break;
         uint32_t new_bucket = bkt->hashcode & mask; /* ideal bucket */
         for (;;) {
             if (bucket == new_bucket) /* no need to move */
                 break;
-            struct ht_entry *new_bkt = _hashtable_bucket(ht, new_bucket);
+            struct ht_entry *new_bkt = TEMPLATE_HTBL_FUNC(_hashtable, T, bucket)(ht, new_bucket);
             if (0 == new_bkt->rec) {
                 /* found new spot, move the bucket */
                 *new_bkt = *bkt;
@@ -248,24 +211,24 @@ static inline void _hashtable_fix_chain_down(struct hashtable *ht, uint32_t mask
     }
 }
 
-uint32_t hashtable_remove(struct hashtable *ht, const void *key, size_t key_len) {
+uint32_t TEMPLATE_HTBL_FUNC(hashtable, T, remove)(struct TEMPLATE_HTBL(hashtable, T) *ht, const void *key, size_t key_len) {
     uint32_t hc = hashcode(key, key_len);
-    uint32_t mask = ht->mask;
+    uint32_t mask = HT_MASK;
     uint32_t bucket = hc & mask;
     for (;;) {
-        struct ht_entry *e = _hashtable_bucket(ht, bucket);
+        struct ht_entry *e = TEMPLATE_HTBL_FUNC(_hashtable, T, bucket)(ht, bucket);
         uint32_t ofs = e->rec;
         if (ofs == 0)
             return 0;
         if (hc == e->hashcode) {
-            char *rec = vmbuf_data_ofs(&ht->data, ofs);
+            char *rec = TEMPLATE(TS, data_ofs)(&ht->data, ofs);
             char *k = rec + (sizeof(uint32_t) * 2);
             if (*(uint32_t *)rec == key_len && 0 == memcmp(key, k, key_len)) {
                 e->rec = 0; /* mark as deleted */
                 ++bucket;
                 if (bucket > mask)
                     bucket = 0;
-                _hashtable_fix_chain_down(ht, mask, bucket);
+                TEMPLATE_HTBL_FUNC(_hashtable, T, fix_chain_down)(ht, mask, bucket);
                 return ofs;
             }
         }
@@ -276,14 +239,14 @@ uint32_t hashtable_remove(struct hashtable *ht, const void *key, size_t key_len)
     return 0;
 }
 
-int hashtable_foreach(struct hashtable *ht, int (*func)(uint32_t rec)) {
-    uint32_t capacity = ht->mask + 1;
+int TEMPLATE_HTBL_FUNC(hashtable, T, foreach)(struct TEMPLATE_HTBL(hashtable, T) *ht, int (*func)(uint32_t rec)) {
+    uint32_t capacity = HT_MASK + 1;
     uint32_t num_slots = ilog2(capacity) - HASHTABLE_INITIAL_SIZE_BITS + 1;
-    uint32_t *slots = (uint32_t *)vmbuf_data(&ht->data);
+    uint32_t *slots = HT_SLOT;
     uint32_t s;
     uint32_t vect_size = HASHTABLE_INITIAL_SIZE;
     for (s = 0; s < num_slots; ++s) {
-        struct ht_entry *hte = (struct ht_entry *)vmbuf_data_ofs(&ht->data, slots[s]), *htend = hte + vect_size;
+        struct ht_entry *hte = (struct ht_entry *)TEMPLATE(TS, data_ofs)(&ht->data, slots[s]), *htend = hte + vect_size;
         for (; hte != htend; ++hte) {
             if (0 < hte->rec && 0 > func(hte->rec))
                 return -1;
