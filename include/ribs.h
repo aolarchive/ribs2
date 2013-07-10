@@ -27,8 +27,6 @@
 #include "ctx_pool.h"
 #include "hashtable.h"
 #include "lhashtable.h"
-#include "old_hashtable.h"
-#include "hashtable_readonly.h"
 #include "epoll_worker.h"
 #include "logger.h"
 #include "daemonize.h"

@@ -42,7 +42,7 @@ static inline int var_index_gen_fw_compar(const void *a, const void *b) {
     return aa->ht_offs < bb->ht_offs ? -1 : (bb->ht_offs < aa->ht_offs ? 1 : (aa->row_loc < bb->row_loc ? -1 : (bb->row_loc < aa->row_loc ? 1 : 0))) ;
 }
 
-static inline int var_index_gen_generate_mem_o2m(struct var_index_gen_fw_index *fw_index, size_t n, struct hashtablefile *ht_keys, const char *filename) {
+static inline int var_index_gen_generate_mem_o2m(struct var_index_gen_fw_index *fw_index, size_t n, struct hashtable *ht_keys, const char *filename) {
     qsort(fw_index, n, sizeof(struct var_index_gen_fw_index), var_index_gen_fw_compar);
     struct var_index_gen_fw_index *fw = fw_index, *fw_end = fw + n;
     struct file_writer fw_idx = FILE_WRITER_INITIALIZER;
@@ -56,8 +56,9 @@ static inline int var_index_gen_generate_mem_o2m(struct var_index_gen_fw_index *
         for (; fw != fw_end && ht_offs == fw->ht_offs; ++fw, ++size) {
             file_writer_write(&fw_idx, &fw->row_loc, sizeof(uint32_t));
         }
-        if (hashtablefile_get_val_size(ht_keys, ht_offs) == sizeof(struct index_entry)) {
-            struct index_entry *entry = (struct index_entry *) hashtablefile_get_val(ht_keys, ht_offs);
+        struct hashtable_rec rec = hashtable_get_rec(ht_keys, ht_offs);
+        if (rec.val_size == sizeof(struct index_entry)) {
+            struct index_entry *entry = rec.val;
             entry->index_offs = vect;
             entry->size = size;
         } else {
@@ -82,9 +83,9 @@ static inline int var_index_gen_generate_ds_file (const char *base_path, const c
         return LOGGER_ERROR("failed to init datastore"), -1;
 
     strcat(filename, ".keys");
-    struct hashtablefile ht_keys = HASHTABLEFILE_INITIALIZER;
-    if (0 > hashtablefile_init_create(&ht_keys, filename, var_field.num_elements))
-        return LOGGER_ERROR("failed to init hashtablefile"), _exit_clean(&var_field), -1;
+    struct hashtable ht_keys = HASHTABLE_INITIALIZER;
+    if (0 > hashtable_create(&ht_keys, 0, filename))
+        return LOGGER_ERROR("failed to init hashtable"), _exit_clean(&var_field), -1;
 
     struct index_entry temp_entry;
     temp_entry.index_offs = 0;
@@ -101,13 +102,15 @@ static inline int var_index_gen_generate_ds_file (const char *base_path, const c
     for (; rec != rec_end; ++rec, ++fw) {
         size_t *next_rec = rec + 1;
         str = (char *) (data + *rec);
-        uint32_t ofs = hashtablefile_lookup_insert(&ht_keys, str, (*next_rec - *rec), &temp_entry, sizeof(temp_entry));
+        uint32_t ofs = hashtable_lookup(&ht_keys, str, (*next_rec - *rec));
+        if (0 == ofs)
+            ofs = hashtable_insert(&ht_keys, str, (*next_rec - *rec), &temp_entry, sizeof(temp_entry));
         fw->ht_offs = ofs;
         fw->row_loc = rec - rec_begin;
     }
     int res = var_index_gen_generate_mem_o2m((struct var_index_gen_fw_index *)vmbuf_data(&fw_idx), rec - rec_begin, &ht_keys, output_filename);
     vmbuf_free(&fw_idx);
-    hashtablefile_finalize(&ht_keys);
+    hashtable_close(&ht_keys);
     _exit_clean(&var_field);
     return res;
 }
