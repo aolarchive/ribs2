@@ -20,14 +20,13 @@
 #include "daemonize.h"
 #include "epoll_worker.h"
 #include "vmfile.h"
+#include "hashtable.h"
 #include <stdio.h>
 #include <unistd.h>
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/prctl.h>
-#include <sys/wait.h>
 #include <sys/signalfd.h>
 
 #include "logger.h"
@@ -40,6 +39,8 @@ static pid_t *children_pids;
 static pid_t logger_pid = -1;
 static int sigfd = -1;
 static struct ribs_context *sigfd_ctx = NULL;
+static struct hashtable ht_pid_to_ctx = HASHTABLE_INITIALIZER;
+static siginfo_t last_sig_info;
 
 #define SIG_CHLD_STACK_SIZE 128*1024
 
@@ -123,17 +124,18 @@ static void _handle_sig_child(void) {
                 LOGGER_ERROR("failed to read from signal fd, incorrect size");
                 continue;
             }
-            siginfo_t info;
-            memset(&info, 0, sizeof(info));
+            memset(&last_sig_info, 0, sizeof(last_sig_info));
+            epoll_worker_ignore_events(sigfd);
             for (;;) {
-                info.si_pid = 0;
-                if (0 > waitid(P_ALL, 0, &info, WEXITED | WNOHANG) && ECHILD != errno) {
+                last_sig_info.si_pid = 0;
+                if (0 > waitid(P_ALL, 0, &last_sig_info, WEXITED | WNOHANG) && ECHILD != errno) {
                     LOGGER_PERROR("waitid");
                     break;
                 }
-                if (0 == info.si_pid)
+                pid_t pid = last_sig_info.si_pid;
+                if (0 == pid)
                     break; /* no more events */
-                if (logger_pid == (pid_t)info.si_pid) {
+                if (logger_pid == pid) {
                     char fname[256];
                     snprintf(fname, sizeof(fname), "%s-%d.crash.log", program_invocation_short_name, getpid());
                     fname[sizeof(fname)-1] = 0;
@@ -142,22 +144,35 @@ static void _handle_sig_child(void) {
                         dup2(fd, STDOUT_FILENO);
                         dup2(fd, STDERR_FILENO);
                         close(fd);
-                        LOGGER_ERROR("logger [%d] terminated unexpectedly: %s, status=%d", info.si_pid, _get_exit_reason(&info), info.si_status);
+                        LOGGER_ERROR("logger [%d] terminated unexpectedly: %s, status=%d", pid, _get_exit_reason(&last_sig_info), last_sig_info.si_status);
                     }
                     epoll_worker_exit();
                 }
                 int i;
                 for (i = 0; i < num_instances-1; ++i) {
                     /* check if it is our pid */
-                    if (children_pids[i] == (pid_t)info.si_pid) {
+                    if (children_pids[i] == pid) {
                         children_pids[i] = 0; /* mark pid as handled */
-                        LOGGER_ERROR("child process [%d] terminated unexpectedly: %s, status=%d", info.si_pid, _get_exit_reason(&info), info.si_status);
+                        LOGGER_ERROR("child process [%d] terminated unexpectedly: %s, status=%d", pid, _get_exit_reason(&last_sig_info), last_sig_info.si_status);
                         epoll_worker_exit();
                     }
                 }
+                uint32_t loc = hashtable_lookup(&ht_pid_to_ctx, &pid, sizeof(pid));
+                if (0 == loc) {
+                    LOGGER_ERROR("unhandled SIGCHLD detected, exiting...");
+                    epoll_worker_exit();
+                } else {
+                    if (0 > queue_current_ctx()) {
+                        LOGGER_ERROR("failed to queue current context, exiting...");
+                        return epoll_worker_exit();
+                    }
+                    struct ribs_context *ctx = *(struct ribs_context **)hashtable_get_val(&ht_pid_to_ctx, loc);
+                    hashtable_remove(&ht_pid_to_ctx, &pid, sizeof(pid));
+                    ribs_swapcurcontext(ctx);
+                }
             }
+            epoll_worker_resume_events(sigfd);
         }
-
     }
 }
 
@@ -278,6 +293,8 @@ static int ribs_server_init_daemon(const char *pidfilename, const char *logfilen
 }
 
 int ribs_server_init(int daemonize, const char *pidfilename, const char *logfilename, int num_forks) {
+    if (0 > hashtable_init(&ht_pid_to_ctx, 0))
+        return -1;
     if (daemonize)
         return ribs_server_init_daemon(pidfilename, logfilename, num_forks);
     /* if (logfilename && 0 > _logger_init(logfilename)) */
@@ -393,4 +410,26 @@ int ribs_set_pidfile(const char *filename) {
     if (0 > _set_pidfile(filename))
         return -1;
     return _set_signals();
+}
+
+int ribs_queue_waitpid(pid_t pid) {
+    uint32_t loc = hashtable_lookup(&ht_pid_to_ctx, &pid, sizeof(pid));
+    if (loc)
+        return LOGGER_ERROR("pid is already in signal to ctx table"), -1;
+    hashtable_insert(&ht_pid_to_ctx, &pid, sizeof(pid), &current_ctx, sizeof(current_ctx));
+    return 0;
+}
+
+const siginfo_t *ribs_last_siginfo(void) {
+    return &last_sig_info;
+}
+
+const siginfo_t *ribs_fork_and_wait(void) {
+    pid_t pid = fork();
+    if (0 == pid)
+        return NULL;
+    if (0 > ribs_queue_waitpid(pid))
+        return (siginfo_t *)-1; /* impossible scenario, force segfault in caller */
+    yield();
+    return ribs_last_siginfo();
 }

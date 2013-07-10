@@ -20,6 +20,10 @@
 #ifndef _DAEMONIZE__H_
 #define _DAEMONIZE__H_
 
+#include "ribs_defs.h"
+#include <sys/types.h>
+#include <sys/wait.h>
+
 int ribs_server_init(int daemonize, const char *pidfilename, const char *logfilename, int num_forks);
 int ribs_server_signal_children(int sig);
 void ribs_server_start(void);
@@ -29,5 +33,8 @@ void daemon_finalize(void);
 int ribs_logger_init(const char *filename);
 int ribs_set_signals(void);
 int ribs_set_pidfile(const char *filename);
+int ribs_queue_waitpid(pid_t pid);
+const siginfo_t *ribs_last_siginfo(void);
+const siginfo_t *ribs_fork_and_wait(void);
 
 #endif // _DAEMONIZE__H_
