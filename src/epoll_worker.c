@@ -39,8 +39,6 @@ struct ribs_context *event_loop_ctx;
 
 static int queue_ctx_fd = -1;
 
-LIST_CREATE(epoll_worker_timeout_chain);
-
 #ifdef UGLY_GETADDRINFO_WORKAROUND
 static void sigrtmin_to_context(void) {
     struct signalfd_siginfo siginfo;
