@@ -70,14 +70,14 @@ struct http_server {
 int http_server_init(struct http_server *server);
 int http_server_init_acceptor(struct http_server *server);
 void http_server_header_start(const char *status, const char *content_type);
-void http_server_header_close();
+void http_server_header_close(void);
 void http_server_set_cookie(const char *name, const char *value, uint32_t max_age, const char *path, const char *domain);
 void http_server_set_session_cookie(const char *name, const char *value, const char *path);
 struct vmbuf *http_server_begin_cookie(const char *name);
 struct vmbuf *http_server_end_cookie(time_t expires, const char *domain, const char *path);
 void http_server_response(const char *status, const char *content_type);
 void http_server_response_sprintf(const char *status, const char *content_type, const char *format, ...);
-void http_server_header_content_length();
+void http_server_header_content_length(void);
 void http_server_fiber_main(void);
 int http_server_sendfile(const char *filename);
 int http_server_sendfile2(const char *filename, const char *additional_headers, const char *ext);

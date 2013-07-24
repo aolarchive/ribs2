@@ -137,7 +137,7 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
 #define READ_MORE_DATA(cond)                    \
     _READ_MORE_DATA(cond, )
 
-static inline void http_client_yield() {
+static inline void http_client_yield(void) {
     struct http_client_context *ctx = (struct http_client_context *)current_ctx->reserved;
     struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + ctx->fd;
     timeout_handler_add_fd_data(&ctx->pool->timeout_handler, fd_data);

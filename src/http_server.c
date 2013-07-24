@@ -217,7 +217,7 @@ void http_server_header_start(const char *status, const char *content_type) {
     vmbuf_sprintf(&ctx->header, "%s %s\r\nServer: %s\r\nContent-Type: %s%s%s", HTTP_SERVER_VER, status, HTTP_SERVER_NAME, content_type, CONNECTION, ctx->persistent ? CONNECTION_KEEPALIVE : CONNECTION_CLOSE);
 }
 
-void http_server_header_close() {
+void http_server_header_close(void) {
     struct http_server_context *ctx = http_server_get_context();
     vmbuf_strcpy(&ctx->header, CRLFCRLF);
 }
@@ -271,7 +271,7 @@ void http_server_response_sprintf(const char *status, const char *content_type, 
     http_server_header_close();
 }
 
-void http_server_header_content_length() {
+void http_server_header_content_length(void) {
     struct http_server_context *ctx = http_server_get_context();
     vmbuf_sprintf(&ctx->header, "%s%zu", CONTENT_LENGTH, vmbuf_wlocpos(&ctx->payload));
 }
@@ -291,7 +291,7 @@ void http_server_header_content_length() {
     }
 
 
-static inline void http_server_yield() {
+static inline void http_server_yield(void) {
     struct http_server_context *ctx = http_server_get_context();
     struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + ctx->fd;
     timeout_handler_add_fd_data(&ctx->server->timeout_handler, fd_data);
@@ -299,7 +299,7 @@ static inline void http_server_yield() {
     TIMEOUT_HANDLER_REMOVE_FD_DATA(fd_data);
 }
 
-inline void http_server_write() {
+inline void http_server_write(void) {
     struct http_server_context *ctx = http_server_get_context();
     struct iovec iovec[2] = {
         { vmbuf_data(&ctx->header), vmbuf_wlocpos(&ctx->header)},
