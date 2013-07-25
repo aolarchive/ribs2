@@ -302,3 +302,34 @@ int http_client_pool_get_request(struct http_client_pool *http_client_pool, stru
     }
     return 0;
 }
+
+struct http_client_context *http_client_pool_post_request_init(struct http_client_pool *http_client_pool,
+        struct in_addr addr, uint16_t port, const char *hostname, const char *format, ...) {
+    struct http_client_context *cctx = http_client_pool_create_client(http_client_pool, addr, port, NULL);
+    if (NULL == cctx)
+        return NULL;
+    vmbuf_strcpy(&cctx->request, "POST ");
+    va_list ap;
+    va_start(ap, format);
+    vmbuf_vsprintf(&cctx->request, format, ap);
+    va_end(ap);
+    vmbuf_sprintf(&cctx->request, " HTTP/1.1\r\nHost: %s", hostname);
+    return cctx;
+}
+
+/* inline */
+int http_client_pool_post_request_content_type(struct http_client_context *context, const char *content_type) {
+    return vmbuf_sprintf(&context->request, "\r\nContent-Type: %s", content_type);
+}
+
+int http_client_pool_post_request_send(struct http_client_context *context, struct vmbuf *post_data) {
+    size_t size = vmbuf_wlocpos(post_data);
+    vmbuf_sprintf(&context->request, "\r\nContent-Length: %zu\r\n\r\n", size);
+    // TODO: use writev instead of copying
+    vmbuf_memcpy(&context->request, vmbuf_data(post_data), size);
+    if (0 > http_client_send_request(context)) {
+        http_client_free(context);
+        return -1;
+    }
+    return 0;
+}
