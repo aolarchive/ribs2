@@ -27,7 +27,7 @@
 #include "hashtable.h"
 #include "var_index_entry.h"
 
-#define VAR_INDEX_CONTAINER_INITIALIZER { FILE_MAPPER_INITIALIZER, HASHTABLEFILE_READONLY_INITIALIZER}
+#define VAR_INDEX_CONTAINER_INITIALIZER { FILE_MAPPER_INITIALIZER, HASHTABLE_INITIALIZER }
 
 struct var_index_container_o2m {
     struct file_mapper fm;
