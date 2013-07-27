@@ -39,7 +39,7 @@ int main(void){
     const char *base_dir = "data";
     /* the default test db connection string */
     char DEFAULT_TEST_DB_CONN_STR[] = "@localhost";
-   char *test_db = DEFAULT_TEST_DB_CONN_STR;
+    char *test_db = DEFAULT_TEST_DB_CONN_STR;
 
     /* create the target directory where the dump(s) will be stored */
     if( 0 > mkdir_recursive(base_dir)) {

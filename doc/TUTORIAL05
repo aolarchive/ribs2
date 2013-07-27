@@ -179,8 +179,8 @@ With our MySQL database set up we are now ready to write some code.
 
 Step 3, Creating the Dumper
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-First we will need to include few headers and definitions to our 
-mydumper.c file. Add the following lines above your main and below 
+First we will need to include few headers and definitions to our
+mydumper.c file. Add the following lines above your main and below
 your ribs.h include:
  ___________________________________________________________________
 |                                                                   |
@@ -290,7 +290,7 @@ data from our MySQL database table:
       LOGGER_ERROR("epoll_worker_init failed");
       exit(EXIT_FAILURE);
    }
-   
+
    /* initialize the client pool */
    http_client_pool_init(&client_pool, 10, 10);
 
@@ -321,14 +321,10 @@ data/
       |_ ds.txt
       |_ id
       |_ id.idx
-      |_ name.dat
-      |_ name.ofs
+      |_ name
       |_ schema.txt
 
 Since 'id' is our index, a id.idx file is created as well.
-Since the data of 'name' is of a variable size, it requires a .dat
-file to hold its data and a .ofs file to hold the offsets of where
-the data item starts in order to retrieve the correct data item.
 
 Step 4, Loading the dump data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -339,7 +335,7 @@ that were created earlier.
 First, we need to create mydump/src/mydump.ds , which is the ds file
 used to load data from the dump(s) into the program. the ds file
 will contain the same content as all of the dumps' ds.txt files, but
-it also includes a line in each table for each of the indinces
+it also includes a line in each table for each of the indices
 created in that table.
 
 In our case, since we are only using one dump table, we only need
@@ -412,7 +408,7 @@ function ds_loader_mydump_init which are used in mydump_data.c.
 
 The externs allow for 'active' and 'data[]' to be called from another
 file, such as mydump.c, so that a get function does not need to be
-implemented to access these variable, aming accessing the loaded data
+implemented to access these variable, therefore accessing the loaded data
 simpler to code.
 
 For mydump_data.c, copy the following lines into
@@ -505,7 +501,7 @@ Finally, copy the following lines into mydump/src/mydump.c
             /* get char pointer at beginning of data at loc */
             ds_var_field_get(&data[active].test_test_table_name,
                      loc, &result, &result_size);
-            
+
             /* allocate memory to name according to result size */
             name = ribs_malloc(result_size + 1);
 
@@ -529,8 +525,8 @@ ds_var_field_get() will give the result pointer to the beginning of
 the string, as well as the length of the string, which then can be
 copied over using strncpy().
 
-Note: To access indices or feilds/columns of the dumps' tables in
-order to lookup or get a value from a feild, since the dump has been
+Note: To access indices or fields/columns of the dumps' tables in
+order to lookup or get a value from a field, since the dump has been
 loaded into memory, it can easily be accessed using the 'data[active]'
 extern from mydump_data.h in the format of:
 
@@ -541,8 +537,6 @@ or
 Examples of this can be seen in the INDEX_CONTAINER_O2O_LOOKUP and
 DS_FIELD_GET_VAL macros.
 
-
 Compile and run your mydump.c and it should ouput the data from
 the dump, which should be the same data from before in our MySQL
 database.
-
