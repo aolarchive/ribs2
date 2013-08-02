@@ -161,6 +161,8 @@ int queue_current_ctx(void) {
 inline void courtesy_yield(void) {
     if (0 == epoll_wait(ribs_epoll_fd, &last_epollev, 1, 0))
         return;
+    // save since queue_current_ctx() will override if queue if full;
+    struct ribs_context *save_ctx = epoll_worker_get_last_context();
     queue_current_ctx();
-    ribs_swapcurcontext(epoll_worker_get_last_context());
+    ribs_swapcurcontext(save_ctx);
 }
