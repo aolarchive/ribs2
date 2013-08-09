@@ -337,6 +337,10 @@ int ribs_get_daemon_instance(void) {
     return daemon_instance;
 }
 
+int ribs_get_num_instances(void) {
+    return num_instances;
+}
+
 int daemonize(void) {
     if (0 > pipe2(child_is_up_pipe, O_CLOEXEC))
         return LOGGER_ERROR("failed to create pipe"), -1;
