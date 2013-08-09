@@ -278,3 +278,9 @@ _RIBS_INLINE_ int TEMPLATE(VMBUF_T,chrcpy)(struct VMBUF_T *vmb, char c) {
     *(TEMPLATE(VMBUF_T,wloc)(vmb)) = c;
     return TEMPLATE(VMBUF_T,wseek)(vmb, 1);
 }
+
+_RIBS_INLINE_ void TEMPLATE(VMBUF_T,swap)(struct VMBUF_T *vmb1, struct VMBUF_T *vmb2) {
+    struct VMBUF_T tmpbuf = *vmb1;
+    *vmb1 = *vmb2;
+    *vmb2 = tmpbuf;
+}

@@ -88,6 +88,7 @@ _RIBS_INLINE_ void vmbuf_memset(struct vmbuf *vmb, int c, size_t n);
 _RIBS_INLINE_ int vmbuf_strftime(struct vmbuf *vmb, const char *format, const struct tm *tm) __attribute__ ((format (strftime, 2, 0)));
 _RIBS_INLINE_ void *vmbuf_allocptr(struct vmbuf *vmb, size_t n);
 _RIBS_INLINE_ int vmbuf_chrcpy(struct vmbuf *vmb, char c);
+_RIBS_INLINE_ void vmbuf_swap(struct vmbuf *vmb1, struct vmbuf *vmb2);
 
 #include "../src/_vmbuf.c"
 #include "../src/_vmbuf_impl.c"

@@ -93,6 +93,7 @@ _RIBS_INLINE_ void vmfile_memset(struct vmfile *vmb, int c, size_t n);
 _RIBS_INLINE_ int vmfile_strftime(struct vmfile *vmb, const char *format, const struct tm *tm) __attribute__ ((format (strftime, 2, 0)));
 _RIBS_INLINE_ void *vmfile_allocptr(struct vmfile *vmb, size_t n);
 _RIBS_INLINE_ int vmfile_chrcpy(struct vmfile *vmb, char c);
+_RIBS_INLINE_ void vmfile_swap(struct vmfile *vmb1, struct vmfile *vmb2);
 
 #include "../src/_vmfile.c"
 #include "../src/_vmbuf_impl.c"
