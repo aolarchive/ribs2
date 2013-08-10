@@ -20,6 +20,8 @@
 #ifndef _BITSWAP__H_
 #define _BITSWAP__H_
 
+#include <stdint.h>
+
 static inline uint32_t bitswap32(uint32_t x) {
     asm ("bswap %0": "=a" (x) : "0" (x) );
     return x;
