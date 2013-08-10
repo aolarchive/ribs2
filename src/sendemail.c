@@ -224,10 +224,10 @@ int sendemail2(struct sendemail_mta *mta, struct email *email) {
     SEND_DATA;
 
     *vmbuf_data(&response) = 0;
-    int res;
+    int res = 0;
 
     while (NULL == strstr(vmbuf_data_ofs(&response, ofs), CRLF)) {
-        if (res == 1)
+        if (1 == res)
             sendemail_yield(&mta->timeout_handler, cfd);
         if (0 >= (res = vmbuf_read(&response, cfd)))
             break;

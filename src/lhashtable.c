@@ -42,7 +42,7 @@ int lhashtable_init(struct lhashtable *lht, const char *filename) {
         if (MAP_FAILED == lht->mem)
             return LOGGER_PERROR(filename), close(lht->fd), lht->fd = -1;
         if (0 != memcmp(LHT_SIGNATURE, lht->mem, sizeof(LHT_SIGNATURE))) {
-            LOGGER_ERROR("corrupted file (signature): %s", filename), -1;
+            LOGGER_ERROR("corrupted file (signature): %s", filename);
             return close(lht->fd), lht->fd = -1, munmap(lht->mem, st.st_size), -1;
         }
         if (0 == (LHT_GET_HEADER()->flags & LHT_FLAG_FIN))
