@@ -28,7 +28,7 @@
 #define BASE64_ENCODED_SIZE(x) (BASE64_ENCODED_LEN(x)+1)
 #define BASE64_DECODED_SIZE(x) (BASE64_DECODED_LEN(x)+1)
 
-unsigned char *base64_encode(void *dst, size_t *dstsize, const void *src, size_t srcsize, int padding);
-unsigned char *base64_decode(void *dst, size_t *dstsize, const void *src, size_t srcsize);
+unsigned char *ribs_base64_encode(void *dst, size_t *dstsize, const void *src, size_t srcsize, int padding);
+unsigned char *ribs_base64_decode(void *dst, size_t *dstsize, const void *src, size_t srcsize);
 
 #endif // _BASE64__H_
