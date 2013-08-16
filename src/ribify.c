@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012 Adap.tv, Inc.
+    Copyright (C) 2012,2013 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -17,7 +17,7 @@
     You should have received a copy of the GNU Lesser General Public License
     along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "ribs.h"
+#include "ribify.h"
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -212,6 +212,12 @@ void *_ribified_realloc(void *ptr, size_t size) {
     memcpy(mem, ptr, size > old_size ? old_size : size);
     return mem;
 }
+
+void *ribify_malloc(size_t size) __attribute__ ((weak, alias("_ribified_malloc")));
+void ribify_free(void *ptr) __attribute__ ((weak, alias("_ribified_free")));
+void *ribify_calloc(size_t nmemb, size_t size) __attribute__ ((weak, alias("_ribified_calloc")));
+void *ribify_realloc(void *ptr, size_t size) __attribute__ ((weak, alias("_ribified_realloc")));
+
 
 
 #ifdef UGLY_GETADDRINFO_WORKAROUND
