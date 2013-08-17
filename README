@@ -42,6 +42,7 @@ In order to build the library you will need to install the following
 packages (under Ubuntu):
 * build-essential
 * libmysqlclient-dev (optional)
+* zlib1g-dev (optional)
 
 Tutorials
 =========
@@ -51,4 +52,5 @@ The following tutorials can be found in doc/
 * TUTORIAL03 - Using MySQL via ribify
 * TUTORIAL04 - log player (http client)
 * TUTORIAL05 - dumping data and creating index
+* TUTORIAL06 - using a ribified mongodb
 =========
