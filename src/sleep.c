@@ -50,4 +50,3 @@ int ribs_usleep(int tfd, useconds_t usec) {
     struct timespec req = {usec/1000000L, (usec%1000000L)*1000L};
     return ribs_nanosleep(tfd, &req, NULL);
 }
-

@@ -75,4 +75,3 @@ _RIBS_INLINE_ void *ringfile_rolling_push(struct ringfile *rb, size_t n) {
         ringfile_rseek(rb, n);
     return ringfile_push(rb, n);
 }
-

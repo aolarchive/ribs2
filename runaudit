@@ -1,0 +1,115 @@
+#!/bin/bash
+#
+#   This file is part of RIBS2.0 (Robust Infrastructure for Backend Systems).
+#   RIBS is an infrastructure for building great SaaS applications (but not
+#   limited to).
+#
+#   Copyright (C) 2013 Adap.tv, Inc.
+#
+#   RIBS is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU Lesser General Public License as published by
+#   the Free Software Foundation, version 2.1 of the License.
+#
+#   RIBS is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU Lesser General Public License for more details.
+#
+#   You should have received a copy of the GNU Lesser General Public License
+#   along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+COPYRIGHT_HEAD="/*\\
+    This file is part of RIBS2.0 (Robust Infrastructure for Backend Systems).\\
+    RIBS is an infrastructure for building great SaaS applications (but not\\
+    limited to).\\
+"
+
+COPYRIGHT_FOOT="\\
+\\
+    RIBS is free software: you can redistribute it and/or modify\\
+    it under the terms of the GNU Lesser General Public License as published by\\
+    the Free Software Foundation, version 2.1 of the License.\\
+\\
+    RIBS is distributed in the hope that it will be useful,\\
+    but WITHOUT ANY WARRANTY; without even the implied warranty of\\
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\\
+    GNU Lesser General Public License for more details.\\
+\\
+    You should have received a copy of the GNU Lesser General Public License\\
+    along with RIBS.  If not, see <http://www.gnu.org/licenses/>.\\
+*/"
+
+BLACKLIST=( "./include/search.h" "./src/search.c" )
+
+array2str()
+{
+    local ref=$1[@]
+    local array=(${!ref})
+    local n=${#array[@]}
+    local i=0
+
+    while [ $i -lt $n ]; do
+        echo -n ${array[i]}
+        i=$((i + 1))
+        [ $i -ne $n ] && echo -n ","
+    done
+}
+
+usage()
+{
+    echo "$0 -fv"
+    echo "   -f force recreate license"
+    echo "   -v verbose"
+    exit
+}
+
+is_blacklist()
+{
+    local value=$1
+    local i
+
+    for ((i=0; i<${#BLACKLIST[@]}; i++)); do
+        if [ "$value" = "${BLACKLIST[$i]}" ]; then
+           return 0;
+        fi
+    done
+    return 1
+}
+
+CMD="grep -q Copyright"
+
+while getopts ':fv' OPTION; do
+    case $OPTION in
+        f)  CMD="false";;
+        v)  verbose=1;;
+        *)  usage;;
+    esac
+done
+
+for FILE in $(find . -type f -name "*.c" -o -name "*.h"); do
+    [ -n "$verbose" ] && echo -n "Processing $FILE: "
+    if is_blacklist $FILE; then
+        [ -n "$verbose" ] && echo "skipped"
+    else
+        if ! $CMD $FILE; then
+            [ -n "$verbose" ] || echo -n "Processing $FILE: "
+            if grep -q Copyright $FILE; then
+                sed -i -e "1,19 d" $FILE
+                MSG="rebuilt"
+            else
+                MSG="corrected"
+            fi
+
+            WORK=($(git log --format="%ai" $FILE | cut -d "-" -f 1 | sort -un))
+            DATE=$(array2str WORK)
+
+            sed -i -e "1i $COPYRIGHT_FOOT" $FILE
+            sed -i -e "1i \ \ \ \ Copyright (C) $DATE Adap.tv, Inc." $FILE
+            sed -i -e "1i $COPYRIGHT_HEAD" $FILE
+            echo "$MSG"
+        else
+            [ -n "$verbose" ] && echo "unchanged"
+        fi
+    fi
+done

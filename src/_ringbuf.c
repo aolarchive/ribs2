@@ -66,5 +66,3 @@ _RIBS_INLINE_ void *ringbuf_rolling_push(struct ringbuf *rb, size_t n) {
         ringbuf_rseek(rb, n);
     return ringbuf_push(rb, n);
 }
-
-

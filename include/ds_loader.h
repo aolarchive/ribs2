@@ -173,4 +173,3 @@ int ds_loader_verify_files(const char *path, const char **files);
 #undef VAR_IDX_O2M_LOADER
 
 #endif
-

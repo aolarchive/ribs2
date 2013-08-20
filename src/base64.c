@@ -120,4 +120,3 @@ unsigned char *ribs_base64_decode(void *dst, size_t *dstsize, const void *src, s
     *dstsize = d - (unsigned char *)dst;
     return dst;
 }
-

@@ -257,4 +257,3 @@ size_t json_escape_str_vmb(struct vmbuf *buf, const char *s) {
     vmbuf_wseek(buf, l);
     return l;
 }
-

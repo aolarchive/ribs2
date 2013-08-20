@@ -17,8 +17,10 @@
     You should have received a copy of the GNU Lesser General Public License
     along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
 */
-
+#ifndef _SLEEP__H_
+#define _SLEEP__H_
 int ribs_sleep_init(void);
 int ribs_nanosleep(int tfd, const struct timespec *req, struct timespec *rem);
 unsigned int ribs_sleep(int tfd, unsigned int seconds);
 int ribs_usleep(int tfd, useconds_t usec);
+#endif // _SLEEP__H_

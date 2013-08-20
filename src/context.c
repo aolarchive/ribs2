@@ -69,4 +69,3 @@ void __ribs_context_cleanup(void) {
         current_ctx->memalloc = (struct memalloc)MEMALLOC_INITIALIZER;
     }
 }
-

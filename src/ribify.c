@@ -220,14 +220,11 @@ char *_ribified_strdup(const char *s) {
     return mem;
 }
 
-
 void *ribify_malloc(size_t size) __attribute__ ((weak, alias("_ribified_malloc")));
 void ribify_free(void *ptr) __attribute__ ((weak, alias("_ribified_free")));
 void *ribify_calloc(size_t nmemb, size_t size) __attribute__ ((weak, alias("_ribified_calloc")));
 void *ribify_realloc(void *ptr, size_t size) __attribute__ ((weak, alias("_ribified_realloc")));
 char *ribify_strdup(const char *s) __attribute__ ((weak, alias("_ribified_strdup")));
-
-
 
 #ifdef UGLY_GETADDRINFO_WORKAROUND
 int _ribified_getaddrinfo(const char *node, const char *service,

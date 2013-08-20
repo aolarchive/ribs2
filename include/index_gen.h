@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012 Adap.tv, Inc.
+    Copyright (C) 2012,2013 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -34,7 +34,6 @@ struct TEMPLATE(index_key_rec_o2m, T) {
     uint32_t size;
     uint32_t vect;
 };
-
 
 static inline int TEMPLATE(index_gen_fw_compar, T)(const void *a, const void *b) {
     struct TEMPLATE(index_gen_fw_index, T) *aa = (struct TEMPLATE(index_gen_fw_index, T) *)a;
