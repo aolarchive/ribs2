@@ -217,6 +217,11 @@ void http_server_header_start(const char *status, const char *content_type) {
     vmbuf_sprintf(&ctx->header, "%s %s\r\nServer: %s\r\nContent-Type: %s%s%s", HTTP_SERVER_VER, status, HTTP_SERVER_NAME, content_type, CONNECTION, ctx->persistent ? CONNECTION_KEEPALIVE : CONNECTION_CLOSE);
 }
 
+void http_server_header_start_no_body(const char *status) {
+    struct http_server_context *ctx = http_server_get_context();
+    vmbuf_sprintf(&ctx->header, "%s %s\r\nServer: %s%s%s", HTTP_SERVER_VER, status, HTTP_SERVER_NAME, CONNECTION, ctx->persistent ? CONNECTION_KEEPALIVE : CONNECTION_CLOSE);
+}
+
 void http_server_header_close(void) {
     struct http_server_context *ctx = http_server_get_context();
     vmbuf_strcpy(&ctx->header, CRLFCRLF);
@@ -483,7 +488,6 @@ int http_server_sendfile2(const char *filename, const char *additional_headers, 
     if (0 == *filename)
         filename = ".";
     struct http_server_context *ctx = http_server_get_context();
-    int fd = ctx->fd;
     int ffd = open(filename, O_RDONLY);
     if (ffd < 0)
         return HTTP_SERVER_NOT_FOUND;
@@ -498,7 +502,6 @@ int http_server_sendfile2(const char *filename, const char *additional_headers, 
         return 1;
     }
 
-    epoll_worker_resume_events(ctx->fd);
     vmbuf_reset(&ctx->header);
 
     if (NULL != ext)
@@ -510,36 +513,32 @@ int http_server_sendfile2(const char *filename, const char *additional_headers, 
         vmbuf_strcpy(&ctx->header, additional_headers);
 
     http_server_header_close();
+    int res = http_server_sendfile_payload(ffd, st.st_size);
+    close(ffd);
+    if (0 > res)
+        LOGGER_PERROR(filename);
+    return res;
+}
+
+int http_server_sendfile_payload(int ffd, off_t size) {
+    struct http_server_context *ctx = http_server_get_context();
+    int fd = ctx->fd;
     int option = 1;
     if (0 > setsockopt(fd, IPPROTO_TCP, TCP_CORK, &option, sizeof(option)))
         LOGGER_PERROR("TCP_CORK set");
+    epoll_worker_resume_events(ctx->fd);
     http_server_write();
-    off_t ofs = 0;
-    ssize_t res;
-    int ret;
-    for (;;http_server_yield()) {
-        res = sendfile(fd, ffd, &ofs, st.st_size - ofs);
-        if (res < 0) {
-            if (EAGAIN == errno)
-                continue;
-            LOGGER_PERROR(filename);
-            ctx->persistent = 0;
-            ret = -1;
-            break;
-        }
-        if (ofs < st.st_size)
-            continue;
-        ret = 0;
-        break;
-    }
     vmbuf_reset(&ctx->header);
-    close(ffd);
-    if (ctx->persistent) {
-        option = 0;
-        if (0 > setsockopt(fd, IPPROTO_TCP, TCP_CORK, &option, sizeof(option)))
-            LOGGER_PERROR("TCP_CORK release");
+    off_t ofs = 0;
+    for (;;http_server_yield()) {
+        if (0 > sendfile(fd, ffd, &ofs, size - ofs) && EAGAIN != errno)
+            return ctx->persistent = 0, -1;
+        if (ofs >= size) break;
     }
-    return ret;
+    option = 0;
+    if (0 > setsockopt(fd, IPPROTO_TCP, TCP_CORK, &option, sizeof(option)))
+        LOGGER_PERROR("TCP_CORK release");
+    return 0;
 }
 
 int http_server_generate_dir_list(const char *URI) {

@@ -78,6 +78,8 @@ int mime_types_init(void) {
 const char *mime_types_by_ext(const char *ext) {
     const char *res = DEFAULT_MIME_TYPE;
     size_t n = strlen(ext);
+    if (n > 128)
+        return res;
     char tmpext[n];
     char *p = tmpext;
     for (; *ext; ++ext)

@@ -70,6 +70,7 @@ struct http_server {
 int http_server_init(struct http_server *server);
 int http_server_init_acceptor(struct http_server *server);
 void http_server_header_start(const char *status, const char *content_type);
+void http_server_header_start_no_body(const char *status);
 void http_server_header_close(void);
 void http_server_set_cookie(const char *name, const char *value, uint32_t max_age, const char *path, const char *domain);
 void http_server_set_session_cookie(const char *name, const char *value, const char *path);
@@ -81,6 +82,7 @@ void http_server_header_content_length(void);
 void http_server_fiber_main(void);
 int http_server_sendfile(const char *filename);
 int http_server_sendfile2(const char *filename, const char *additional_headers, const char *ext);
+int http_server_sendfile_payload(int ffd, off_t size);
 int http_server_generate_dir_list(const char *filename);
 void http_server_close(struct http_server *server);
 
