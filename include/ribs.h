@@ -45,5 +45,6 @@
 #include "sleep.h"
 #include "malloc.h"
 #include "timer.h"
+#include "base64.h"
 
 #endif // _RIBS__H_
