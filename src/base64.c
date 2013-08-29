@@ -22,7 +22,6 @@
 #include <stdio.h>
 
 unsigned char *ribs_base64_encode(void *dst, size_t *dstsize, const void *src, size_t srcsize, int padding) {
-    printf("here\n");
     static const char *code = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
     *dstsize = 0;
     size_t total_chars = srcsize / 3;
