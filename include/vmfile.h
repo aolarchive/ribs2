@@ -49,6 +49,7 @@ struct vmfile {
 #define VMFILE_INIT(var) (var) = ((struct vmfile)VMFILE_INITIALIZER)
 
 /* vmfile */
+_RIBS_INLINE_ int vmfile_attachfd(struct vmfile *vmb, int fd, size_t initial_size);
 _RIBS_INLINE_ int vmfile_init(struct vmfile *vmb, const char *filename, size_t initial_size);
 _RIBS_INLINE_ int vmfile_resize_to(struct vmfile *vmb, size_t new_capacity);
 _RIBS_INLINE_ int vmfile_close(struct vmfile *vmb);
