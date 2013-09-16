@@ -32,6 +32,7 @@
 #include "daemonize.h"
 #include "http_server.h"
 #include "http_file_server.h"
+#include "http_vhost.h"
 #include "http_defs.h"
 #include "http_client_pool.h"
 #include "http_headers.h"

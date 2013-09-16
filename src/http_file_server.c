@@ -85,6 +85,8 @@ int http_file_server_run(struct http_file_server *fs) {
     struct http_server_context *ctx = http_server_get_context();
     struct http_headers headers;
     http_headers_parse(ctx->headers, &headers);
+    if (0 == *ctx->uri)
+        return HTTP_FILE_SERVER_ERROR(403), -1;
     http_server_decode_uri(ctx->uri);
     return http_file_server_run2(fs, &headers, ctx->uri + 1);
 }
