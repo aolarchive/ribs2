@@ -30,6 +30,7 @@
 struct http_client_pool {
     struct ctx_pool ctx_pool;
     struct timeout_handler timeout_handler;
+    struct timeout_handler timeout_handler_persistent;
 };
 
 struct http_client_context {

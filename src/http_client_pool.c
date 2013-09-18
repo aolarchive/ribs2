@@ -63,6 +63,8 @@ void http_client_free(struct http_client_context *cctx) {
             head = client_heads + *(uint32_t *)hashtable_get_val(&ht_persistent_clients, ofs);
         struct list *client = client_chains + fd;
         list_insert_head(head, client);
+        struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
+        timeout_handler_add_fd_data(&cctx->pool->timeout_handler_persistent, fd_data);
     }
     ctx_pool_put(&cctx->pool->ctx_pool, RIBS_RESERVED_TO_CONTEXT(cctx));
 }
@@ -75,6 +77,8 @@ static void http_client_idle_handler(void) {
             struct list *client = client_chains + fd;
             list_remove(client);
             close(fd);
+            struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
+            TIMEOUT_HANDLER_REMOVE_FD_DATA(fd_data);
             /* TODO: remove from hashtable when list is empty (first add remove method to hashtable) */
             /* TODO: insert list head into free list */
         }
@@ -108,7 +112,11 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
 
         hashtable_init(&ht_persistent_clients, rlim.rlim_cur);
     }
-    return timeout_handler_init(&http_client_pool->timeout_handler);
+    if (0 > timeout_handler_init(&http_client_pool->timeout_handler) ||
+        0 > timeout_handler_init(&http_client_pool->timeout_handler_persistent))
+        return -1;
+    return 0;
+
 }
 
 #define CLIENT_ERROR()                   \
@@ -254,6 +262,8 @@ struct http_client_context *http_client_pool_create_client(struct http_client_po
     if (ofs > 0 && !list_empty(head = client_heads + *(uint32_t *)hashtable_get_val(&ht_persistent_clients, ofs))) {
         struct list *client = list_pop_head(head);
         cfd = client - client_chains;
+        struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + cfd;
+        TIMEOUT_HANDLER_REMOVE_FD_DATA(fd_data);
     } else {
         cfd = socket(PF_INET, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
         if (0 > cfd)

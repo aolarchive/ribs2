@@ -8,7 +8,7 @@ SSTRL(DB_TEST,                "test");
 
 /* set the client pool timeout */
 struct http_client_pool client_pool =
-{.timeout_handler.timeout = 60000};
+{.timeout_handler.timeout = 60000,.timeout_handler_persistent.timeout = 60000};
 
 /* the function to dump the test db data table */
 int dump_test_data(
