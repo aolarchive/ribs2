@@ -24,29 +24,42 @@
 #include <sys/timerfd.h>
 
 static void _ribs_timer_wrapper(void) {
-    void (**handler)(void) = (void (**)(void))current_ctx->reserved;
+    void (**handler)(int) = (void (**)(int))current_ctx->reserved;
     for (;;yield()) {
         uint64_t num_exp;
         if (sizeof(num_exp) != read(last_epollev.data.fd, &num_exp, sizeof(num_exp))) {
             LOGGER_ERROR("size mismatch when reading from timerfd: %d", last_epollev.data.fd);
             continue;
         }
-        (*handler)();
+        (*handler)(last_epollev.data.fd);
     }
 }
 
-int ribs_timer(time_t msec, void (*handler)(void)) {
-    int tfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+int ribs_timer(time_t msec, void (*handler)(int)) {
+    int tfd = ribs_timer_create(handler);
     if (0 > tfd)
         return LOGGER_PERROR("timerfd"), -1;
-    struct ribs_context *ctx = ribs_context_create(1024 * 1024, sizeof(void (*)(void)), _ribs_timer_wrapper);
-    void (**ref)(void) = (void (**)(void))ctx->reserved;
-    *ref = handler;
-    if (0 > ribs_epoll_add(tfd, EPOLLIN, ctx))
-        return LOGGER_PERROR("epoll_add"), close(tfd), -1;
     struct itimerspec timerspec = {{msec/1000,(msec % 1000)*1000000},{msec/1000,(msec % 1000)*1000000}};
     if (0 > timerfd_settime(tfd, 0, &timerspec, NULL))
         return LOGGER_PERROR("timerfd_settime: %d", tfd), close(tfd), -1;
     return 0;
 }
 
+int ribs_timer_create(void (*handler)(int)) {
+    int tfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+    if (0 > tfd)
+        return LOGGER_PERROR("timerfd_create"), -1;
+    struct ribs_context *ctx = ribs_context_create(1024 * 1024, sizeof(void (*)(void)), _ribs_timer_wrapper);
+    void (**ref)(int) = (void (**)(int))ctx->reserved;
+    *ref = handler;
+    if (0 > ribs_epoll_add(tfd, EPOLLIN, ctx))
+        return LOGGER_PERROR("epoll_add"), close(tfd), -1;
+    return tfd;
+}
+
+int ribs_timer_arm(int tfd, time_t msec) {
+    struct itimerspec timerspec = {{0,0},{msec/1000,(msec % 1000)*1000000}};
+    if (0 > timerfd_settime(tfd, 0, &timerspec, NULL))
+        return LOGGER_PERROR("timerfd_settime: %d", tfd), close(tfd), -1;
+    return 0;
+}

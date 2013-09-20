@@ -22,6 +22,8 @@
 
 #include "ribs_defs.h"
 
-int ribs_timer(time_t msec, void (*handler)(void));
+int ribs_timer(time_t msec, void (*handler)(int));
+int ribs_timer_create(void (*handler)(int));
+int ribs_timer_arm(int tfd, time_t msec);
 
 #endif // _TIMER__H_
