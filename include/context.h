@@ -35,7 +35,7 @@
 #endif
 
 struct ribs_context {
-#ifndef __arm__
+#if defined(__x86_64__) || defined (__i386__)
     uintptr_t stack_pointer_reg;
     uintptr_t parent_context_reg;
     uintptr_t additional_reg[NUM_ADDITIONAL_REGS];

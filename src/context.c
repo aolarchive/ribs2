@@ -26,7 +26,7 @@ extern void __ribs_context_jump(void);
 
 void ribs_makecontext(struct ribs_context *ctx, struct ribs_context *pctx, void (*func)(void)) {
 
-#ifndef __arm__
+#if defined(__i386__) || defined(__x86_64__)
     /* align stack to 16 bytes, assuming function always does push rbp to align.
        func doesn't need to be aligned since it doesn't rely on stack alignment
        (x86_64: needed when using SSE instructions)

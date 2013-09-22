@@ -21,7 +21,7 @@
 #define _ILOG2__H_
 
 static inline uint32_t ilog2(uint32_t x) {
-#ifndef __arm__
+#if defined(__i386__) || defined(__x86_64__)
     uint32_t res;
     asm ("bsr %[x], %[res]"
          : [res] "=r" (res)
