@@ -223,7 +223,7 @@ _RIBS_INLINE_ int TEMPLATE(VMBUF_T,read)(struct VMBUF_T *vmb, int fd) {
         if (0 > TEMPLATE(VMBUF_T,wseek)(vmb, res))
             return -1;
         if (res < wavail)
-            return 1;
+            return errno=0, 1;
     }
     if (res < 0)
         return (EAGAIN == errno ? 1 : -1);

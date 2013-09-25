@@ -186,7 +186,7 @@ static void http_server_accept_connections(void) {
         if (0 > fd)
             continue;
 
-        if (0 > ribs_epoll_add(fd, EPOLLIN | EPOLLOUT | EPOLLET, server->idle_ctx)) {
+        if (0 > ribs_epoll_add(fd, EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP, server->idle_ctx)) {
             close(fd);
             continue;
         }

@@ -143,7 +143,7 @@ int sendemail2(struct sendemail_mta *mta, struct email *email) {
     if (0 > connect(cfd, (struct sockaddr *)&mta->saddr, sizeof(mta->saddr)) && EINPROGRESS != errno)
         return LOGGER_PERROR("sendemail: connect"), close(cfd), -1;
 
-    if (0 > ribs_epoll_add(cfd, EPOLLIN | EPOLLOUT | EPOLLET, current_ctx))
+    if (0 > ribs_epoll_add(cfd, EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP, current_ctx))
         return close(cfd), -1;
 
     struct vmbuf response = VMBUF_INITIALIZER;
