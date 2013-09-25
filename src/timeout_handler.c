@@ -33,9 +33,8 @@ static void expiration_handler(void) {
         gettimeofday(&now, NULL);
         timersub(&now, &when, &ts);
         struct list *fd_data_list;
-        int arm_timer = 0;
+        int arm_timer = !list_empty(&timeout_handler->timeout_chain);
         LIST_FOR_EACH(&timeout_handler->timeout_chain, fd_data_list) {
-            arm_timer = 1;
             struct epoll_worker_fd_data *fd_data = LIST_ENTRY(fd_data_list, struct epoll_worker_fd_data, timeout_chain);
             if (timercmp(&fd_data->timestamp, &ts, >)) {
                 timersub(&fd_data->timestamp, &ts, &now);
