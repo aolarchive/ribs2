@@ -27,13 +27,13 @@ static void expiration_handler(void) {
     struct timeval when = {timeout_handler->timeout/1000,(timeout_handler->timeout%1000)*1000};
     int fd = timeout_handler->fd;
     for (;;yield()) {
-        if (sizeof(num_exp) != read(fd, &num_exp, sizeof(num_exp)))
+        if (sizeof(num_exp) != read(fd, &num_exp, sizeof(num_exp)) || list_empty(&timeout_handler->timeout_chain))
             continue;
         struct timeval now, ts;
         gettimeofday(&now, NULL);
         timersub(&now, &when, &ts);
         struct list *fd_data_list;
-        int arm_timer = !list_empty(&timeout_handler->timeout_chain);
+        int arm_timer = 1;
         LIST_FOR_EACH(&timeout_handler->timeout_chain, fd_data_list) {
             struct epoll_worker_fd_data *fd_data = LIST_ENTRY(fd_data_list, struct epoll_worker_fd_data, timeout_chain);
             if (timercmp(&fd_data->timestamp, &ts, >)) {
