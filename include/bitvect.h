@@ -21,9 +21,10 @@
 #define _BITVECT__H_
 
 #include "ribs_defs.h"
+#include "malloc.h"
 #include "vmbuf.h"
 
-#define BITVECT_INITIALIZER { VMBUF_INITIALIZER, 0 }
+#define BITVECT_INITIALIZER { NULL, 0 }
 #define BITVECT_NUM_BITS_ALIGN 6 /* 64 bits */
 #define BITVECT_NUM_BITS (1 << BITVECT_NUM_BITS_ALIGN)
 #define BITVECT_NUM_BYTES (BITVECT_NUM_BITS >> 3)
@@ -31,48 +32,64 @@
 #define BITVECT_ROUNDUP_BYTES(x) (((x + BITVECT_MASK) & ~(BITVECT_MASK)) >> 3)
 #define _BITVECT_BIT_OP(i,op,op2) data[i >> BITVECT_NUM_BITS_ALIGN] op (op2(1ULL << ((i) & (BITVECT_NUM_BITS - 1))))
 #define _BITVECT_COMBINE(bv,bv_other,op)                                \
-    if (bv->size != bv_other->size)                                    \
+    if (bv->size != bv_other->size)                                     \
         return -1;                                                      \
-    uint64_t *data = (uint64_t *)vmbuf_data(&bv->data), *data_end = data + bv->size; \
-    uint64_t *data_other = (uint64_t *)vmbuf_data(&bv_other->data);           \
+    uint64_t *data = bv->data, *data_end = data + bv->size;             \
+    uint64_t *data_other = bv_other->data;                              \
     for (; data != data_end; ++data, ++data_other) {                    \
         *data op *data_other;                                           \
     }                                                                   \
 
 struct bitvect {
-    struct vmbuf data;
+    void *data;
     size_t size;
 };
 
 _RIBS_INLINE_ int bitvect_init(struct bitvect *bv, size_t size) {
-    if (0 > vmbuf_init(&bv->data, 4096))
-        return -1;
-    vmbuf_alloczero(&bv->data, BITVECT_ROUNDUP_BYTES(size));
+    bv->data = ribs_malloc(BITVECT_ROUNDUP_BYTES(size));
     bv->size = BITVECT_ROUNDUP_BYTES(size) >> (BITVECT_NUM_BITS_ALIGN - 3);
     return 0;
 }
 
+_RIBS_INLINE_ int bitvect_init_vmbuf(struct bitvect *bv, size_t size, struct vmbuf *buf) {
+    vmbuf_init(buf, 4096);
+    size_t ofs = vmbuf_alloczero(buf, BITVECT_ROUNDUP_BYTES(size));
+    bv->data = vmbuf_data_ofs(buf, ofs);
+    bv->size = BITVECT_ROUNDUP_BYTES(size) >> (BITVECT_NUM_BITS_ALIGN - 3);
+    return 0;
+}
+
+_RIBS_INLINE_ int bitvect_init_mem(struct bitvect *bv, size_t size, void *mem) {
+    bv->data = mem;
+    bv->size = BITVECT_ROUNDUP_BYTES(size) >> (BITVECT_NUM_BITS_ALIGN - 3);
+    return 0;
+}
+
+_RIBS_INLINE_ size_t bitvect_calc_mem_size(size_t size) {
+    return BITVECT_ROUNDUP_BYTES(size);
+}
+
 _RIBS_INLINE_ int bitvect_set(struct bitvect *bv, size_t i) {
-    uint64_t *data = (uint64_t *)vmbuf_data(&bv->data);
+    uint64_t *data = bv->data;
     _BITVECT_BIT_OP(i,|=,);
     return 0;
 }
 
 _RIBS_INLINE_ int bitvect_reset(struct bitvect *bv, size_t i) {
-    uint64_t *data = (uint64_t *)vmbuf_data(&bv->data);
+    uint64_t *data = bv->data;
     _BITVECT_BIT_OP(i,&=,~);
     return 0;
 }
 
 _RIBS_INLINE_ int bitvect_isset(struct bitvect *bv, size_t i) {
-    uint64_t *data = (uint64_t *)vmbuf_data(&bv->data);
+    uint64_t *data = bv->data;
     return _BITVECT_BIT_OP(i,&,) ? 1 : 0;
 }
 
 /* non-optimized version */
 /*
  _RIBS_INLINE_ int bitvect_from_index(struct bitvect *bv, uint32_t *index, size_t size) {
-    uint64_t *data = (uint64_t *)vmbuf_data(&bv->data);
+    uint64_t *data = bv->data;
     uint32_t *idx = index, *idx_end = index + size;
     for (; idx != idx_end; ++idx) {
         _BITVECT_BIT_OP(*idx,|=,);
@@ -83,7 +100,7 @@ _RIBS_INLINE_ int bitvect_isset(struct bitvect *bv, size_t i) {
 
 _RIBS_INLINE_ int bitvect_from_index(struct bitvect *bv, uint32_t *index, size_t size) {
     if (0 == size) return -1;
-    uint64_t *data = (uint64_t *)vmbuf_data(&bv->data);
+    uint64_t *data = bv->data;
     uint32_t *idx = index, *idx_end = index + size;
     size_t current = *idx >> BITVECT_NUM_BITS_ALIGN;
     size_t a = 0;
@@ -113,7 +130,7 @@ _RIBS_INLINE_ int bitvect_combine_or(struct bitvect *bv, struct bitvect *bv_othe
 }
 
 _RIBS_INLINE_ int bitvect_to_index(struct bitvect *bv, struct vmbuf *output) {
-    uint64_t *data = (uint64_t *)vmbuf_data(&bv->data), *data_end = data + bv->size;
+    uint64_t *data = bv->data, *data_end = data + bv->size;
     size_t count = 0;
     for (; data != data_end; ++data, count += BITVECT_NUM_BITS) {
         uint64_t v = *data;
@@ -131,7 +148,7 @@ _RIBS_INLINE_ int bitvect_to_index(struct bitvect *bv, struct vmbuf *output) {
 }
 
 _RIBS_INLINE_ int bitvect_dump(struct bitvect *bv) {
-    uint64_t *data = (uint64_t *)vmbuf_data(&bv->data), *data_end = data + bv->size;
+    uint64_t *data = bv->data, *data_end = data + bv->size;
     size_t count = 0;
     for (; data != data_end; ++data, count += BITVECT_NUM_BITS) {
         uint64_t v = *data;
