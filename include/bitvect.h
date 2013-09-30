@@ -47,6 +47,7 @@ struct bitvect {
 
 _RIBS_INLINE_ int bitvect_init(struct bitvect *bv, size_t size) {
     bv->data = ribs_malloc(BITVECT_ROUNDUP_BYTES(size));
+    memset(bv->data, 0, BITVECT_ROUNDUP_BYTES(size));
     bv->size = BITVECT_ROUNDUP_BYTES(size) >> (BITVECT_NUM_BITS_ALIGN - 3);
     return 0;
 }
