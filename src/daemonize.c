@@ -280,14 +280,14 @@ static int ribs_server_init_daemon(const char *pidfilename, const char *logfilen
         return LOGGER_PERROR("/dev/null"), -1;
 
     dup2(fdnull, STDIN_FILENO);
+    dup2(fdnull, STDOUT_FILENO);
+    dup2(fdnull, STDERR_FILENO);
+    close(fdnull);
+
     if (logfilename) {
         if (0 > _logger_init(logfilename))
             return -1;
-    } else {
-        dup2(fdnull, STDOUT_FILENO);
-        dup2(fdnull, STDERR_FILENO);
     }
-    close(fdnull);
     LOGGER_INFO("child process started");
     return _init_subprocesses(pidfilename, num_forks);
 }
