@@ -432,6 +432,8 @@ const siginfo_t *ribs_fork_and_wait(void) {
     pid_t pid = fork();
     if (0 == pid)
         return NULL;
+    if (0 > pid)
+        return LOGGER_PERROR("fork"), (siginfo_t *)-1; /* impossible scenario, force segfault in caller */
     if (0 > ribs_queue_waitpid(pid))
         return (siginfo_t *)-1; /* impossible scenario, force segfault in caller */
     yield();
