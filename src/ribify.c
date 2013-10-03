@@ -39,7 +39,7 @@ int _ribified_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen
     if (res < 0 && errno != EINPROGRESS) {
         return res;
     }
-    return ribs_epoll_add(sockfd, EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP, event_loop_ctx);
+    return ribs_epoll_add(sockfd, EPOLLIN | EPOLLOUT | EPOLLET, event_loop_ctx);
 }
 
 int _ribified_fcntl(int fd, int cmd, ...) {
@@ -149,8 +149,8 @@ int _ribified_pipe2(int pipefd[2], int flags) {
     if (0 > pipe2(pipefd, flags | O_NONBLOCK))
         return -1;
 
-    if (0 == ribs_epoll_add(pipefd[0], EPOLLIN | EPOLLET | EPOLLRDHUP, event_loop_ctx) &&
-        0 == ribs_epoll_add(pipefd[1], EPOLLOUT | EPOLLET | EPOLLRDHUP, event_loop_ctx))
+    if (0 == ribs_epoll_add(pipefd[0], EPOLLIN | EPOLLET, event_loop_ctx) &&
+        0 == ribs_epoll_add(pipefd[1], EPOLLOUT | EPOLLET, event_loop_ctx))
         return 0;
 
     int my_error = errno;

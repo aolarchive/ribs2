@@ -125,7 +125,7 @@ int epoll_worker_init(void) {
     if (NULL == small_ctx_for_fd(pipefd[0], 0, pipe_to_context))
         return -1;
     queue_ctx_fd = pipefd[1];
-    return ribs_epoll_add(queue_ctx_fd, EPOLLOUT | EPOLLET | EPOLLRDHUP, event_loop_ctx);
+    return ribs_epoll_add(queue_ctx_fd, EPOLLOUT | EPOLLET, event_loop_ctx);
 }
 
 void epoll_worker_loop(void) {
