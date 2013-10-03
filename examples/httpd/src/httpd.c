@@ -97,8 +97,8 @@ int main(int argc, char *argv[]) {
         /* set idle connection timeout to 60 seconds */
         .timeout_handler.timeout = 60000,
 
-        /* set fiber's stack size to 64K */
-        .stack_size = 64*1024,
+        /* set fiber's stack size to automatic (0) */
+        .stack_size = 0,
 
         /* start the server with 100 stacks */
         /* more stacks will be created if necessary */
