@@ -38,6 +38,7 @@ SSTRL(TRANSFER_ENCODING, "\r\nTransfer-Encoding: ");
 SSTRL(CONNECTION, "\r\nConnection: ");
 SSTRL(CONNECTION_CLOSE, "close");
 
+static struct http_client_context* last_ctx = NULL;
 static struct list* client_chains = NULL;
 static struct list* client_heads = NULL;
 static struct list free_list = LIST_INITIALIZER(free_list);
@@ -254,6 +255,11 @@ void http_client_fiber_main(void) {
         ribs_close(fd);
 }
 
+void http_client_fiber_main_wrapper(void) {
+    http_client_fiber_main();
+    last_ctx = (struct http_client_context *)current_ctx->reserved;
+}
+
 struct http_client_context *http_client_pool_create_client(struct http_client_pool *http_client_pool, struct in_addr addr, uint16_t port, struct ribs_context *rctx) {
     int cfd;
     struct http_client_key key = { .addr = addr, .port = port };
@@ -285,7 +291,7 @@ struct http_client_context *http_client_pool_create_client(struct http_client_po
     struct ribs_context *new_ctx = ctx_pool_get(&http_client_pool->ctx_pool);
     struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + cfd;
     fd_data->ctx = new_ctx;
-    ribs_makecontext(new_ctx, rctx ? rctx : current_ctx, http_client_fiber_main);
+    ribs_makecontext(new_ctx, rctx ? rctx : current_ctx, http_client_fiber_main_wrapper);
     struct http_client_context *cctx = (struct http_client_context *)new_ctx->reserved;
     cctx->fd = cfd;
     cctx->pool = http_client_pool;
@@ -342,4 +348,8 @@ int http_client_pool_post_request_send(struct http_client_context *context, stru
         return -1;
     }
     return 0;
+}
+
+struct http_client_context *http_client_get_last_context(void) {
+    return last_ctx;
 }

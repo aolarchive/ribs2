@@ -138,7 +138,7 @@ void epoll_worker_exit(void) {
 
 inline void yield(void) {
     while(0 >= epoll_wait(ribs_epoll_fd, &last_epollev, 1, -1));
-    ribs_swapcurcontext(epoll_worker_get_last_context());
+    ribs_swapcurcontext(epoll_worker_fd_map[last_epollev.data.fd].ctx);
 }
 
 int queue_current_ctx(void) {
@@ -162,7 +162,7 @@ inline void courtesy_yield(void) {
     if (0 == epoll_wait(ribs_epoll_fd, &last_epollev, 1, 0))
         return;
     // save since queue_current_ctx() will override if queue if full;
-    struct ribs_context *save_ctx = epoll_worker_get_last_context();
+    struct ribs_context *save_ctx = epoll_worker_fd_map[last_epollev.data.fd].ctx;
     queue_current_ctx();
     ribs_swapcurcontext(save_ctx);
 }

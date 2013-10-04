@@ -62,8 +62,8 @@ int http_client_pool_get_request(struct http_client_pool *http_client_pool, stru
 struct http_client_context *http_client_pool_post_request_init(struct http_client_pool *http_client_pool, struct in_addr addr, uint16_t port, const char *hostname, const char *format, ...);
 inline int http_client_pool_post_request_content_type(struct http_client_context *context, const char *content_type);
 int http_client_pool_post_request_send(struct http_client_context *context, struct vmbuf *post_data);
+struct http_client_context *http_client_get_last_context(void);
 _RIBS_INLINE_ struct ribs_context *http_client_get_ribs_context(struct http_client_context *cctx);
-_RIBS_INLINE_ struct http_client_context *http_client_get_last_context(void);
 _RIBS_INLINE_ int http_client_send_request(struct http_client_context *cctx);
 
 #include "../src/_http_client_pool.c"
