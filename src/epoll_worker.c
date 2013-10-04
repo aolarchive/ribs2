@@ -166,3 +166,7 @@ inline void courtesy_yield(void) {
     queue_current_ctx();
     ribs_swapcurcontext(save_ctx);
 }
+
+int epoll_close() {
+    return close(ribs_epoll_fd);
+}
