@@ -35,7 +35,7 @@ _RIBS_INLINE_ int http_client_send_request(struct http_client_context *cctx) {
         LOGGER_PERROR("write request");
         cctx->http_status_code = 500;
         cctx->persistent = 0;
-        close(fd);
+        ribs_close(fd);
         TIMEOUT_HANDLER_REMOVE_FD_DATA(epoll_worker_fd_map + fd);
     }
     return res;

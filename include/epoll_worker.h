@@ -49,6 +49,7 @@ _RIBS_INLINE_ void epoll_worker_resume_events(int fd);
 _RIBS_INLINE_ struct ribs_context *epoll_worker_get_last_context(void);
 _RIBS_INLINE_ void epoll_worker_set_fd_ctx(int fd, struct ribs_context* ctx);
 _RIBS_INLINE_ void epoll_worker_set_last_fd(int fd);
+_RIBS_INLINE_ int ribs_close(int fd);
 
 #include "../src/_epoll_worker.c"
 

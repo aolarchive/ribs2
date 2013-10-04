@@ -187,7 +187,7 @@ static void http_server_accept_connections(void) {
             continue;
 
         if (0 > ribs_epoll_add(fd, EPOLLIN | EPOLLOUT | EPOLLET, server->idle_ctx)) {
-            close(fd);
+            ribs_close(fd);
             continue;
         }
 
@@ -284,14 +284,14 @@ void http_server_header_content_length(void) {
 #define READ_FROM_SOCKET()                                              \
     res = vmbuf_read(&ctx->request, fd);                                \
     if (0 >= res) {                                                     \
-        close(fd); /* remote side closed or other error occured */      \
+        ribs_close(fd); /* remote side closed or other error occured */ \
         return;                                                         \
     }                                                                   \
     if (vmbuf_wlocpos(&ctx->request) > max_req_size) {                  \
         ctx->persistent = 0;                                            \
         http_server_response(HTTP_STATUS_413, HTTP_CONTENT_TYPE_TEXT_PLAIN); \
         http_server_write();                                            \
-        close(fd);                                                      \
+        ribs_close(fd);                                                 \
         return;                                                         \
     }
 
@@ -405,7 +405,7 @@ void http_server_fiber_main(void) {
             if (strstr(vmbuf_data(&ctx->request), EXPECT_100)) {
                 vmbuf_sprintf(&ctx->header, "%s %s\r\n\r\n", HTTP_SERVER_VER, HTTP_STATUS_100);
                 if (0 > vmbuf_write(&ctx->header, fd)) {
-                    close(fd);
+                    ribs_close(fd);
                     return;
                 }
                 vmbuf_reset(&ctx->header);
@@ -460,7 +460,7 @@ void http_server_fiber_main(void) {
         fd_data->ctx = server->idle_ctx;
         timeout_handler_add_fd_data(&server->timeout_handler, fd_data);
     } else
-        close(fd);
+        ribs_close(fd);
 }
 
 static void http_server_process_request(char *uri, char *headers) {
@@ -589,5 +589,5 @@ int http_server_generate_dir_list(const char *URI) {
 
 
 void http_server_close(struct http_server *server) {
-    close(server->fd);
+    ribs_close(server->fd);
 }

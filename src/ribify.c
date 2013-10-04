@@ -168,7 +168,7 @@ int _ribified_nanosleep(const struct timespec *req, struct timespec *rem) {
     int tfd = ribs_sleep_init();
     if (0 > tfd) return -1;
     int res = ribs_nanosleep(tfd, req, rem);
-    close(tfd);
+    ribs_close(tfd);
     return res;
 }
 
@@ -218,6 +218,10 @@ char *_ribified_strdup(const char *s) {
     char *mem = _ribified_malloc(l);
     memcpy(mem, s, l);
     return mem;
+}
+
+int _ribified_close(int fd) {
+    return ribs_close(fd);
 }
 
 void *ribify_malloc(size_t size) __attribute__ ((weak, alias("_ribified_malloc")));

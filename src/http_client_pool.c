@@ -52,7 +52,7 @@ void http_client_free(struct http_client_context *cctx) {
         struct list *head;
         if (0 == ofs) {
             if (list_empty(&free_list)) {
-                close(fd);
+                ribs_close(fd);
                 return;
             }
             head = list_pop_head(&free_list);
@@ -76,7 +76,7 @@ static void http_client_idle_handler(void) {
             int fd = last_epollev.data.fd;
             struct list *client = client_chains + fd;
             list_remove(client);
-            close(fd);
+            ribs_close(fd);
             struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
             TIMEOUT_HANDLER_REMOVE_FD_DATA(fd_data);
             /* TODO: remove from hashtable when list is empty (first add remove method to hashtable) */
@@ -123,7 +123,7 @@ int http_client_pool_init(struct http_client_pool *http_client_pool, size_t init
     {                                    \
         ctx->http_status_code = 500;     \
         ctx->persistent = 0;             \
-        close(fd);                       \
+        ribs_close(fd);                  \
         return;                          \
     }
 
@@ -251,7 +251,7 @@ void http_client_fiber_main(void) {
     *vmbuf_wloc(&ctx->response) = 0;
     ctx->persistent = persistent;
     if (!persistent)
-        close(fd);
+        ribs_close(fd);
 }
 
 struct http_client_context *http_client_pool_create_client(struct http_client_pool *http_client_pool, struct in_addr addr, uint16_t port, struct ribs_context *rctx) {
@@ -271,16 +271,16 @@ struct http_client_context *http_client_pool_create_client(struct http_client_po
 
         const int option = 1;
         if (0 > setsockopt(cfd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)))
-            return LOGGER_PERROR("setsockopt SO_REUSEADDR"), close(cfd), NULL;
+            return LOGGER_PERROR("setsockopt SO_REUSEADDR"), ribs_close(cfd), NULL;
 
         if (0 > setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, &option, sizeof(option)))
-            return LOGGER_PERROR("setsockopt TCP_NODELAY"), close(cfd), NULL;
+            return LOGGER_PERROR("setsockopt TCP_NODELAY"), ribs_close(cfd), NULL;
 
         struct sockaddr_in saddr = { .sin_family = AF_INET, .sin_port = htons(port), .sin_addr = addr };
         if (0 > connect(cfd, (struct sockaddr *)&saddr, sizeof(saddr)) && EINPROGRESS != errno)
-            return LOGGER_PERROR("connect"), close(cfd), NULL;
+            return LOGGER_PERROR("connect"), ribs_close(cfd), NULL;
         if (0 > ribs_epoll_add(cfd, EPOLLIN | EPOLLOUT | EPOLLET, event_loop_ctx))
-            return close(cfd), NULL;
+            return ribs_close(cfd), NULL;
     }
     struct ribs_context *new_ctx = ctx_pool_get(&http_client_pool->ctx_pool);
     struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + cfd;

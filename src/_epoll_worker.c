@@ -39,3 +39,7 @@ _RIBS_INLINE_ void epoll_worker_set_fd_ctx(int fd, struct ribs_context* ctx) {
 _RIBS_INLINE_ void epoll_worker_set_last_fd(int fd) {
     last_epollev.data.fd = fd;
 }
+
+_RIBS_INLINE_ int ribs_close(int fd) {
+    return epoll_worker_ignore_events(fd), close(fd);
+}

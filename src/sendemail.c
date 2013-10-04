@@ -58,7 +58,7 @@ _RIBS_INLINE_ char *strrstr(char *str1, const char *str2) {
 _RIBS_INLINE_ int read_data(struct timeout_handler *timeout_handler, int cfd, struct vmbuf *response, size_t ofs) {
     int res = vmbuf_read(response, cfd);
     if (0 > res) {
-        close(cfd);
+        ribs_close(cfd);
         return -1;
     }
     *vmbuf_wloc(response) = 0;
@@ -74,7 +74,7 @@ _RIBS_INLINE_ int read_data(struct timeout_handler *timeout_handler, int cfd, st
             sendemail_yield(timeout_handler, cfd);
         if (0 >= (res = vmbuf_read(response, cfd))) {
             LOGGER_PERROR("read");
-            close(cfd);
+            ribs_close(cfd);
             return -1;
         }
     }
@@ -86,7 +86,7 @@ _RIBS_INLINE_ int write_data(int cfd, struct vmbuf *request) {
     int sres = vmbuf_write(request, cfd);
     if (0 > sres) {
         LOGGER_PERROR("write request");
-        close(cfd);
+        ribs_close(cfd);
         return -1;
     }
     return 0;
@@ -200,7 +200,7 @@ int sendemail2(struct sendemail_mta *mta, struct email *email) {
                 continue;
             } else {
                 LOGGER_ERROR("writev");
-                close(cfd);
+                ribs_close(cfd);
                 return -1;
             }
         } else {
@@ -234,7 +234,7 @@ int sendemail2(struct sendemail_mta *mta, struct email *email) {
     }
     *vmbuf_data(&response) = 0;
     CHECK_CODE(221);
-    close(cfd);
+    ribs_close(cfd);
     return 0;
 }
 
