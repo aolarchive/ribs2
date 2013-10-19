@@ -54,9 +54,9 @@ int file_mapper_init_with_fd_r(struct file_mapper *fm, int fd){
 int file_mapper_init2(struct file_mapper *fm, const char *filename, size_t size, int flags, int mmap_prot, int mmap_flags) {
     if (0 > file_mapper_free(fm))
         return -1;
-    int fd = open(filename, flags);
+    int fd = open(filename, flags, S_IRUSR | S_IWUSR);
     if (fd < 0)
-        return LOGGER_PERROR_FUNC("open: %s", filename), -1;
+        return LOGGER_PERROR_FUNC("%s: %s", mmap_flags & O_CREAT ? "creat" : "open", filename), -1;
     if (0 > file_mapper_init_with_fd(fm, fd, size, mmap_prot, mmap_flags)){
         return LOGGER_PERROR_FUNC("file_mapper_init_with_fd: %s", filename), fm->mem = NULL, close(fd), -1;
     }
