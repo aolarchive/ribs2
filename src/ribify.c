@@ -29,6 +29,7 @@
 #include <signal.h>
 #include <sys/timerfd.h>
 #include <sys/sendfile.h>
+#include <wchar.h>
 
 int _ribified_socket(int domain, int type, int protocol) {
     int sockfd = socket(domain, type | SOCK_NONBLOCK, protocol);
@@ -223,15 +224,28 @@ char *_ribified_strdup(const char *s) {
     return mem;
 }
 
+char *_ribified_wcsdup(const wchar_t *s) {
+    size_t l = (wcslen(s) + 1) * sizeof(wchar_t);
+    char *mem = _ribified_malloc(l);
+    memcpy(mem, s, l);
+    return mem;
+}
+
+size_t _ribified_malloc_usable_size(void *ptr) {
+    return *(uint32_t *)(ptr - sizeof(uint32_t));
+}
+
 int _ribified_close(int fd) {
     return ribs_close(fd);
 }
 
 void *ribify_malloc(size_t size) __attribute__ ((weak, alias("_ribified_malloc")));
+size_t ribify_malloc_usable_size(void *ptr) __attribute__ ((weak, alias("_ribified_malloc_usable_size")));
 void ribify_free(void *ptr) __attribute__ ((weak, alias("_ribified_free")));
 void *ribify_calloc(size_t nmemb, size_t size) __attribute__ ((weak, alias("_ribified_calloc")));
 void *ribify_realloc(void *ptr, size_t size) __attribute__ ((weak, alias("_ribified_realloc")));
 char *ribify_strdup(const char *s) __attribute__ ((weak, alias("_ribified_strdup")));
+char *ribify_wcsdup(const wchar_t *s) __attribute__ ((weak, alias("_ribified_wcsdup")));
 
 #ifdef UGLY_GETADDRINFO_WORKAROUND
 int _ribified_getaddrinfo(const char *node, const char *service,

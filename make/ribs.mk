@@ -36,7 +36,7 @@ ifeq ($(GCCVER_GTE_4_7),1)
 CFLAGS+=-ftrack-macro-expansion=2
 endif
 
-RIBIFY_SYMS+=write read socket connect fcntl recv recvfrom recvmsg send sendto sendmsg readv writev pipe pipe2 nanosleep usleep sleep sendfile malloc calloc realloc free strdup close
+RIBIFY_SYMS+=write read socket connect fcntl recv recvfrom recvmsg send sendto sendmsg readv writev pipe pipe2 nanosleep usleep sleep sendfile malloc calloc realloc free strdup close wcsdup malloc_usable_size 
 
 ifdef UGLY_GETADDRINFO_WORKAROUND
 LDFLAGS+=-lanl

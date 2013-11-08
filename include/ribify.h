@@ -27,5 +27,7 @@ void ribify_free(void *ptr);
 void *ribify_calloc(size_t nmemb, size_t size);
 void *ribify_realloc(void *ptr, size_t size);
 char *ribify_strdup(const char *s);
+char *ribify_wcsdup(const wchar_t *s);
+size_t ribify_malloc_usable_size(void *ptr);
 
 #endif // _RIBIFY__H_
