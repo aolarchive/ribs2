@@ -23,7 +23,7 @@
 #include "ribs_defs.h"
 #include "vmbuf.h"
 #include "logger.h"
-#include <mysql/mysql.h>
+#include <mysql.h>
 #include "vmbuf.h"
 #include "mysql_common.h"
 

@@ -20,7 +20,7 @@
 
 #include "enum.h"
 #include "mysql_common.h"
-#include <mysql/mysql.h>
+#include <mysql.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>

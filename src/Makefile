@@ -1,6 +1,6 @@
 buildall:
 	@$(MAKE) -s -f ribs2.mk
-ifneq ($(wildcard /usr/include/mysql/mysql.h),)
+ifneq ($(wildcard /usr/include/mysql.h),)
 	@$(MAKE) -s -f ribs2_mysql.mk
 endif
 ifneq ($(wildcard /usr/include/zlib.h),)
