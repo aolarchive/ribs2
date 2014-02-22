@@ -44,7 +44,7 @@ int vmallocator_open(struct vmallocator *v, const char *filename, int flags) {
         vmallocator_free(v);
     int fd = open(filename, flags, 0644);
     if (0 > fd)
-        return LOGGER_PERROR("open %s", filename), close(fd), -1;
+        return LOGGER_PERROR("open %s", filename), -1;
     struct stat st;
     if (0 > fstat(fd, &st))
         return LOGGER_PERROR("fstat, %s", filename), close(fd), -1;

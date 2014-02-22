@@ -21,7 +21,6 @@
 #define _HASHTABLE__H_
 
 #include "vmallocator.h"
-#include <string.h>
 
 #define HASHTABLE_INITIALIZER { VMALLOCATOR_INITIALIZER }
 #define HASHTABLE_MAKE(x) (x) = (struct hashtable)HASHTABLE_INITIALIZER
