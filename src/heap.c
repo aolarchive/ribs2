@@ -85,7 +85,7 @@ uint32_t heap_insert(struct heap *h, void *user_data) {
     uint32_t loc = ofs[pos];
     struct _heap_entry *d = _HEAP_DATA(loc);
     d->key = pos;
-    memcpy(d->user_data, user_data, h->el_size);
+    memcpy(d->user_data, user_data, h->el_size - sizeof(struct _heap_entry));
     ++h->num_items;
     return loc;
 }

@@ -207,13 +207,19 @@ _RIBS_INLINE_ int TEMPLATE(VMBUF_T,strcpy)(struct VMBUF_T *vmb, const char *src)
     return 0;
 }
 
-_RIBS_INLINE_ void TEMPLATE(VMBUF_T,remove_last_if)(struct VMBUF_T *vmb, char c) {
+_RIBS_INLINE_ int TEMPLATE(VMBUF_T,replace_last_if)(struct VMBUF_T *vmb, char s, char d)
+{
     char *loc = TEMPLATE(VMBUF_T,wloc)(vmb);
-    --loc;
-    if (vmb->write_loc > 0 && *loc == c) {
-        --vmb->write_loc;
-        *loc = 0;
+    if (0 < vmb->write_loc && s == *--loc) {
+        *loc = d;
+        return 0;
     }
+    return -1;
+}
+
+_RIBS_INLINE_ void TEMPLATE(VMBUF_T,remove_last_if)(struct VMBUF_T *vmb, char c) {
+    if (!TEMPLATE(VMBUF_T,replace_last_if)(vmb, c, 0))
+        --vmb->write_loc;
 }
 
 _RIBS_INLINE_ int TEMPLATE(VMBUF_T,read)(struct VMBUF_T *vmb, int fd) {

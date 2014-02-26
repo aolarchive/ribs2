@@ -73,7 +73,7 @@ static int _logger_init(const char *filename) {
         // open
         int fd = open(filename, O_CREAT | O_WRONLY | O_APPEND, 0644);
         if (fd < 0)
-            return LOGGER_PERROR(filename), -1;
+            return LOGGER_PERROR("%s", filename), -1;
         if (0 > dup2(fd, STDOUT_FILENO) ||
             0 > dup2(fd, STDERR_FILENO))
             LOGGER_PERROR("dup2"), res = -1;

@@ -43,4 +43,14 @@
 
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
 
+#define ribs_min(a,b)                           \
+    ({ __typeof__ (a) _a = (a);                 \
+        __typeof__ (b) _b = (b);                \
+        _a < _b ? _a : _b; })
+
+#define ribs_max(a,b)                           \
+    ({ __typeof__ (a) _a = (a);                 \
+        __typeof__ (b) _b = (b);                \
+        _a > _b ? _a : _b; })
+
 #endif // _RIBS_DEFS__H_

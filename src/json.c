@@ -35,13 +35,20 @@ inline int json_stack_item_isset(struct json_stack_item *si)
     return si->begin != si->end;
 }
 
-void null_callback(struct json *js, char *kb, char *ke, char *vb, char *ve)
+static void null_callback(struct json *js, char *kb, char *ke, char *vb, char *ve)
 {
-    (void)js; (void)kb; (void)ke; (void)vb; (void)ve;
+    UNUSED(js);
+    UNUSED(kb);
+    UNUSED(ke);
+    UNUSED(vb);
+    UNUSED(ve);
 }
-void null_block_callback(struct json *js, char *kb, char *ke)
+
+static void null_block_callback(struct json *js, char *kb, char *ke)
 {
-    (void)js; (void)kb; (void)ke;
+    UNUSED(js);
+    UNUSED(kb);
+    UNUSED(ke);
 }
 
 inline void json_reset_callbacks(struct json *js)

@@ -29,8 +29,11 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <fcntl.h>
-#include <zlib.h>
 #include <libgen.h>
+
+#ifdef HAVE_ZLIB
+#include <zlib.h>
+#endif
 
 SSTRL(RIBS_GZ_EXT, "._ribs_gz_");
 
@@ -75,7 +78,7 @@ int http_file_server_list_dir(struct http_file_server *fs, const char *realname)
             if (t)
                 vmbuf_strftime(payload, "%F %T", t);
             vmbuf_strcpy(payload, "</td>");
-            vmbuf_sprintf(payload, "<td>%lu</td>", st.st_size);
+            vmbuf_sprintf(payload, "<td>%jd</td>", (intmax_t)st.st_size);
             vmbuf_strcpy(payload, "</tr>");
         }
         closedir(d);
@@ -134,6 +137,7 @@ int http_file_server_run2(struct http_file_server *fs, struct http_headers *head
     int ffd;
     int compressed;
     struct stat st, orig_st;
+#ifdef HAVE_ZLIB
     if (0 != (headers->accept_encoding_mask & HTTP_AE_GZIP) && hashtable_lookup(&fs->ht_ext_whitelist, ext, strlen(ext))) {
         if (0 > stat(realname, &orig_st))
             return HTTP_FILE_SERVER_ERROR(404), -1;
@@ -185,7 +189,9 @@ int http_file_server_run2(struct http_file_server *fs, struct http_headers *head
             break;
         }
         compressed = 1;
-    } else {
+    } else
+#endif
+    {
         compressed = 0;
         ffd = open(realname, O_RDONLY);
         if (0 > ffd)
@@ -205,8 +211,9 @@ int http_file_server_run2(struct http_file_server *fs, struct http_headers *head
     struct tm tm;
     gmtime_r(&orig_st.st_mtime, &tm);
     char etag[128];
+    intmax_t size = st.st_size;
     int n = strftime(etag, sizeof(etag), "\r\nETag: \"%d%m%Y%H%M%S", &tm);
-    if (0 == n || (int)sizeof(etag) - n <= snprintf(etag + n, sizeof(etag) - n, "%zu\"", st.st_size))
+    if (0 == n || (int)sizeof(etag) - n <= snprintf(etag + n, sizeof(etag) - n, "%jd\"", size))
         return HTTP_FILE_SERVER_ERROR(500), close(ffd), -1;
     int include_payload;
     if (0 == strcmp(headers->if_none_match, etag + 8))
@@ -226,11 +233,11 @@ int http_file_server_run2(struct http_file_server *fs, struct http_headers *head
     gmtime_r(&orig_st.st_mtime, &tm);
     vmbuf_strftime(&ctx->header, "\r\nLast-Modified: %a, %d %b %Y %H:%M:%S GMT", &tm);
     if (include_payload)
-        vmbuf_sprintf(&ctx->header, "\r\nContent-Length: %zd", st.st_size);
+        vmbuf_sprintf(&ctx->header, "\r\nContent-Length: %jd", size);
     vmbuf_strcpy(&ctx->header, "\r\n\r\n");
     int res = 0;
     if (include_payload && 0 > (res = http_server_sendfile_payload(ffd, st.st_size)))
-        LOGGER_PERROR(realname);
+        LOGGER_PERROR("%s", realname);
     close(ffd);
     return res;
 }

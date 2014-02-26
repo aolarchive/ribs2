@@ -71,6 +71,11 @@ struct mysql_helper_column_map {
 };
 
 #define MYSQL_HELPER_COL_MAP_GET_STR(d,m) (*((char **)((d) + (m)->data.ofs)))
+
+/* field declaration helper macros */
+#define _MYSQL_HELPER_COL_MAP(type,name,is_un,mysqlt,field)             \
+    {#name,{mysql_helper_field_type_##field,is_un,mysqlt,sizeof(((struct mysql_helper_column_map *)0)->data.field[0])},{.field=&((type *)0)->name}}
+
 #define MYSQL_HELPER_COL_MAP_I8(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_TINY, i8)
 #define MYSQL_HELPER_COL_MAP_U8(type,name) _MYSQL_HELPER_COL_MAP(type, name, 1, MYSQL_TYPE_TINY, u8)
 #define MYSQL_HELPER_COL_MAP_I16(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_SHORT, i16)
@@ -87,20 +92,16 @@ struct mysql_helper_column_map {
 #define MYSQL_HELPER_COL_MAP_CUSTOM_STR(name,value) \
     {name,{mysql_helper_field_type_cstr,0,MYSQL_TYPE_STRING,0},{.custom_str=value}}
 
-#define MYSQL_HELPER_COL_MAP_ADD_IF(name, class, type, buf)                \
-    do {                                                                \
-        if (*name) {                                                    \
-            struct mysql_helper_column_map __field__ = MYSQL_HELPER_COL_MAP_##type(class, name); \
-            vmbuf_memcpy(&buf, &__field__, sizeof(__field__));          \
-        }                                                               \
-    } while (0)
-
 #define MYSQL_HELPER_COL_MAP_ADD(name, class, type, buf)                \
     {                                                                   \
-        struct mysql_helper_column_map __field__ = MYSQL_HELPER_COL_MAP_##type(class, name); \
+        struct mysql_helper_column_map __field__ =                      \
+            MYSQL_HELPER_COL_MAP_##type(class, name);                   \
         vmbuf_memcpy(&buf, &__field__, sizeof(__field__));              \
     }
 
+#define MYSQL_HELPER_COL_MAP_ADD_IF(name, class, type, buf)             \
+    if (name && *name)                                                  \
+        MYSQL_HELPER_COL_MAP_ADD(name, class, type, buf)
 
 void mysql_helper_connect_init(struct mysql_helper *mysql_helper);
 int mysql_helper_real_connect(struct mysql_helper *mysql_helper, struct mysql_login_info *login_info);
@@ -149,10 +150,6 @@ enum {
     mysql_helper_field_type_ts,
     mysql_helper_field_type_ts_unix
 };
-
-/* field declaration helper macros */
-#define _MYSQL_HELPER_COL_MAP(type,name,is_un,mysqlt,field)             \
-    {#name,{mysql_helper_field_type_##field,is_un,mysqlt,sizeof(((struct mysql_helper_column_map *)0)->data.field[0])},{.field=&((type *)0)->name}}
 
 /* get data from field */
 #define _MYSQL_HELPER_FIELD_TYPE_TO_STR(T) case mysql_helper_field_type_##T: return #T

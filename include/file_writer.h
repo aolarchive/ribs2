@@ -45,6 +45,7 @@ struct file_writer {
 };
 
 _RIBS_INLINE_ void file_writer_make(struct file_writer *fw);
+_RIBS_INLINE_ int file_writer_attachfd(struct file_writer *fw, int fd, size_t initial_size);
 _RIBS_INLINE_ int file_writer_init(struct file_writer *fw, const char *filename);
 _RIBS_INLINE_ size_t file_writer_wavail(struct file_writer *fw);
 _RIBS_INLINE_ char *file_writer_wloc(struct file_writer *fw);

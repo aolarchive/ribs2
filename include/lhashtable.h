@@ -148,6 +148,7 @@ struct lhashtable {
 int lhashtable_init(struct lhashtable *lht, const char *filename);
 int lhashtable_close(struct lhashtable *lht);
 uint64_t lhashtable_put(struct lhashtable *lht, const void *key, size_t key_len, const void *val, size_t val_len);
+uint64_t lhashtable_put_key(struct lhashtable *lht, const void *key, size_t key_len, size_t val_len, int *is_inserted);
 uint64_t lhashtable_get(struct lhashtable *lht, const void *key, size_t key_len);
 int lhashtable_del(struct lhashtable *lht, const void *key, size_t key_len);
 int lhashtable_foreach(struct lhashtable *lht, int (*callback)(uint64_t, void *), void *arg);

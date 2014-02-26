@@ -112,7 +112,7 @@ int epoll_worker_init(void) {
     int sfd = signalfd(-1, &set, SFD_NONBLOCK);
     if (0 > sfd)
         return LOGGER_PERROR("signalfd"), -1;
-    if (NULL == small_ctx_for_fd(sfd, sigrtmin_to_context))
+    if (NULL == small_ctx_for_fd(sfd, 0, sigrtmin_to_context))
         return -1;
 #endif
 

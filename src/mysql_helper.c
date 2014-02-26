@@ -107,10 +107,16 @@ int mysql_helper_tx_rollback(struct mysql_helper *mysql_helper)
  * Valid format specifies:
  *    d:  MYSQL_TYPE_LONG (signed)
  *    D:  MYSQL_TYPE_LONG (unsigned)
+ *    f:  MYSQL_TYPE_DOUBLE
  *    s:  MYSQL_TYPE_STRING
  *    S:  MYSQL_TYPE_STRING, buffer size followed by pointer to the data
  *
+ *    note that strings are (char *) for input parameters and (char **) for output parameters
+ *
  * Examples:
+ *     int id;
+ *     char *name, *new_name, *status;
+ *
  *     SSTR(query, "SELECT name FROM table WHERE id = ?");
  *     mysql_helper_stmt(&mh, query, SSTRLEN(query), "d", "s", &id, &name);
  *
@@ -178,6 +184,11 @@ int mysql_helper_stmt(struct mysql_helper *mysql_helper,
                 pnulls[i] = (pbind_ptr->buffer == NULL);
                 pbind_ptr->is_unsigned = isupper(c) ? 1 : 0;
                 break;
+            case 'f':
+                ptypes[i] = MYSQL_TYPE_DOUBLE;
+                pbind_ptr->buffer = va_arg(ap, double *);
+                pnulls[i] = (pbind_ptr->buffer == NULL);
+                break;
             case 's':
                 ptypes[i] = MYSQL_TYPE_STRING;
                 if (isupper(c)) {
@@ -229,6 +240,9 @@ int mysql_helper_stmt(struct mysql_helper *mysql_helper,
             case 'd':
                 ftypes[i] = MYSQL_TYPE_LONG;
                 break;
+            case 'f':
+                ftypes[i] = MYSQL_TYPE_DOUBLE;
+                break;
             case 's':
                 ftypes[i] = MYSQL_TYPE_STRING;
                 break;
@@ -270,6 +284,10 @@ int mysql_helper_stmt(struct mysql_helper *mysql_helper,
             case 'd':
                 bind_ptr->buffer = va_arg(ap, int *);
                 bind_ptr->buffer_length = sizeof(int);
+                break;
+            case 'f':
+                bind_ptr->buffer = va_arg(ap, double *);
+                bind_ptr->buffer_length = sizeof(double);
                 break;
             case 's':
                 str = va_arg(ap, char **);
@@ -379,7 +397,7 @@ int mysql_helper_stmt_col_map(struct mysql_helper *mysql_helper,
     size_t num_all_params = nparams + nsparams;
     uint32_t n = mysql_stmt_param_count(mysql_helper->stmt);
     if (num_all_params != n) {
-        LOGGER_ERROR("num params != num params in query (%u != %u)", num_all_params, n);
+        LOGGER_ERROR("num params != num params in query (%zu != %u)", num_all_params, n);
         return -1;
     }
     struct mysql_helper_column_map *p, *rend = result_map + nresult;
@@ -406,7 +424,7 @@ int mysql_helper_stmt_col_map(struct mysql_helper *mysql_helper,
             return report_stmt_error(mysql_helper);
         n = mysql_num_fields(rs);
         if (n != nresult) {
-            LOGGER_ERROR("num args != num fields in query (%u != %u)", nresult, n);
+            LOGGER_ERROR("num args != num fields in query (%zu != %u)", nresult, n);
             mysql_free_result(rs);
             return -1;
         }
@@ -541,11 +559,9 @@ int mysql_helper_generate_insert(struct vmbuf *outbuf, const char *table,
     }
     for (i = 0; i < nfixed_values; ++i)
         vmbuf_sprintf(outbuf, "%s,", fixed_values[i].data.custom_str);
-    vmbuf_remove_last_if(outbuf, ',');
-    vmbuf_strcpy(outbuf, ")");
+    vmbuf_replace_last_if(outbuf, ',', ')');
     return 0;
 }
-
 
 int mysql_helper_generate_update(struct vmbuf *outbuf, const char *table,
                                  struct mysql_helper_column_map *params, size_t nparams,

@@ -30,16 +30,19 @@
 #include <sys/timerfd.h>
 #include <sys/sendfile.h>
 
-int _ribified_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
-    int flags=fcntl(sockfd, F_GETFL);
-    if (0 > fcntl(sockfd, F_SETFL, flags | O_NONBLOCK))
-        return LOGGER_PERROR("fcntl"), -1;
+int _ribified_socket(int domain, int type, int protocol) {
+    int sockfd = socket(domain, type | SOCK_NONBLOCK, protocol);
+    if (0 > sockfd)
+        return sockfd;
+    if (0 > ribs_epoll_add(sockfd, EPOLLIN | EPOLLOUT | EPOLLET, event_loop_ctx))
+        return close(sockfd), -1;
+    return sockfd;
+}
 
+int _ribified_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     int res = connect(sockfd, addr, addrlen);
-    if (res < 0 && errno != EINPROGRESS) {
-        return res;
-    }
-    return ribs_epoll_add(sockfd, EPOLLIN | EPOLLOUT | EPOLLET, event_loop_ctx);
+    if (res < 0 && errno == EINPROGRESS) res = 0;
+    return res;
 }
 
 int _ribified_fcntl(int fd, int cmd, ...) {

@@ -53,11 +53,13 @@ static struct vmbuf log_buf = VMBUF_INITIALIZER;
 static void begin_log_line(const char *msg_class) {
     struct tm tm, *tmp;
     struct timeval tv;
+    intmax_t usec;
     gettimeofday(&tv, NULL);
     tmp = localtime_r(&tv.tv_sec, &tm);
+    usec = tv.tv_usec;
     vmbuf_init(&log_buf, 4096);
     vmbuf_strftime(&log_buf, "%Y-%m-%d %H:%M:%S", tmp);
-    vmbuf_sprintf(&log_buf, ".%03ld.%03ld %d %s ", tv.tv_usec / 1000, tv.tv_usec % 1000, getpid(), msg_class);
+    vmbuf_sprintf(&log_buf, ".%03jd.%03jd %d %s ", usec / 1000, usec % 1000, getpid(), msg_class);
 }
 
 static inline void end_log_line(int fd) {

@@ -60,14 +60,16 @@ struct http_server {
     size_t init_payload_size;
     size_t max_req_size;
     size_t context_size;
+    uint32_t bind_addr;
 };
 
-#define HTTP_SERVER_INIT_DEFAULTS .stack_size = 0, .num_stacks = 0, .init_request_size = 8*1024, .init_header_size = 8*1024, .init_payload_size = 8*1024, .max_req_size = 0, .context_size = 0, .timeout_handler.timeout = 60000
+#define HTTP_SERVER_INIT_DEFAULTS .stack_size = 0, .num_stacks = 0, .init_request_size = 8*1024, .init_header_size = 8*1024, .init_payload_size = 8*1024, .max_req_size = 0, .context_size = 0, .timeout_handler.timeout = 60000, .bind_addr = INADDR_ANY
 #define HTTP_SERVER_INITIALIZER { HTTP_SERVER_INIT_DEFAULTS }
 
 #define HTTP_SERVER_NOT_FOUND (-2)
 
 int http_server_init(struct http_server *server);
+int http_server_init2(struct http_server *server);
 int http_server_init_acceptor(struct http_server *server);
 void http_server_header_start(const char *status, const char *content_type);
 void http_server_header_start_no_body(const char *status);
@@ -77,8 +79,13 @@ void http_server_set_session_cookie(const char *name, const char *value, const c
 struct vmbuf *http_server_begin_cookie(const char *name);
 struct vmbuf *http_server_end_cookie(time_t expires, const char *domain, const char *path);
 void http_server_response(const char *status, const char *content_type);
-void http_server_response_sprintf(const char *status, const char *content_type, const char *format, ...);
+void http_server_response_sprintf(const char *status, const char *content_type, const char *format, ...) __attribute__ ((format (gnu_printf, 3, 4)));
+void http_server_response_vsprintf(const char *status, const char *content_type, const char *format, va_list ap);
 void http_server_header_content_length(void);
+void http_server_header_redirect(const char *format, ...);
+void http_server_header_redirect2(const char *format, va_list ap);
+void http_server_redirect(const char *status, const char *content_type, const char *format, ...);
+void http_server_redirect2(const char *status, const char *content_type, const char *format, va_list ap);
 void http_server_fiber_main(void);
 int http_server_sendfile(const char *filename);
 int http_server_sendfile2(const char *filename, const char *additional_headers, const char *ext);

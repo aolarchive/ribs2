@@ -62,6 +62,7 @@ SSTRL(CONNECTION_KEEPALIVE, "Keep-Alive");
 SSTRL(CONTENT_LENGTH, "\r\nContent-Length: ");
 SSTRL(SET_COOKIE, "\r\nSet-Cookie: ");
 SSTRL(COOKIE_VERSION, "Version=\"1\"");
+SSTRL(HTTP_LOCATION, "\r\nLocation: ");
 /* 1xx */
 SSTRL(HTTP_STATUS_100, "100 Continue");
 SSTRL(EXPECT_100, "\r\nExpect: 100");
@@ -97,6 +98,11 @@ static void http_server_idle_handler(void) {
 }
 
 int http_server_init(struct http_server *server) {
+    server->bind_addr = htonl(INADDR_ANY);
+    return http_server_init2(server);
+}
+
+int http_server_init2(struct http_server *server) {
     /*
      * one time global initializers
      */
@@ -153,7 +159,7 @@ int http_server_init(struct http_server *server) {
     memset(&addr, 0, sizeof(struct sockaddr_in));
     addr.sin_family = AF_INET;
     addr.sin_port = htons(server->port);
-    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_addr.s_addr = server->bind_addr;
     if (0 > bind(lfd, (struct sockaddr *)&addr, sizeof(addr)))
         return LOGGER_PERROR("bind"), -1;
 
@@ -264,14 +270,18 @@ void http_server_response(const char *status, const char *content_type) {
 }
 
 void http_server_response_sprintf(const char *status, const char *content_type, const char *format, ...) {
+    va_list ap;
+    va_start(ap, format);
+    http_server_response_vsprintf(status, content_type, format, ap);
+    va_end(ap);
+}
+
+void http_server_response_vsprintf(const char *status, const char *content_type, const char *format, va_list ap) {
     struct http_server_context *ctx = http_server_get_context();
     vmbuf_reset(&ctx->header);
     vmbuf_reset(&ctx->payload);
     http_server_header_start(status, content_type);
-    va_list ap;
-    va_start(ap, format);
     vmbuf_vsprintf(&ctx->payload, format, ap);
-    va_end(ap);
     http_server_header_content_length();
     http_server_header_close();
 }
@@ -279,6 +289,35 @@ void http_server_response_sprintf(const char *status, const char *content_type, 
 void http_server_header_content_length(void) {
     struct http_server_context *ctx = http_server_get_context();
     vmbuf_sprintf(&ctx->header, "%s%zu", CONTENT_LENGTH, vmbuf_wlocpos(&ctx->payload));
+}
+
+void http_server_header_redirect(const char *format, ...) {
+    va_list ap;
+    va_start(ap, format);
+    http_server_header_redirect2(format, ap);
+    va_end(ap);
+}
+
+void http_server_header_redirect2(const char *format, va_list ap) {
+    struct http_server_context *ctx = http_server_get_context();
+    vmbuf_strcpy(&ctx->header, HTTP_LOCATION);
+    vmbuf_vsprintf(&ctx->header, format, ap);
+}
+
+void http_server_redirect(const char *status, const char *content_type, const char *format, ...) {
+    va_list ap;
+    va_start(ap, format);
+    http_server_redirect2(status, content_type, format, ap);
+    va_end(ap);
+}
+
+void http_server_redirect2(const char *status, const char *content_type, const char *format, va_list ap) {
+    struct http_server_context *ctx = http_server_get_context();
+    vmbuf_reset(&ctx->header);
+    http_server_header_start(status, content_type);
+    http_server_header_redirect(format, ap);
+    http_server_header_content_length();
+    http_server_header_close();
 }
 
 #define READ_FROM_SOCKET()                                              \
@@ -493,7 +532,7 @@ int http_server_sendfile2(const char *filename, const char *additional_headers, 
         return HTTP_SERVER_NOT_FOUND;
     struct stat st;
     if (0 > fstat(ffd, &st)) {
-        LOGGER_PERROR(filename);
+        LOGGER_PERROR("%s", filename);
         close(ffd);
         return HTTP_SERVER_NOT_FOUND;
     }
@@ -508,7 +547,7 @@ int http_server_sendfile2(const char *filename, const char *additional_headers, 
         http_server_header_start(HTTP_STATUS_200, mime_types_by_ext(ext));
     else
         http_server_header_start(HTTP_STATUS_200, mime_types_by_filename(filename));
-    vmbuf_sprintf(&ctx->header, "%s%lu", CONTENT_LENGTH, st.st_size);
+    vmbuf_sprintf(&ctx->header, "%s%jd", CONTENT_LENGTH, (intmax_t)st.st_size);
     if (additional_headers)
         vmbuf_strcpy(&ctx->header, additional_headers);
 
@@ -516,7 +555,7 @@ int http_server_sendfile2(const char *filename, const char *additional_headers, 
     int res = http_server_sendfile_payload(ffd, st.st_size);
     close(ffd);
     if (0 > res)
-        LOGGER_PERROR(filename);
+        LOGGER_PERROR("%s", filename);
     return res;
 }
 
@@ -576,7 +615,7 @@ int http_server_generate_dir_list(const char *URI) {
             if (t)
                 vmbuf_strftime(payload, "%F %T", t);
             vmbuf_strcpy(payload, "</td>");
-            vmbuf_sprintf(payload, "<td>%lu</td>", st.st_size);
+            vmbuf_sprintf(payload, "<td>%jd</td>", (intmax_t)st.st_size);
             vmbuf_strcpy(payload, "</tr>");
         }
         closedir(d);

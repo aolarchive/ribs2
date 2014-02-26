@@ -77,7 +77,7 @@ void mempool_dump_stats(void) {
     int i;
     size_t s = MIN_CHUNK_SIZE;
     const char HEADER[] = "=== memory stats ===";
-    LOGGER_INFO("%*s", (50 + sizeof(HEADER))/2, HEADER);
+    LOGGER_INFO("%*s", (int)(50 + sizeof(HEADER))/2, HEADER);
     LOGGER_INFO("%15s   %15s   %15s", "block size", "num chunks", "free chunks");
     for (i = 0; i < NUM_CHUNK_BUCKETS; ++i, s <<= 1) {
         if (0 < memchunks[i].num_chunks)

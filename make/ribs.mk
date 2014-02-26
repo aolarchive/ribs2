@@ -25,6 +25,10 @@ else
 OBJ_DIR=../obj/$(OBJ_SUB_DIR)
 endif
 
+ifneq ($(wildcard /usr/include/zlib.h),)
+CPPFLAGS+=-DHAVE_ZLIB
+endif
+
 LDFLAGS+=-L../lib
 CFLAGS+=$(OPTFLAGS) -ggdb3 -W -Wall -Werror
 GCCVER_GTE_4_7=$(shell expr `gcc -dumpversion` \>= 4.7)
@@ -32,12 +36,12 @@ ifeq ($(GCCVER_GTE_4_7),1)
 CFLAGS+=-ftrack-macro-expansion=2
 endif
 
-RIBIFY_SYMS+=write read connect fcntl recv recvfrom recvmsg send sendto sendmsg readv writev pipe pipe2 nanosleep usleep sleep sendfile malloc calloc realloc free strdup close
+RIBIFY_SYMS+=write read socket connect fcntl recv recvfrom recvmsg send sendto sendmsg readv writev pipe pipe2 nanosleep usleep sleep sendfile malloc calloc realloc free strdup close
 
 ifdef UGLY_GETADDRINFO_WORKAROUND
 LDFLAGS+=-lanl
 RIBIFY_SYMS+=getaddrinfo
-CFLAGS+=-DUGLY_GETADDRINFO_WORKAROUND
+CPPFLAGS+=-DUGLY_GETADDRINFO_WORKAROUND
 endif
 
 RIBIFYFLAGS+=$(subst --redefine-sym_,--redefine-sym ,$(join $(RIBIFY_SYMS:%=--redefine-sym_%=),$(RIBIFY_SYMS:%=_ribified_%)))
@@ -64,16 +68,16 @@ $(ALL_DIRS):
 	@touch $@
 
 $(OBJ_DIR)/%.o: %.c $(OBJ_DIR)/%.d
-	@echo "  (C)      $*.c  [ -c $(CFLAGS) $*.c -o $(OBJ_DIR)/$*.o ]"
-	@$(CC) -c $(CFLAGS) $*.c -o $(OBJ_DIR)/$*.o
+	@echo "  (C)      $*.c  [ $(CPPFLAGS) -c $(CFLAGS) $*.c -o $(OBJ_DIR)/$*.o ]"
+	@$(CC) $(CPPFLAGS) -c $(CFLAGS) $*.c -o $(OBJ_DIR)/$*.o
 
 $(OBJ_DIR)/%.o: %.S
-	@echo "  (ASM)    $*.S  [ -c $(CFLAGS) $*.S -o $(OBJ_DIR)/$*.o ]"
-	@$(CC) -c $(CFLAGS) $*.S -o $(OBJ_DIR)/$*.o
+	@echo "  (ASM)    $*.S  [ $(CPPFLAGS) -c $(CFLAGS) $*.S -o $(OBJ_DIR)/$*.o ]"
+	@$(CC) $(CPPFLAGS) -c $(CFLAGS) $*.S -o $(OBJ_DIR)/$*.o
 
 $(OBJ_DIR)/%.d: %.c
 	@echo "  (DEP)    $*.c"
-	@$(CC) -MM $(CFLAGS) $(INCLUDES) $*.c | sed -e 's|.*:|$(OBJ_DIR)/$*.o:|' > $@
+	@$(CC) -MM $(CPPFLAGS) $(CFLAGS) $(INCLUDES) $*.c | sed -e 's|.*:|$(OBJ_DIR)/$*.o:|' > $@
 
 $(OBJ): $(DIRS)
 
@@ -87,7 +91,7 @@ $(DEP): $(DIRS)
 
 ../ribified/%: $(RIBIFY_DIR)
 	@echo "  (RIBIFY) $(@:../ribified/%=%) [ $@ $(RIBIFYFLAGS) ]"
-	@objcopy $(shell find $(RIBIFY_LIB_PATH) /usr/lib -name $(@:../ribified/%=%)) $@ $(RIBIFYFLAGS)
+	@objcopy $(shell find $(RIBIFY_LIB_PATH) /usr/lib -name $(@:../ribified/%=%) 2>/dev/null) $@ $(RIBIFYFLAGS)
 
 ../bin/%: $(OBJ) $(RIBIFY:%=../ribified/%) $(EXTRA_DEPS)
 	@echo "  (LD)     $(@:../bin/%=%)  [ -o $@ $(OBJ) $(LDFLAGS) ]"

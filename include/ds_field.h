@@ -33,7 +33,7 @@ static inline int TEMPLATE_FUNC(ds_field,T,init)(struct TEMPLATE(ds_field,T) *ds
         return LOGGER_PERROR_FUNC("fstat %s", filename), close(fd), -1;
     off_t size = st.st_size;
     if (size < (off_t)sizeof(int64_t))
-        return LOGGER_ERROR_FUNC("%s, wrong file size: %zd", __FUNCTION__, size), close(fd), -1;
+        return LOGGER_ERROR_FUNC("%s, wrong file size: %jd", __FUNCTION__, (intmax_t)size), close(fd), -1;
     if (0 != ((size - sizeof(int64_t)) % sizeof(T)))
         return LOGGER_ERROR_FUNC("%s: data is misaligned", filename), close(fd), -1;
     void *mem = (char *)mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);

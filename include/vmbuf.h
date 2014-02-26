@@ -80,6 +80,7 @@ _RIBS_INLINE_ void vmbuf_wreset(struct vmbuf *vmb);
 _RIBS_INLINE_ int vmbuf_sprintf(struct vmbuf *vmb, const char *format, ...) __attribute__ ((format (gnu_printf, 2, 3)));
 _RIBS_INLINE_ int vmbuf_vsprintf(struct vmbuf *vmb, const char *format, va_list ap) __attribute__ ((format (gnu_printf, 2, 0)));
 _RIBS_INLINE_ int vmbuf_strcpy(struct vmbuf *vmb, const char *src);
+_RIBS_INLINE_ int vmbuf_replace_last_if(struct vmbuf *vmb, char s, char d);
 _RIBS_INLINE_ void vmbuf_remove_last_if(struct vmbuf *vmb, char c);
 _RIBS_INLINE_ int vmbuf_read(struct vmbuf *vmb, int fd);
 _RIBS_INLINE_ int vmbuf_write(struct vmbuf *vmb, int fd);
