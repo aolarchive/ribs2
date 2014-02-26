@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -291,7 +291,7 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
     LOGGER_INFO("%s: %zu records, %zu skipped", tablename, count, num_rows_errors);
     /* check for mysql errors */
     if (mysql_err != MYSQL_NO_DATA) {
-        LOGGER_ERROR("mysql_stmt_fetch returned an error (code=%d)\n", mysql_err);
+        LOGGER_ERROR("mysql_stmt_fetch returned an error (code=%d)", mysql_err);
         err = -1;
     }
  dumper_close_writer:
