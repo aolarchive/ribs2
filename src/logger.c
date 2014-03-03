@@ -19,13 +19,31 @@
 */
 #include "logger.h"
 #include "vmbuf.h"
-#include "context.h"
 #include <string.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <fcntl.h>
+/*
+  TODO: move to daemonize or somewhere else...
+int logger_create(const char *logfile) {
+    if (NULL == logfile)
+        return -1;
+    int fd = -1;
+    if (logfile[0] == '|') {
+        // popen
+        ++logfile;
+        FILE *fp = popen(logfile, "w");
+        if (NULL != fp)
+            fd = fileno(fp);
+    } else {
+        // open
+        fd = open(logfile, O_CREAT | O_WRONLY | O_APPEND, 0644);
+    }
+    return fd;
+}
+*/
 
 static const char *MC_INFO  = "INFO ";
 static const char *MC_ERROR = "ERROR";
@@ -41,7 +59,7 @@ static void begin_log_line(const char *msg_class) {
     usec = tv.tv_usec;
     vmbuf_init(&log_buf, 4096);
     vmbuf_strftime(&log_buf, "%Y-%m-%d %H:%M:%S", tmp);
-    vmbuf_sprintf(&log_buf, ".%03jd.%03jd %d %p %s ", usec / 1000, usec % 1000, getpid(), current_ctx, msg_class);
+    vmbuf_sprintf(&log_buf, ".%03jd.%03jd %d %s ", usec / 1000, usec % 1000, getpid(), msg_class);
 }
 
 static inline void end_log_line(int fd) {
