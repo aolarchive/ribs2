@@ -38,4 +38,22 @@ static inline uint32_t next_p2(uint32_t x) {
     return 2U << ilog2(x-1);
 }
 
+static inline uint64_t ilog2_64(uint64_t x) {
+#if defined(__i386__) || defined(__x86_64__)
+    uint64_t res;
+    asm ("bsr %[x], %[res]"
+         : [res] "=r" (res)
+         : [x] "mr" (x));
+    return res;
+#else
+    if (!x)
+        return 0;
+    return __builtin_clz(x) ^ 63;
+#endif
+}
+
+static inline uint64_t next_p2_64(uint64_t x) {
+    return 2ULL << ilog2_64(x-1);
+}
+
 #endif // _ILOG2__H_
