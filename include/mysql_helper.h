@@ -107,6 +107,7 @@ void mysql_helper_connect_init(struct mysql_helper *mysql_helper);
 int mysql_helper_real_connect(struct mysql_helper *mysql_helper, struct mysql_login_info *login_info);
 int mysql_helper_connect(struct mysql_helper *mysql_helper, struct mysql_login_info *login_info);
 int mysql_helper_stmt(struct mysql_helper *mysql_helper, const char *query, size_t query_len, const char *params, const char *fields, ...);
+int mysql_helper_vstmt(struct mysql_helper *mysql_helper, const char *query, size_t query_len, const char *params, const char *fields, void ** input);
 int mysql_helper_stmt_col_map(struct mysql_helper *mysql_helper,
                               const char *query, size_t query_len,
                               void *params, struct mysql_helper_column_map *params_map, size_t nparams, /* primary params */
