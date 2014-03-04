@@ -121,12 +121,10 @@ int http_server_init2(struct http_server *server) {
      */
     if (0 == server->num_stacks)
         server->num_stacks = DEFAULT_NUM_STACKS;
-    if (0 == server->stack_size) {
-        struct rlimit rlim;
-        if (0 > getrlimit(RLIMIT_STACK, &rlim))
-            return LOGGER_PERROR("getrlimit(RLIMIT_STACK)"), -1;
-        server->stack_size = rlim.rlim_cur;
-    }
+    struct rlimit rlim;
+    if (0 > getrlimit(RLIMIT_STACK, &rlim))
+        return LOGGER_PERROR("getrlimit(RLIMIT_STACK)"), -1;
+    server->stack_size = server->stack_size > rlim.rlim_cur ? server->stack_size : rlim.rlim_cur;
     LOGGER_INFO("http server pool: initial=%zu, grow=%zu, stack_size=%zu", server->num_stacks, server->num_stacks, server->stack_size);
     ctx_pool_init(&server->ctx_pool, server->num_stacks, server->num_stacks, server->stack_size, sizeof(struct http_server_context) + server->context_size);
     /*
