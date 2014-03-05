@@ -52,6 +52,7 @@ void *mempool_alloc_chunk(size_t s) {
     void *mem = memchunks[chunk_index].head;
     if (NULL == mem) {
         ++memchunks[chunk_index].num_chunks;
+        LOGGER_INFO("mempool: allocating %zu", s);
         mem = mmap(NULL, s, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         if (MAP_FAILED == mem)
             return LOGGER_PERROR("mmap"), NULL;
