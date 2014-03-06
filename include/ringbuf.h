@@ -29,11 +29,12 @@ struct ringbuf {
     size_t write_loc;
 };
 
-#define RINGBUF_INITIALIZER { 0, 0, 0, NULL }
+#define RINGBUF_INITIALIZER { NULL, 0, 0, 0 }
 #define RINGBUF_INIT(x) (x) = (struct ringbuf)RINGBUF_INITIALIZER
 
 int ringbuf_init(struct ringbuf *rb, size_t size);
 int ringbuf_free(struct ringbuf *rb);
+_RIBS_INLINE_ void *ringbuf_mem(struct ringbuf *rb);
 _RIBS_INLINE_ void *ringbuf_wloc(struct ringbuf *rb);
 _RIBS_INLINE_ void *ringbuf_rloc(struct ringbuf *rb);
 _RIBS_INLINE_ void ringbuf_wseek(struct ringbuf *rb, size_t by);
