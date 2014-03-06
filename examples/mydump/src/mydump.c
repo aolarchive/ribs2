@@ -34,13 +34,13 @@ int main(void){
         {
         /* the other table columns */
         int32_t age;
-        char * name;
+        char *name;
 
         /* location of data from index lookup */
         uint32_t loc = 0;
 
         /* char pointer to beginning of name in data */
-        char* result = "";
+        char *result = "";
 
         /* size of name data, since variable size */
         size_t result_size = 0;

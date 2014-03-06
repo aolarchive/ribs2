@@ -42,7 +42,7 @@ static int queue_ctx_fd = -1;
 #ifdef UGLY_GETADDRINFO_WORKAROUND
 static void sigrtmin_to_context(void) {
     struct signalfd_siginfo siginfo;
-    while (1) {
+    for (;;) {
        int res = read(last_epollev.data.fd, &siginfo, sizeof(struct signalfd_siginfo));
        if (sizeof(struct signalfd_siginfo) != res || NULL == (void *)siginfo.ssi_ptr) {
            LOGGER_PERROR("sigrtmin_to_ctx got NULL or < 128 bytes: %d", res);
@@ -55,7 +55,7 @@ static void sigrtmin_to_context(void) {
 
 static void pipe_to_context(void) {
     void *ctx;
-    while (1) {
+    for (;;) {
         if (sizeof(&ctx) != read(last_epollev.data.fd, &ctx, sizeof(&ctx))) {
             LOGGER_PERROR("read in pipe_to_context");
             yield();
@@ -92,7 +92,7 @@ int epoll_worker_init(void) {
     epoll_worker_fd_map = calloc(rlim.rlim_cur, sizeof(struct epoll_worker_fd_data));
 
     ribs_epoll_fd = epoll_create1(EPOLL_CLOEXEC);
-    if (ribs_epoll_fd < 0)
+    if (0 > ribs_epoll_fd)
         return LOGGER_PERROR("epoll_create1"), -1;
 
     /* block some signals */
@@ -118,7 +118,7 @@ int epoll_worker_init(void) {
 
     event_loop_ctx = ribs_context_create(SMALL_STACK_SIZE, 0, event_loop);
 
-    /* pipe to conetxt */
+    /* pipe to context */
     int pipefd[2];
     if (0 > pipe2(pipefd, O_NONBLOCK))
         return LOGGER_PERROR("pipe"), -1;

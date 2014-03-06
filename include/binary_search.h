@@ -36,8 +36,8 @@
       BINARY_SEARCH_PRED(mystruct_t, mystruct_compar);
       LOWER_BOUND_PRED(mystruct_t, mystruct_compar);
       void finder(void) {
-          struct mystruct data[] = { {1,100}, {2,200}, {50, 1234}};
-          struct mystruct findme = {2, 0};
+          struct mystruct data[] = {{1,100},{2,200},{50,1234}};
+          struct mystruct findme = {2,0};
           const struct mystruct *res;
           if (0 == binary_search_mystruct_t(data, ARRAY_SIZE(data), &findme, &res))
               printf("res = %d   %d\n", res->x, res->y);

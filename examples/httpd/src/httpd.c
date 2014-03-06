@@ -67,8 +67,8 @@ int main(int argc, char *argv[]) {
 
     int port = 8080;
     int daemon_mode = 0;
-    long forks = 0;
-    while (1) {
+    int forks = 0;
+    for (;;) {
         int option_index = 0;
         int c = getopt_long(argc, argv, "p:f:d", long_options, &option_index);
         if (c == -1)
@@ -133,20 +133,21 @@ int main(int argc, char *argv[]) {
     if (daemon_mode)
         daemonize(), daemon_finalize();
 
+    /* assume autoconfiguration if forks is not a positive value */
     if (0 >= forks) {
         forks = sysconf(_SC_NPROCESSORS_CONF);
         if (0 > forks)
             exit(EXIT_FAILURE);
     }
 
-    for(;forks > 1;--forks){
+    for(; forks > 1; --forks){
         if (0 >= fork()) {
             break;
         }
     }
 
     /* initialize the event loop */
-    if (epoll_worker_init() < 0)
+    if (0 > epoll_worker_init())
         exit(EXIT_FAILURE);
 
     /* start accepting connections, must be called after initializing

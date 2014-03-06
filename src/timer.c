@@ -24,6 +24,8 @@
 #include <errno.h>
 #include <sys/timerfd.h>
 
+#define TIMER_STACK_SIZE 1024*1024
+
 static void _ribs_timer_wrapper(void) {
     void (**handler)(int) = (void (**)(int))current_ctx->reserved;
     for (;;yield()) {
