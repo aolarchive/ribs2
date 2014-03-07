@@ -39,6 +39,8 @@ struct memalloc {
 #define MEMALLOC_INITIALIZER { NULL, 0, 0, NULL, NULL }
 #define MEMALLOC_INITIAL_BLOCK_SIZE 131072
 
+size_t memalloc_usage(struct memalloc *ma);
+
 _RIBS_INLINE_ void *memalloc_alloc(struct memalloc *ma, size_t size);
 _RIBS_INLINE_ void memalloc_reset(struct memalloc *ma);
 _RIBS_INLINE_ int memalloc_is_mine(struct memalloc *ma, const void *ptr);

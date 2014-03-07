@@ -45,3 +45,18 @@ int memalloc_new_block(struct memalloc *ma) {
     ma->mem = mem + sizeof(struct memalloc_block);
     return 0;
 }
+
+size_t memalloc_usage(struct memalloc *ma) {
+    size_t usage = 0;
+    if (0 < ma->capacity) {
+        struct memalloc_block *cur_block = ma->blocks_head;
+        size_t size = MEMALLOC_INITIAL_BLOCK_SIZE;
+        for (;;size <<= 1) {
+            usage += size;
+            cur_block = cur_block->next;
+            if (NULL == cur_block) break;
+        }
+        usage -= ma->avail;
+    }
+    return usage;
+}

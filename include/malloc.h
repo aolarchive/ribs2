@@ -40,6 +40,8 @@ _RIBS_INLINE_ char *ribs_strdup(const char *s);
 _RIBS_INLINE_ char *ribs_strdup2(struct ribs_context *ctx, const char *s);
 _RIBS_INLINE_ char *ribs_malloc_strftime(const char *format, const struct tm *tm) __attribute__ ((format (strftime, 1, 0)));
 _RIBS_INLINE_ char *ribs_malloc_strftime2(struct ribs_context *ctx, const char *format, const struct tm *tm) __attribute__ ((format (strftime, 2, 0)));
+_RIBS_INLINE_ size_t ribs_malloc_usage(void);
+_RIBS_INLINE_ size_t ribs_malloc_usage2(struct ribs_context *ctx);
 
 #include "../src/_malloc.c"
 

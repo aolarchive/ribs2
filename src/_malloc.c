@@ -93,3 +93,11 @@ _RIBS_INLINE_ char *ribs_malloc_strftime(const char *format, const struct tm *tm
 _RIBS_INLINE_ char *ribs_malloc_strftime2(struct ribs_context *ctx, const char *format, const struct tm *tm) {
     return memalloc_strftime(&ctx->memalloc, format, tm);
 }
+
+_RIBS_INLINE_ size_t ribs_malloc_usage(void) {
+    return ribs_malloc_usage2(current_ctx);
+}
+
+_RIBS_INLINE_ size_t ribs_malloc_usage2(struct ribs_context *ctx) {
+    return memalloc_usage(&ctx->memalloc);
+}
