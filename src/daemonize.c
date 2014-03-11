@@ -110,7 +110,7 @@ static const char *_get_exit_reason(siginfo_t *info) {
     return "UNKNOWN";
 }
 
-static void _handle_sig_child(void) {
+static void _handle_signals(void) {
     struct signalfd_siginfo sfd_info;
     for (;;yield()) {
         for (;;) {
@@ -123,6 +123,10 @@ static void _handle_sig_child(void) {
             if (sizeof(struct signalfd_siginfo) != res) {
                 LOGGER_ERROR("failed to read from signal fd, incorrect size");
                 continue;
+            }
+            if (SIGTERM == sfd_info.ssi_signo) {
+                LOGGER_INFO("ribs daemon: exiting...");
+                epoll_worker_exit();
             }
             memset(&last_sig_info, 0, sizeof(last_sig_info));
             epoll_worker_ignore_events(sigfd);
@@ -183,7 +187,7 @@ static void signal_handler(int signum) {
             LOGGER_INFO("ignoring SIGINT in child process");
             break;
         }
-    case SIGTERM:
+        LOGGER_INFO("received SIGINT");
         epoll_worker_exit();
         break;
     default:
@@ -192,22 +196,29 @@ static void signal_handler(int signum) {
 }
 
 static int _set_signals(void) {
-    struct sigaction sa = {
-        .sa_handler = signal_handler,
-        .sa_flags = 0
-    };
-    sigaction(SIGTERM, &sa, NULL);
+    static char altstack[SIGSTKSZ];
+    static stack_t ss;
+    memset(&ss, 0, sizeof(ss));
+    ss.ss_sp = altstack;
+    ss.ss_size = SIGSTKSZ;
+    if (0 > sigaltstack(&ss, NULL))
+        return LOGGER_PERROR("sigaltstack"), -1;
+
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = signal_handler;
     sigaction(SIGINT, &sa, NULL);
 
     sigset_t sigset;
     sigemptyset(&sigset);
     sigaddset(&sigset, SIGCHLD);
+    sigaddset(&sigset, SIGTERM);
     if (0 > sigprocmask(SIG_BLOCK, &sigset, NULL))
         return LOGGER_PERROR("sigprocmask"), -1;
     sigfd = signalfd(-1, &sigset, SFD_NONBLOCK | SFD_CLOEXEC);
     if (0 > sigfd)
         return LOGGER_PERROR("signalfd"), -1;
-    if (NULL == (sigfd_ctx = ribs_context_create(SIG_CHLD_STACK_SIZE, 0, _handle_sig_child)))
+    if (NULL == (sigfd_ctx = ribs_context_create(SIG_CHLD_STACK_SIZE, 0, _handle_signals)))
         return -1;
     return 0;
 }
