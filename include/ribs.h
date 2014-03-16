@@ -26,7 +26,6 @@
 #include "context.h"
 #include "ctx_pool.h"
 #include "hashtable.h"
-#include "thashtable.h"
 #include "lhashtable.h"
 #include "epoll_worker.h"
 #include "logger.h"
