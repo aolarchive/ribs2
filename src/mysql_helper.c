@@ -524,6 +524,26 @@ int mysql_helper_vstmt(struct mysql_helper *mysql_helper,
     return 0;
 }
 
+int mysql_helper_hstmt(struct mysql_helper *helper, const char *query, size_t query_len, const char *input_param_types, void **input_params, const char *output_field_types, ...)
+{
+    int pointer_buffer_count = strlen(input_param_types) + strlen(output_field_types);
+    void *pointer_buffer[pointer_buffer_count];
+    int param_count = strlen(input_param_types);
+
+    memcpy(pointer_buffer, input_params, param_count * sizeof(void *));
+
+    void **append_pointer = pointer_buffer + param_count;
+
+    va_list ap;
+    va_start(ap, output_field_types);
+    int field_count = strlen(output_field_types);
+    for(; field_count > 0; field_count--, ++append_pointer)
+        *append_pointer = va_arg(ap, void *);
+    va_end(ap);
+
+    return mysql_helper_vstmt(helper, query, query_len, input_param_types, output_field_types, pointer_buffer);
+}
+
 static int _mysql_helper_init_bind_map(void *data, size_t n, struct mysql_helper_column_map *map, MYSQL_BIND *pbind, unsigned long *plengths, my_bool *pnulls, struct vmbuf *tb) {
     if (n == 0) return 0;
     memset(pbind, 0, sizeof(MYSQL_BIND) * n);
