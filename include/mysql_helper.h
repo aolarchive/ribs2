@@ -89,6 +89,7 @@ struct mysql_helper_column_map {
 #define MYSQL_HELPER_COL_MAP_TS_UNIX(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_LONGLONG, ts_unix)
 #define MYSQL_HELPER_COL_MAP_STR(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_STRING, str)
 #define MYSQL_HELPER_COL_MAP_CSTR(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_STRING, cstr)
+// NOTE: Don't use the following macro for col binding!
 #define MYSQL_HELPER_COL_MAP_CUSTOM_STR(name,value) \
     {name,{mysql_helper_field_type_cstr,0,MYSQL_TYPE_STRING,0},{.custom_str=value}}
 
