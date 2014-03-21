@@ -373,6 +373,13 @@ int mysql_helper_vstmt(struct mysql_helper *mysql_helper,
                 pbind_ptr->is_unsigned = isupper(c) ? 1 : 0;
                 ++input;
                 break;
+            case 'c':
+                ptypes[i] = MYSQL_TYPE_TINY;
+                pbind_ptr->buffer = (char *)(*input);
+                pnulls[i] = (pbind_ptr->buffer == NULL);
+                pbind_ptr->is_unsigned = isupper(c) ? 1 : 0;
+                ++input;
+                break;
             case 'l':
                 ptypes[i] = MYSQL_TYPE_LONGLONG;
                 pbind_ptr->buffer = (long long *)(*input);
@@ -439,6 +446,9 @@ int mysql_helper_vstmt(struct mysql_helper *mysql_helper,
             case 'd':
                 ftypes[i] = MYSQL_TYPE_LONG;
                 break;
+            case 'c':
+                ftypes[i] = MYSQL_TYPE_TINY;
+                break;
             case 'l':
                 ftypes[i] = MYSQL_TYPE_LONGLONG;
                 break;
@@ -486,6 +496,11 @@ int mysql_helper_vstmt(struct mysql_helper *mysql_helper,
             case 'd':
                 bind_ptr->buffer = (int *)(*input);
                 bind_ptr->buffer_length = sizeof(int);
+                ++input;
+                break;
+            case 'c':
+                bind_ptr->buffer = (char *)(*input);
+                bind_ptr->buffer_length = sizeof(char);
                 ++input;
                 break;
             case 'l':
