@@ -94,10 +94,23 @@ int http_file_server_init(struct http_file_server *fs) {
     if (NULL == realpath(fs->base_dir ? fs->base_dir : ".", realname))
         return -1;
     fs->base_dir = strdup(realname);
-    if (0 > hashtable_init(&fs->ht_ext_whitelist, 0))
+    if ((0 > hashtable_init(&fs->ht_ext_whitelist, 0)) ||
+        (0 > hashtable_init(&fs->ht_ext_max_age, 0)))
         return -1;
+
     fs->base_dir_len = strlen(fs->base_dir);
     return 0;
+}
+
+static inline int32_t find_max_age(struct http_file_server *fs, const char *ext) {
+    int32_t rv = fs->max_age;
+
+    if(0 < hashtable_get_size(&fs->ht_ext_max_age)) {
+        uint32_t ofs = hashtable_lookup(&fs->ht_ext_max_age, ext, strlen(ext));
+        if(ofs)
+            memcpy(&rv, hashtable_get_val(&fs->ht_ext_max_age, ofs), sizeof(int32_t));
+    }
+    return rv;
 }
 
 #define HTTP_FILE_SERVER_ERROR(code) \
@@ -212,6 +225,8 @@ int http_file_server_run2(struct http_file_server *fs, struct http_headers *head
     gmtime_r(&orig_st.st_mtime, &tm);
     char etag[128];
     intmax_t size = st.st_size;
+    int32_t max_age = find_max_age(fs, ext);
+
     int n = strftime(etag, sizeof(etag), "\r\nETag: \"%d%m%Y%H%M%S", &tm);
     if (0 == n || (int)sizeof(etag) - n <= snprintf(etag + n, sizeof(etag) - n, "%jd\"", size))
         return HTTP_FILE_SERVER_ERROR(500), close(ffd), -1;
@@ -223,11 +238,11 @@ int http_file_server_run2(struct http_file_server *fs, struct http_headers *head
     vmbuf_strcpy(&ctx->header, etag);
     if (compressed && include_payload)
         vmbuf_strcpy(&ctx->header, "\r\nContent-Encoding: gzip");
-    vmbuf_sprintf(&ctx->header, "\r\nCache-Control: max-age=%d", fs->max_age);
+    vmbuf_sprintf(&ctx->header, "\r\nCache-Control: max-age=%d", max_age);
     time_t t = time(NULL);
     gmtime_r(&t, &tm);
     vmbuf_strftime(&ctx->header, "\r\nDate: %a, %d %b %Y %H:%M:%S GMT", &tm);
-    t += fs->max_age;
+    t += max_age;
     gmtime_r(&t, &tm);
     vmbuf_strftime(&ctx->header, "\r\nExpires: %a, %d %b %Y %H:%M:%S GMT", &tm);
     gmtime_r(&orig_st.st_mtime, &tm);

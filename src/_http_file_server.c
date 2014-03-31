@@ -21,3 +21,6 @@ static inline void http_file_server_gzip_ext(struct http_file_server *fs, const 
     hashtable_insert(&fs->ht_ext_whitelist, ext, strlen(ext), NULL, 0);
 }
 
+static inline void http_file_server_max_age_ext(struct http_file_server *fs, const char *ext, int32_t max_age) {
+    hashtable_insert(&fs->ht_ext_max_age, ext, strlen(ext), &max_age, sizeof(int32_t));
+}

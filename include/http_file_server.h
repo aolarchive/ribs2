@@ -32,14 +32,18 @@ struct http_file_server {
     /* internal use */
     size_t base_dir_len;
     struct hashtable ht_ext_whitelist;
+    struct hashtable ht_ext_max_age;
 };
 
-#define HTTP_FILE_SERVER_INITIALIZER { NULL, 0, 0, 0, HASHTABLE_INITIALIZER }
+#define HTTP_FILE_SERVER_INITIALIZER { NULL, 0, 0, 0, HASHTABLE_INITIALIZER, HASHTABLE_INITIALIZER }
 
 int http_file_server_init(struct http_file_server *fs);
 int http_file_server_run(struct http_file_server *fs);
 int http_file_server_run2(struct http_file_server *fs, struct http_headers *headers, const char *file);
 static inline void http_file_server_gzip_ext(struct http_file_server *fs, const char *ext);
+
+/* If the cache expiration for an extension is not set here, http_file_server->max_age will be used */
+static inline void http_file_server_max_age_ext(struct http_file_server *fs, const char *ext, int max_age);
 
 #include "../src/_http_file_server.c"
 
