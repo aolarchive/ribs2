@@ -244,11 +244,10 @@ uint32_t hashtable_lookup_insert(struct hashtable *ht, const void *key, size_t k
             union hashtable_internal_rec *rec = _HASHTABLE_REC(e->rec);
             if (rec->rec.key_size == key_len && 0 == memcmp(key, rec->rec.data, key_len))
                 return e->rec;
-        } else {
-            ++bucket;
-            if (bucket > mask)
-                bucket = 0;
         }
+        ++bucket;
+        if (bucket > mask)
+            bucket = 0;
     }
     return 0;
 }
