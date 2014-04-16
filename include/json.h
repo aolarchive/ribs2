@@ -39,6 +39,8 @@ struct json
     struct json_stack_item last_key;
     struct vmbuf stack;
 
+    /* kb = key_begin, ke = key_end, vb = value begin, ve = value end.
+       If kb==NULL or vb==NULL these functions can return without doing anything */
     void (*callback_string)     (struct json *json, char *kb, char *ke, char *vb, char *ve);
     void (*callback_primitive)  (struct json *json, char *kb, char *ke, char *vb, char *ve);
     void (*callback_block_begin)(struct json *json, char *kb, char *ke);
@@ -50,6 +52,8 @@ void json_stack_item_reset(struct json_stack_item *si);
 int  json_stack_item_isset(struct json_stack_item *si);
 
 void json_reset_callbacks(struct json *js);
+
+/* Be sure to call memset(js, 0, sizeof(js)) before calling json_init */
 int  json_init(struct json *js);
 int  json_parse(struct json *js, char *str);
 
@@ -58,5 +62,11 @@ int  json_parse_primitive(struct json *js);
 void json_unescape_str(char *buf);
 size_t json_escape_str(char *d, const char *s);
 size_t json_escape_str_vmb(struct vmbuf *buf, const char *s);
+
+/* Copies the chars from *kb to *ke into *keyOut. Null terminates strOut.
+   Returns negative if there is not enough room in *keyOut to copy those bytes. */
+char json_copy_key(const char *kb, const char *ke, char *strOut, size_t strOutLen);
+#define json_copy_val json_copy_key
+
 
 #endif // _JSON__H_

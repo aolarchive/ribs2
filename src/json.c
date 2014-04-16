@@ -264,3 +264,11 @@ size_t json_escape_str_vmb(struct vmbuf *buf, const char *s) {
     vmbuf_wseek(buf, l);
     return l;
 }
+
+char json_copy_key(const char *kb, const char *ke, char *strOut, size_t strOutLen) {
+    size_t len = ke - kb;
+    if((len + 1) > strOutLen) return -1;
+    memcpy(strOut, kb, len);
+    strOut[len] = 0;
+    return 0;
+}
