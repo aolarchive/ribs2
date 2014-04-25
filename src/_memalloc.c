@@ -80,7 +80,7 @@ _RIBS_INLINE_ int memalloc_is_mine(struct memalloc *ma, const void *ptr) {
 _RIBS_INLINE_ char *memalloc_vsprintf(struct memalloc *ma, const char *format, va_list ap) {
     if (0 == ma->avail && 0 > memalloc_new_block(ma))
         return NULL;
-    size_t n;
+    int n;
     char *str;
     for (;;) {
         va_list apc;
@@ -88,10 +88,12 @@ _RIBS_INLINE_ char *memalloc_vsprintf(struct memalloc *ma, const char *format, v
         str = ma->mem;
         n = vsnprintf(str, ma->avail, format, apc);
         va_end(apc);
-        if (n < ma->avail)
+        if (unlikely(0 > n))
+            return NULL;
+        if (likely((unsigned int)n < ma->avail))
             break;
         /* not enough space, alloc new block */
-        if (0 > memalloc_new_block(ma))
+        if (unlikely(0 > memalloc_new_block(ma)))
             return NULL;
     }
     memalloc_seek(ma, n + 1);

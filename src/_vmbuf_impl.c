@@ -177,17 +177,19 @@ _RIBS_INLINE_ int TEMPLATE(VMBUF_T,sprintf)(struct VMBUF_T *vmb, const char *for
 }
 
 _RIBS_INLINE_ int TEMPLATE(VMBUF_T,vsprintf)(struct VMBUF_T *vmb, const char *format, va_list ap) {
-    size_t n;
+    int n;
     for (;;) {
         size_t wav = TEMPLATE(VMBUF_T,wavail)(vmb);
         va_list apc;
         va_copy(apc, ap);
         n = vsnprintf(TEMPLATE(VMBUF_T,wloc)(vmb), wav, format, apc);
         va_end(apc);
-        if (n < wav)
+        if (unlikely(0 > n))
+            return -1;
+        if (likely((unsigned int)n < wav))
             break;
         // not enough space, resize
-        if (0 > TEMPLATE(VMBUF_T,resize_no_check)(vmb, n))
+        if (unlikely(0 > TEMPLATE(VMBUF_T,resize_no_check)(vmb, n)))
             return -1;
     }
     TEMPLATE(VMBUF_T,wseek)(vmb, n);
