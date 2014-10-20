@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012 Adap.tv, Inc.
+    Copyright (C) 2012,2013 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -38,9 +38,25 @@ _RIBS_INLINE_ void list_init(struct list *list) {
     list->prev = list;
 }
 
-_RIBS_INLINE_ void list_clear(struct list *list) {
+_RIBS_INLINE_ int list_is_null(struct list *list) {
+    return NULL == list->next;
+}
+
+_RIBS_INLINE_ void list_set_null(struct list *list) {
     list->next = NULL;
     list->prev = NULL;
+}
+
+_RIBS_INLINE_ int list_is_head(struct list *head, struct list *iterator) {
+    return iterator == head;
+}
+
+_RIBS_INLINE_ struct list *list_next(struct list *iterator){
+    return iterator->next;
+}
+
+_RIBS_INLINE_ struct list *list_prev(struct list *iterator){
+    return iterator->prev;
 }
 
 _RIBS_INLINE_ void list_insert_head(struct list *list, struct list *entry) {
@@ -95,8 +111,6 @@ _RIBS_INLINE_ void list_make_last(struct list *list, struct list *entry) {
     list_remove(entry);
     list_insert_tail(list, entry);
 }
-
-#define list_is_head(head, iterator) ((iterator)==(head))
 
 #define LIST_FOR_EACH(head, iterator)                                   \
     for ((iterator) = (head)->next; (iterator) != (head); (iterator) = (iterator)->next)

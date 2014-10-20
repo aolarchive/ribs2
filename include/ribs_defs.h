@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -40,6 +40,11 @@
 #ifndef UNUSED
 #define UNUSED(x) ((void)(x))
 #endif
+
+#ifndef UNUSED_ARG
+#define UNUSED_ARG __attribute__((unused))
+#endif
+
 
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
 

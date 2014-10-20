@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2013 Adap.tv, Inc.
+    Copyright (C) 2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -21,24 +21,20 @@
 #include <sys/mman.h>
 #include "logger.h"
 #include "mempool.h"
+#include "ilog2.h"
 
 int memalloc_new_block(struct memalloc *ma) {
     size_t size;
-    if (0 == ma->capacity) {
-        ma->blocks_head = NULL;
-        ma->blocks_tail = (struct memalloc_block *)&ma->blocks_head;
-        size = MEMALLOC_INITIAL_BLOCK_SIZE;
-    } else {
-        size = ma->capacity << 1;
-    }
-
+    if (list_is_null(&ma->memblocks))
+        list_init(&ma->memblocks);
+    size = ma->capacity ? ma->capacity << 1 : MEMALLOC_INITIAL_BLOCK_SIZE;
     void *mem = mempool_alloc_chunk(size);
     if (NULL == mem)
-        return LOGGER_ERROR("failed to allocate memory: %zu", size), -1;
+        return LOGGER_ERROR("failed to allocate memory: %zu (most likely total memory allocations exceeded 4GB)", size), -1;
     struct memalloc_block *new_block = mem;
-    new_block->next = NULL;
-    ma->blocks_tail->next = new_block;
-    ma->blocks_tail = new_block;
+    new_block->size.size = size;
+    new_block->size.type = MEMALLOC_MEM_TYPE_MALLOC;
+    list_insert_tail(&ma->memblocks, &new_block->_memblocks);
 
     ma->capacity = size;
     ma->avail = size - sizeof(struct memalloc_block);
@@ -47,16 +43,35 @@ int memalloc_new_block(struct memalloc *ma) {
 }
 
 size_t memalloc_usage(struct memalloc *ma) {
+    if (list_is_null(&ma->memblocks))
+        return 0;
+    struct list *it;
     size_t usage = 0;
-    if (0 < ma->capacity) {
-        struct memalloc_block *cur_block = ma->blocks_head;
-        size_t size = MEMALLOC_INITIAL_BLOCK_SIZE;
-        for (;;size <<= 1) {
-            usage += size;
-            cur_block = cur_block->next;
-            if (NULL == cur_block) break;
-        }
-        usage -= ma->avail;
+    LIST_FOR_EACH(&ma->memblocks, it) {
+        struct memalloc_block *cur_block = LIST_ENTRY(it, struct memalloc_block, _memblocks);
+        usage += cur_block->size.size;
     }
+    usage -= ma->avail;
     return usage;
+}
+
+size_t memalloc_alloc_raw(struct memalloc *ma, size_t size, void **memblock) {
+    if (list_is_null(&ma->memblocks))
+        list_init(&ma->memblocks);
+    size = next_p2_64(size + sizeof(struct memalloc_block));
+    void *mem = mempool_alloc_chunk(size);
+    if (NULL == mem)
+        return LOGGER_ERROR("failed to allocate memory: %zu", size), 0;
+    struct memalloc_block *new_block = mem;
+    new_block->size.size = size;
+    new_block->size.type = MEMALLOC_MEM_TYPE_BUF;
+    list_insert_tail(&ma->memblocks, &new_block->_memblocks);
+    *memblock = mem + sizeof(struct memalloc_block);
+    return size - sizeof(struct memalloc_block);
+}
+
+void memalloc_free_raw(void *mem) {
+    struct memalloc_block *block = mem - sizeof(struct memalloc_block);
+    list_remove(&block->_memblocks);
+    mempool_free_chunk(block, block->size.size);
 }

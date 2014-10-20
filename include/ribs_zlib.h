@@ -27,5 +27,6 @@ int vmbuf_deflate(struct vmbuf *buf);
 int vmbuf_deflate2(struct vmbuf *inbuf, struct vmbuf *outbuf);
 int vmbuf_inflate(struct vmbuf *buf);
 int vmbuf_inflate2(struct vmbuf *inbuf, struct vmbuf *outbuf);
+int vmbuf_inflate_gzip(void *inbuf, size_t in_size, struct vmbuf *outbuf);
 
 #endif // _RIBS_ZLIB__H_

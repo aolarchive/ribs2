@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2013,2014 Adap.tv, Inc.
+    Copyright (C) 2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -17,12 +17,22 @@
     You should have received a copy of the GNU Lesser General Public License
     along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef _VM_MISC__H_
-#define _VM_MISC__H_
+#ifndef _RIBS_SSL__H_
+#define _RIBS_SSL__H_
 
-#define RIBS_VM_PAGESIZE 4096ULL
-#define RIBS_VM_PAGEMASK (RIBS_VM_PAGESIZE-1)
+#include "ribs_defs.h"
 
-#define RIBS_VM_ALIGN(x) (((x)+RIBS_VM_PAGEMASK)&~RIBS_VM_PAGEMASK)
+#ifdef RIBS2_SSL
 
-#endif // _VM_MISC__H_
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+
+void ribs_ssl_init(void);
+SSL *ribs_ssl_get(int fd);
+SSL *ribs_ssl_alloc(int fd, SSL_CTX *ssl_ctx);
+void ribs_ssl_free(int fd);
+int ribs_ssl_set_options(SSL_CTX *ssl_ctx, char *cipher_list);
+
+#endif
+
+#endif // _RIBS_SSL__H_

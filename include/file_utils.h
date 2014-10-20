@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -25,5 +25,6 @@
 int mkdir_recursive(const char *dirname);
 int mkdir_for_file_recursive(const char *filename);
 int ribs_create_temp_file(const char *prefix);
+int ribs_create_temp_file2(const char *dir_path, const char *prefix, char *file_path, size_t file_path_sz);
 
 #endif // _FILE_UTILS__H_

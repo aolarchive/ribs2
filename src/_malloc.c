@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2013 Adap.tv, Inc.
+    Copyright (C) 2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -68,6 +68,38 @@ _RIBS_INLINE_ char *ribs_malloc_sprintf2(struct ribs_context *ctx, const char *f
     char *str = ribs_malloc_vsprintf2(ctx, format, ap);
     va_end(ap);
     return str;
+}
+
+_RIBS_INLINE_ int ribs_malloc_strcat_vsprintf(char **buf, const char *format, va_list ap) {
+    return ribs_malloc_strcat_vsprintf2(current_ctx, buf, format, ap);
+}
+
+_RIBS_INLINE_ int ribs_malloc_strcat_vsprintf2(struct ribs_context *ctx, char **buf, const char *format, va_list ap) {
+    return memalloc_strcat_vsprintf(&ctx->memalloc, buf, format, ap);
+}
+
+_RIBS_INLINE_ int ribs_malloc_strcat_sprintf(char **buf, const char *format, ...) {
+    va_list ap;
+    va_start(ap, format);
+    int res = ribs_malloc_strcat_vsprintf(buf, format, ap);
+    va_end(ap);
+    return res;
+}
+
+_RIBS_INLINE_ int ribs_malloc_strcat_sprintf2(struct ribs_context *ctx, char **buf, const char *format, ...) {
+    va_list ap;
+    va_start(ap, format);
+    int res = ribs_malloc_strcat_vsprintf2(ctx, buf, format, ap);
+    va_end(ap);
+    return res;
+}
+
+_RIBS_INLINE_ void ribs_malloc_str_remove_last_if(char c) {
+    ribs_malloc_str_remove_last_if2(current_ctx, c);
+}
+
+_RIBS_INLINE_ void ribs_malloc_str_remove_last_if2(struct ribs_context *ctx, char c) {
+    memalloc_str_remove_last_if(&ctx->memalloc, c);
 }
 
 _RIBS_INLINE_ void *ribs_memdup(const void *s, size_t n) {

@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -184,7 +184,7 @@ uint32_t hashtable_insert(struct hashtable *ht, const void *key, size_t key_len,
             return ofs;
         } else {
             ++bucket;
-            if (bucket > mask)
+            if (unlikely(bucket > mask))
                 bucket = 0;
         }
     }
@@ -210,7 +210,7 @@ uint32_t hashtable_insert_alloc(struct hashtable *ht, const void *key, size_t ke
             return ofs;
         } else {
             ++bucket;
-            if (bucket > mask)
+            if (unlikely(bucket > mask))
                 bucket = 0;
         }
     }
@@ -246,7 +246,7 @@ uint32_t hashtable_lookup_insert(struct hashtable *ht, const void *key, size_t k
                 return e->rec;
         }
         ++bucket;
-        if (bucket > mask)
+        if (unlikely(bucket > mask))
             bucket = 0;
     }
     return 0;
@@ -267,7 +267,7 @@ uint32_t hashtable_lookup(struct hashtable *ht, const void *key, size_t key_len)
                 return ofs;
         }
         ++bucket;
-        if (bucket > mask)
+        if (unlikely(bucket > mask))
             bucket = 0;
     }
     return 0;
@@ -290,11 +290,11 @@ static inline void _hashtable_fix_chain_down(struct hashtable *ht, uint32_t mask
                 break;
             }
             ++new_bucket;
-            if (new_bucket > mask)
+            if (unlikely(new_bucket > mask))
                 new_bucket = 0;
         }
         ++bucket;
-        if (bucket > mask)
+        if (unlikely(bucket > mask))
             bucket = 0;
     }
 }
@@ -318,7 +318,7 @@ uint32_t hashtable_remove(struct hashtable *ht, const void *key, size_t key_len)
                 e->rec = 0; /* mark as deleted */
                 --_HASHTABLE_HEADER()->size;
                 ++bucket;
-                if (bucket > mask)
+                if (unlikely(bucket > mask))
                     bucket = 0;
                 _hashtable_fix_chain_down(ht, mask, bucket);
                 return ofs;

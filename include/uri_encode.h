@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2013,2014 Adap.tv, Inc.
+    Copyright (C) 2013 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -17,12 +17,13 @@
     You should have received a copy of the GNU Lesser General Public License
     along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef _VM_MISC__H_
-#define _VM_MISC__H_
+#ifndef _URI_ENCODE__H_
+#define _URI_ENCODE__H_
 
-#define RIBS_VM_PAGESIZE 4096ULL
-#define RIBS_VM_PAGEMASK (RIBS_VM_PAGESIZE-1)
+#include "ribs_defs.h"
+#include "vmbuf.h"
 
-#define RIBS_VM_ALIGN(x) (((x)+RIBS_VM_PAGEMASK)&~RIBS_VM_PAGEMASK)
+_RIBS_INLINE_ int http_uri_encode(const char *in, struct vmbuf *out);
+#include "../src/_uri_encode.c"
 
-#endif // _VM_MISC__H_
+#endif // _URI_ENCODE__H_

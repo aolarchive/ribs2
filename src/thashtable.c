@@ -125,11 +125,12 @@ thashtable_rec_t *thashtable_insert(struct thashtable *tht, const void *key, siz
                 *inserted = 0;
                 return rec; /* return existing record */
             }
-        } else {
-            ++bucket;
-            if (bucket > mask)
-                bucket = 0;
         }
+        /* hashcode did not match or there was a collision */
+        ++bucket;
+        if (bucket > mask)
+            bucket = 0;
+
     }
     return 0;
 }
@@ -151,11 +152,11 @@ thashtable_rec_t *thashtable_put(struct thashtable *tht, const void *key, size_t
             if (rec->key_size == key_len && 0 == memcmp(key, rec->data, key_len)) {
                 return _thashtable_new_rec(tht, e, key, key_len, val, val_len); /* replace with new */
             }
-        } else {
-            ++bucket;
-            if (bucket > mask)
-                bucket = 0;
         }
+        /* hashcode did not match or there was a collision */
+        ++bucket;
+        if (bucket > mask)
+            bucket = 0;
     }
     return 0;
 }
@@ -180,11 +181,11 @@ thashtable_rec_t *thashtable_insert_alloc(struct thashtable *tht, const void *ke
             struct thashtable_internal_rec *rec = e->rec;
             if (rec->key_size == key_len && 0 == memcmp(key, rec->data, key_len))
                 return rec->val_size == val_len ? rec : NULL; /* already exists, val size must be the same */
-        } else {
-            ++bucket;
-            if (bucket > mask)
-                bucket = 0;
         }
+        /* hashcode did not match or there was a collision */
+        ++bucket;
+        if (bucket > mask)
+            bucket = 0;
     }
     return 0;
 }

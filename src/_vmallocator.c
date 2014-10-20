@@ -80,5 +80,5 @@ static inline void *vmallocator_allocptr_aligned(struct vmallocator *v, size_t s
 }
 
 static inline void *vmallocator_ofs2mem(struct vmallocator *v, size_t ofs) {
-    return v->mem + ofs;
+    return (char *)v->mem + ofs;
 }

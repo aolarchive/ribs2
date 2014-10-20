@@ -66,6 +66,7 @@ void __ribs_context_cleanup(void) {
     else {
         LOGGER_ERROR("misbehaving ribified library didn't free() %u time(s)", current_ctx->ribify_memalloc_refcount);
         current_ctx->ribify_memalloc_refcount = 0;
+        memalloc_reset2(&current_ctx->memalloc, MEMALLOC_MEM_TYPE_BUF);
         current_ctx->memalloc = (struct memalloc)MEMALLOC_INITIALIZER;
     }
 }

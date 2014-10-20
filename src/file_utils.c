@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -68,15 +68,23 @@ int mkdir_recursive(const char *dirname) {
     return _mkdir_recursive(file);
 }
 
-int ribs_create_temp_file(const char *prefix) {
-    char fmt[] = "/dev/shm/%s_XXXXXX";
+int ribs_create_temp_file2(const char *dir_path, const char *prefix, char *file_path, size_t file_path_sz) {
     char filename[PATH_MAX];
-    if (PATH_MAX <= snprintf(filename, PATH_MAX, fmt, prefix))
+    if (PATH_MAX <= snprintf(filename, PATH_MAX, "%s/%s_XXXXXX", dir_path, prefix))
         return LOGGER_ERROR("ribs_create_temp_file: filename too long"), -1;
     int fd = mkstemp(filename);
     if (fd < 0)
         return LOGGER_PERROR("mkstemp: %s", filename), -1;
     if (unlink(filename) < 0)
         return LOGGER_PERROR("unlink: %s", filename), close(fd), -1;
+    if (NULL != file_path) {
+        strncpy(file_path, filename, file_path_sz);
+        if (file_path_sz > 0)
+            file_path[file_path_sz - 1] = '\0';
+    }
     return fd;
+}
+
+int ribs_create_temp_file(const char *prefix) {
+    return ribs_create_temp_file2("/dev/shm", prefix, NULL, 0);
 }

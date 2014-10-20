@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -56,7 +56,7 @@ static void sigrtmin_to_context(void) {
 static void pipe_to_context(void) {
     void *ctx;
     for (;;) {
-        if (sizeof(&ctx) != read(last_epollev.data.fd, &ctx, sizeof(&ctx))) {
+        if (sizeof(ctx) != read(last_epollev.data.fd, &ctx, sizeof(ctx))) {
             LOGGER_PERROR("read in pipe_to_context");
             yield();
         } else
@@ -86,6 +86,12 @@ static void event_loop(void) {
 }
 
 int epoll_worker_init(void) {
+    if (0 <= ribs_epoll_fd)
+        return 0;
+#ifdef RIBS2_SSL
+    ribs_ssl_init();
+#endif
+
     struct rlimit rlim;
     if (0 > getrlimit(RLIMIT_NOFILE, &rlim))
         return LOGGER_PERROR("getrlimit(RLIMIT_NOFILE)"), -1;

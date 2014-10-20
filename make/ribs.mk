@@ -29,6 +29,10 @@ ifneq ($(wildcard /usr/include/zlib.h),)
 CPPFLAGS+=-DHAVE_ZLIB
 endif
 
+ifeq ($(RIBS2_SSL),1)
+CPPFLAGS+=-DRIBS2_SSL
+endif
+
 LDFLAGS+=-L../lib
 CFLAGS+=$(OPTFLAGS) -ggdb3 -W -Wall -Werror
 GCCVER_GTE_4_7=$(shell expr `gcc -dumpversion` \>= 4.7)
@@ -36,7 +40,10 @@ ifeq ($(GCCVER_GTE_4_7),1)
 CFLAGS+=-ftrack-macro-expansion=2
 endif
 
-RIBIFY_SYMS+=write read socket connect fcntl recv recvfrom recvmsg send sendto sendmsg readv writev pipe pipe2 nanosleep usleep sleep sendfile malloc calloc realloc free strdup close wcsdup malloc_usable_size 
+RIBIFY_SYMS+=write read socket connect fcntl recv recvfrom recvmsg send sendto sendmsg readv writev pipe pipe2 nanosleep usleep sleep sendfile close
+ifeq ($(RIBIFY_MALLOC),1)
+RIBIFY_SYMS+=malloc calloc realloc free strdup wcsdup malloc_usable_size
+endif
 
 ifdef UGLY_GETADDRINFO_WORKAROUND
 LDFLAGS+=-lanl
@@ -52,6 +59,7 @@ DEP=$(SRC:%.c=$(OBJ_DIR)/%.d)
 DIRS=$(OBJ_DIR)/.dir ../bin/.dir ../lib/.dir
 RIBIFY_DIR=../ribified/.dir
 ALL_DIRS=$(DIRS) $(RIBIFY_DIR)
+ALL_OUTPUT_FILES=$(patsubst %,$(OBJ_DIR)/%,*.o *.d) ../ribified/*
 
 ifeq ($(TARGET:%.a=%).a,$(TARGET))
 LIB_OBJ:=$(OBJ)
@@ -59,6 +67,8 @@ TARGET_FILE=../lib/lib$(TARGET)
 else
 TARGET_FILE=../bin/$(TARGET)
 endif
+
+ALL_OUTPUT_FILES+=$(TARGET_FILE)
 
 all: $(TARGET_FILE)
 
@@ -97,11 +107,11 @@ $(DEP): $(DIRS)
 	@echo "  (LD)     $(@:../bin/%=%)  [ -o $@ $(OBJ) $(LDFLAGS) ]"
 	@$(CC) -o $@ $(OBJ) $(LDFLAGS)
 
-$(ALL_DIRS:%=RM_%):
-	@echo "  (RM)     $(@:RM_%/.dir=%)/*"
-	@-$(RM) $(@:RM_%/.dir=%)/*
+$(ALL_OUTPUT_FILES:%=%.__clean__):
+	@echo "  (RM)     $(@:%.__clean__=%)"
+	@-$(RM) $(@:%.__clean__=%)
 
-clean: $(ALL_DIRS:%=RM_%)
+clean: $(ALL_OUTPUT_FILES:%=%.__clean__)
 
 etags:
 	@echo "  (ETAGS)"

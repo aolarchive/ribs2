@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2013 Adap.tv, Inc.
+    Copyright (C) 2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -24,6 +24,7 @@ int memalloc_new_block(struct memalloc *ma);
 #include <stdio.h>
 #include <string.h>
 #include "mempool.h"
+#include "logger.h"
 
 /*
  * inline functions
@@ -49,30 +50,32 @@ _RIBS_INLINE_ void *memalloc_alloc(struct memalloc *ma, size_t size) {
 }
 
 _RIBS_INLINE_ void memalloc_reset(struct memalloc *ma) {
-    if (0 < ma->capacity) {
-        struct memalloc_block *cur_block = ma->blocks_head;
-        size_t size = MEMALLOC_INITIAL_BLOCK_SIZE;
-        for (;;size <<= 1) {
-            void *mem = cur_block;
-            cur_block = cur_block->next;
-            mempool_free_chunk(mem, size);
-            if (NULL == cur_block) break;
-        }
-        ma->avail = ma->capacity = 0;
+    return memalloc_reset2(ma, MEMALLOC_MEM_TYPE_ANY);
+}
+
+_RIBS_INLINE_ void memalloc_reset2(struct memalloc *ma, int type) {
+    if (list_is_null(&ma->memblocks))
+        return;
+    struct list *it = list_next(&ma->memblocks);
+    while (!list_is_head(&ma->memblocks, it)) {
+        struct memalloc_block *cur_block = LIST_ENTRY(it, struct memalloc_block, _memblocks);
+        it = list_next(it);
+        if (cur_block->size.type >= type)
+            mempool_free_chunk(cur_block, cur_block->size.size);
     }
+    ma->avail = ma->capacity = 0;
+    list_set_null(&ma->memblocks);
 }
 
 _RIBS_INLINE_ int memalloc_is_mine(struct memalloc *ma, const void *ptr) {
-    if (0 < ma->capacity) {
-        struct memalloc_block *cur_block = ma->blocks_head;
-        size_t size = MEMALLOC_INITIAL_BLOCK_SIZE;
-        for (;;size <<= 1) {
-            void *mem = cur_block;
-            if (ptr >= mem && ptr < mem + size)
-                return 1;
-            cur_block = cur_block->next;
-            if (NULL == cur_block) break;
-        }
+    if (list_is_null(&ma->memblocks))
+        return 0;
+    struct list *it;
+    LIST_FOR_EACH(&ma->memblocks, it) {
+        struct memalloc_block *cur_block = LIST_ENTRY(it, struct memalloc_block, _memblocks);
+        void *mem = cur_block;
+        if (ptr >= mem && ptr < mem + cur_block->size.size)
+            return 1;
     }
     return 0;
 }
@@ -106,6 +109,62 @@ _RIBS_INLINE_ char *memalloc_sprintf(struct memalloc *ma, const char *format, ..
     char *str = memalloc_vsprintf(ma, format, ap);
     va_end(ap);
     return str;
+}
+
+_RIBS_INLINE_ int memalloc_strcat_vsprintf(struct memalloc *ma, char **buf, const char *format, va_list ap) {
+    int resized = 0;
+    if (0 == ma->avail) {
+        if(0 > memalloc_new_block(ma))
+            return -1;
+        resized = 1;
+    }
+
+    int n;
+    char *str;
+    for (;;) {
+        if (NULL != *buf) {
+            if (resized)
+                *buf = memalloc_strcpy(ma, *buf);
+
+            --ma->mem;
+            ++ma->avail;
+        }
+        va_list apc;
+        va_copy(apc, ap);
+        str = ma->mem;
+        n = vsnprintf(str, ma->avail, format, apc);
+        va_end(apc);
+        if (unlikely(0 > n))
+            return -1;
+        if (likely((unsigned int)n < ma->avail))
+            break;
+        /* not enough space, alloc new block */
+        if (unlikely(0 > memalloc_new_block(ma)))
+            return -1;
+        *str = '\0';
+        resized = 1;
+    }
+    memalloc_seek(ma, n + 1);
+    if (NULL == *buf)
+        *buf = str;
+    return 0;
+}
+
+_RIBS_INLINE_ int memalloc_strcat_sprintf(struct memalloc *ma, char **buf, const char *format, ...) {
+    va_list ap;
+    va_start(ap, format);
+    int res = memalloc_strcat_vsprintf(ma, buf, format, ap);
+    va_end(ap);
+    return res;
+}
+
+_RIBS_INLINE_ void memalloc_str_remove_last_if(struct memalloc *ma, char c) {
+    char *p = ma->mem - 2;
+    if (likely(memalloc_is_mine(ma, p)) && *p == c) {
+        *p = '\0';
+        --ma->mem;
+        ++ma->avail;
+    }
 }
 
 _RIBS_INLINE_ void *memalloc_memcpy(struct memalloc *ma, const void *s, size_t n) {

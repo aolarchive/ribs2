@@ -1,4 +1,4 @@
-EXAMPLES=httpd helloworld mydump
+EXAMPLES=httpd helloworld mydump httpget
 
 all:
 	@echo "[ribs2] build"

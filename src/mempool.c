@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2013 Adap.tv, Inc.
+    Copyright (C) 2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -25,6 +25,7 @@
 
 #define MIN_CHUNK_SIZE_BITS (12)
 #define MIN_CHUNK_SIZE (1U << MIN_CHUNK_SIZE_BITS)
+#define MAX_CHUNK_SIZE (1U << 31)
 #define NUM_CHUNK_BUCKETS (32-MIN_CHUNK_SIZE_BITS)
 
 struct memchunk {
@@ -40,6 +41,8 @@ struct memchunks {
 static struct memchunks memchunks[NUM_CHUNK_BUCKETS] = { [0 ... NUM_CHUNK_BUCKETS-1] = {0,0,NULL} };
 
 static inline int _mempool_alloc_validate_size(size_t s) {
+    if (s > MAX_CHUNK_SIZE)
+        return LOGGER_ERROR("memory requested too large: %zu, max is: %zu", s, (size_t)MAX_CHUNK_SIZE), -1;
     if (s < MIN_CHUNK_SIZE || s != next_p2(s))
         return LOGGER_ERROR("size '%zu' is not power of 2 or too small (<%u)", s, MIN_CHUNK_SIZE), -1;
     return 0;
@@ -73,7 +76,7 @@ int mempool_free_chunk(void *mem, size_t s) {
     return 0;
 }
 
-void mempool_dump_stats(void) {
+void mempool_dump_stats() {
     int i;
     size_t s = MIN_CHUNK_SIZE;
     const char HEADER[] = "=== memory stats ===";

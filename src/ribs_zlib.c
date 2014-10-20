@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2013 Adap.tv, Inc.
+    Copyright (C) 2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -19,6 +19,7 @@
 */
 #include "ribs_zlib.h"
 #include <zlib.h>
+#include <limits.h>
 
 int vmbuf_deflate(struct vmbuf *buf) {
     static struct vmbuf outbuf = VMBUF_INITIALIZER;
@@ -87,6 +88,49 @@ int vmbuf_inflate2(struct vmbuf *inbuf, struct vmbuf *outbuf) {
         if (Z_OK != res)
             return inflateEnd(&strm), -1;
         vmbuf_rseek(inbuf, vmbuf_ravail(inbuf) - strm.avail_in);
+    }
+    inflateEnd(&strm);
+    return 0;
+}
+
+int vmbuf_inflate_gzip(void *inbuf, size_t in_size, struct vmbuf *outbuf)
+{
+    if (NULL == inbuf || 0 == in_size)
+        return -1;
+    z_stream strm;
+    strm.zalloc = Z_NULL;
+    strm.zfree = Z_NULL;
+    strm.opaque = Z_NULL;
+    strm.next_in = (uint8_t*)inbuf;
+    size_t avail_in = (in_size > UINT_MAX) ? UINT_MAX : in_size;
+    strm.avail_in = avail_in;
+    if (Z_OK != inflateInit2(&strm, 15 + 32)) {
+        return -1;
+    }
+    size_t total_read = 0;
+    for (;;)
+    {
+        if (0 == strm.avail_in)
+            break;
+        if (0 > vmbuf_resize_if_less(outbuf, ((size_t)strm.avail_in) << 1)) {
+            return inflateEnd(&strm), -1;
+        }
+        strm.next_out = (uint8_t*)vmbuf_wloc(outbuf);
+        size_t avail_out = vmbuf_wavail(outbuf);
+        avail_out = (avail_out > UINT_MAX) ? UINT_MAX : avail_out;
+        strm.avail_out = avail_out;
+        int ret = inflate(&strm, Z_NO_FLUSH);
+        vmbuf_wseek(outbuf, avail_out - strm.avail_out);
+        if (ret == Z_STREAM_END)
+            break;
+        if (Z_OK != ret) {
+            return inflateEnd(&strm), -1;
+        }
+        total_read += avail_in - strm.avail_in;
+        strm.next_in = (uint8_t*)inbuf + total_read;
+        avail_in = in_size - total_read;
+        avail_in = (avail_in > UINT_MAX) ? UINT_MAX : avail_in;
+        strm.avail_in = avail_in;
     }
     inflateEnd(&strm);
     return 0;

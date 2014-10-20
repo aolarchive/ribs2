@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -95,8 +95,6 @@ static int _set_pidfile(const char *filename) {
         return -1;
     vmfile_sprintf(&vmf_pid, "%d", (int)getpid());
     vmfile_close(&vmf_pid);
-    if (0 != atexit(_cleanup_pidfile))
-        return -1;
     return 0;
 }
 
@@ -223,7 +221,7 @@ static int _set_signals(void) {
     return 0;
 }
 
-static int _init_subprocesses(const char *pidfilename, int num_forks) {
+static int _fork_subprocesses(const char *pidfilename, int num_forks) {
     if (0 >= num_forks) {
         num_forks = sysconf(_SC_NPROCESSORS_CONF);
         if (0 > num_forks)
@@ -242,8 +240,6 @@ static int _init_subprocesses(const char *pidfilename, int num_forks) {
             daemon_instance = i;
             if (0 > prctl(PR_SET_PDEATHSIG, SIGTERM))
                 return LOGGER_PERROR("prctl"), -1;
-            if (0 > _set_signals())
-                return LOGGER_ERROR("failed to set signals"), -1;
             LOGGER_INFO("sub-process %d started", i);
             return 0;
         } else
@@ -251,9 +247,15 @@ static int _init_subprocesses(const char *pidfilename, int num_forks) {
     }
     if (pidfilename && 0 > _set_pidfile(pidfilename))
         return LOGGER_ERROR("failed to set pidfile"), -1;
+    return 0;
+}
+
+static int _init_subprocesses(const char *pidfilename, int num_forks) {
+    if (0 >_fork_subprocesses(pidfilename, num_forks))
+        return -1;
     if (0 > _set_signals())
         return LOGGER_ERROR("failed to set signals"), -1;
-    return 0;
+    return epoll_worker_init();
 }
 
 static int ribs_server_init_daemon(const char *pidfilename, const char *logfilename, int num_forks) {
@@ -342,6 +344,7 @@ void ribs_server_start(void) {
             LOGGER_PERROR("waitpid %d", children_pids[i]);
     }
     LOGGER_INFO("sub-processes terminated");
+    _cleanup_pidfile();
 }
 
 int ribs_get_daemon_instance(void) {
@@ -449,4 +452,33 @@ const siginfo_t *ribs_fork_and_wait(void) {
         return (siginfo_t *)-1; /* impossible scenario, force segfault in caller */
     yield();
     return ribs_last_siginfo();
+}
+
+int ribs_fork_and_run(const char *path, char *const args[], int (*additional)(void)) {
+    const siginfo_t *siginfo = ribs_fork_and_wait();
+    if (NULL == siginfo) {
+        // child
+        if( 0 > prctl(PR_SET_PDEATHSIG, SIGTERM))
+            return LOGGER_PERROR("prctl"), -1;
+        if (NULL != additional && 0 > additional()) {
+            LOGGER_ERROR("failed to do additional steps");
+            _exit(EXIT_FAILURE);
+        }
+        if (0 > execv(path, args)) {
+            //execv failed, not the command we're running
+            LOGGER_PERROR("execv");
+            _exit(EXIT_FAILURE);
+        }
+        _exit(EXIT_SUCCESS);
+    }
+    // parent
+    if (siginfo->si_code == CLD_EXITED && siginfo->si_status == 0)
+        return 0;
+    LOGGER_ERROR("%s child process unsuccessful si_code=%d, si_status=%d", path, siginfo->si_code, siginfo->si_status);
+    return -1;
+}
+
+int ribs_system(char *command) {
+    char *sh_args[] = {"/bin/sh", "-c", command, NULL};
+    return ribs_fork_and_run("/bin/sh", sh_args, NULL);
 }

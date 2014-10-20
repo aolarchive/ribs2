@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -37,5 +37,8 @@ _RIBS_INLINE_ void epoll_worker_set_last_fd(int fd) {
 }
 
 _RIBS_INLINE_ int ribs_close(int fd) {
+#ifdef RIBS2_SSL
+    ribs_ssl_free(fd);
+#endif
     return epoll_worker_ignore_events(fd), close(fd);
 }

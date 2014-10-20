@@ -46,7 +46,7 @@ static inline uint32_t hashtable_get_size(struct hashtable *ht) {
 
 static inline const char *hashtable_lookup_str(struct hashtable*ht, const char *key, const char *default_val) {
     uint32_t ofs = hashtable_lookup(ht, key, strlen(key));
-    return (ofs ? hashtable_get_val(ht, ofs) : default_val);
+    return (ofs ? (const char *)hashtable_get_val(ht, ofs) : default_val);
 }
 
 static inline void hashtable_free(struct hashtable *ht) {

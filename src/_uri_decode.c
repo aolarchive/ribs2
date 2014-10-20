@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -66,33 +66,27 @@ _RIBS_INLINE_ size_t http_uri_decode(char *uri, char *target) {
 
 _RIBS_INLINE_ void http_uri_decode_query_params(char *query_params, struct hashtable *params) {
     while (*query_params) {
-        int n = 0;
-        char mods[2];
-        char *mods_pos[2];
-        char *p = strchrnul(query_params, '&');
-        if (*p) {
-            mods[n] = *p;
-            mods_pos[n] = p;
-            ++n;
-            *p++ = 0;
+        char saved_char[2] = {0, 0};
+        char *key = query_params;
+        char *p1 = strchrnul(query_params, '&');
+        if (*p1) {
+            saved_char[0] = *p1;
+            *p1 = 0;
+            query_params = p1 + 1;
+        } else
+            query_params = p1;
+        char *p2 = strchrnul(key, '='), *val = p2;
+        size_t key_len = val - key;
+        if (*val) {
+            saved_char[1] = *val;
+            *val++ = 0;
         }
-        char *p2 = strchrnul(query_params, '=');
-        if (*p2) {
-            mods[n] = *p2;
-            mods_pos[n] = p2;
-            ++n;
-            *p2++ = 0;
-        }
-
-        size_t l = strlen(query_params);
-        uint32_t htofs = hashtable_lookup(params, query_params, l);
+        uint32_t htofs = hashtable_lookup(params, key, key_len);
         if (!htofs) {
-            htofs = hashtable_insert_alloc(params, query_params, l, p - p2);
-            http_uri_decode(p2, hashtable_get_val(params, htofs));
+            htofs = hashtable_insert_alloc(params, key, key_len, p1 - val + 1);
+            http_uri_decode(val, hashtable_get_val(params, htofs));
         }
-
-        // restore chars
-        while(n) { --n; *mods_pos[n] = mods[n]; }
-        query_params = p;
+        *p2 = saved_char[1];
+        *p1 = saved_char[0];
     }
 }

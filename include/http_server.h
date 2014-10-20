@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -28,6 +28,9 @@
 #include "hashtable.h"
 #include "uri_decode.h"
 #include "http_headers.h"
+#ifdef RIBS2_SSL
+#include <openssl/ssl.h>
+#endif
 
 struct http_server_context {
     int fd;
@@ -61,31 +64,53 @@ struct http_server {
     size_t max_req_size;
     size_t context_size;
     uint32_t bind_addr;
+#ifdef RIBS2_SSL
+    int use_ssl;
+    SSL_CTX *ssl_ctx;
+    char *cipher_list;
+    char *privatekey_file;
+    char *certificate_chain_file;
+#endif
+    int (*http_server_read)(struct http_server_context *ctx);
+    int (*http_server_write)(struct http_server_context *ctx);
+    int (*http_server_sendfile)(struct http_server_context *ctx, int ffd, ssize_t size);
 };
 
-#define HTTP_SERVER_INIT_DEFAULTS .stack_size = 0, .num_stacks = 0, .init_request_size = 8*1024, .init_header_size = 8*1024, .init_payload_size = 8*1024, .max_req_size = 0, .context_size = 0, .timeout_handler.timeout = 60000, .bind_addr = INADDR_ANY
-#define HTTP_SERVER_INITIALIZER { HTTP_SERVER_INIT_DEFAULTS }
+
+#define _HTTP_SERVER_INIT .port = 0, .stack_size = 0, .num_stacks = 0, .init_request_size = 8*1024, .init_header_size = 8*1024, .init_payload_size = 8*1024, .max_req_size = 0, .context_size = 0, .timeout_handler.timeout = 60000, .bind_addr = INADDR_ANY, .http_server_read = NULL, .http_server_write = NULL, .http_server_sendfile = NULL
+
+#ifdef RIBS2_SSL
+#define _HTTP_SERVER_SSL_INIT .use_ssl = 0, .cipher_list = NULL, .privatekey_file = NULL, .certificate_chain_file = NULL
+#else
+#define _HTTP_SERVER_SSL_INIT
+#endif
+
+#define HTTP_SERVER_INITIALIZER { _HTTP_SERVER_INIT, _HTTP_SERVER_SSL_INIT }
 
 #define HTTP_SERVER_NOT_FOUND (-2)
 
 int http_server_init(struct http_server *server);
+#ifdef RIBS2_SSL
+int http_server_init_ssl(struct http_server *server);
+#endif
 int http_server_init2(struct http_server *server);
 int http_server_init_acceptor(struct http_server *server);
 void http_server_header_start(const char *status, const char *content_type);
 void http_server_header_start_no_body(const char *status);
 void http_server_header_close(void);
+void http_server_header_no_cache(void);
 void http_server_set_cookie(const char *name, const char *value, uint32_t max_age, const char *path, const char *domain);
 void http_server_set_session_cookie(const char *name, const char *value, const char *path);
 struct vmbuf *http_server_begin_cookie(const char *name);
 struct vmbuf *http_server_end_cookie(time_t expires, const char *domain, const char *path);
 void http_server_response(const char *status, const char *content_type);
-void http_server_response_sprintf(const char *status, const char *content_type, const char *format, ...) __attribute__ ((format (gnu_printf, 3, 4)));
+void http_server_response_sprintf(const char *status, const char *content_type, const char *format, ...)  __attribute__ ((format (gnu_printf, 3, 4)));
 void http_server_response_vsprintf(const char *status, const char *content_type, const char *format, va_list ap);
-void http_server_header_content_length(void);
 void http_server_header_redirect(const char *format, ...);
-void http_server_header_redirect2(const char *format, va_list ap);
+void http_server_header_vredirect(const char *format, va_list ap);
 void http_server_redirect(const char *status, const char *content_type, const char *format, ...);
-void http_server_redirect2(const char *status, const char *content_type, const char *format, va_list ap);
+void http_server_vredirect(const char *status, const char *content_type, const char *format, va_list ap);
+void http_server_header_content_length(void);
 void http_server_fiber_main(void);
 int http_server_sendfile(const char *filename);
 int http_server_sendfile2(const char *filename, const char *additional_headers, const char *ext);
