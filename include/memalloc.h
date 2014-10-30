@@ -31,7 +31,7 @@
 
 struct memalloc_block {
     struct {
-        unsigned long size:63;
+        unsigned long size:sizeof(unsigned long)*8-1;
         unsigned long type:1;
     } size;
     struct list _memblocks;
