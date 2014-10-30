@@ -22,6 +22,7 @@
 #include <dirent.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <netinet/tcp.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -74,6 +75,7 @@ SSTR(EXPIRES, "\r\nExpires: ");
 SSTRL(HTTP_STATUS_100, "100 Continue");
 SSTRL(EXPECT_100, "\r\nExpect: 100");
 
+static int accept_reserved_fd = -1;
 static inline void http_server_yield(void);
 
 static int _http_server_read(struct http_server_context *ctx) {
@@ -263,6 +265,12 @@ int http_server_init2(struct http_server *server) {
     if (0 > http_headers_init())
         return LOGGER_ERROR("failed to initialize http headers"), -1;
 
+    if (-1 == accept_reserved_fd) {
+        accept_reserved_fd = open("/dev/null", 0);
+        if (0 > accept_reserved_fd)
+            return LOGGER_PERROR("open"), -1;
+    }
+
 #ifdef RIBS2_SSL
     if (server->use_ssl) {
         if (!server->port)
@@ -373,14 +381,31 @@ static void http_server_accept_connections(void) {
         struct sockaddr_in new_addr;
         socklen_t new_addr_size = sizeof(struct sockaddr_in);
         int fd = accept4(server->fd, (struct sockaddr *)&new_addr, &new_addr_size, SOCK_CLOEXEC | SOCK_NONBLOCK);
-        if (0 > fd)
+        if (0 > fd) {
+            if (EAGAIN == errno)
+                continue;
+            if (EMFILE == errno || ENFILE == errno) {
+                LOGGER_PERROR("Not accepting connection on %s:%hu", inet_ntoa((struct in_addr){server->bind_addr}), server->port);
+                close(accept_reserved_fd);
+                fd = accept4(server->fd, (struct sockaddr *)&new_addr, &new_addr_size, SOCK_CLOEXEC | SOCK_NONBLOCK);
+                if (0 > fd) {
+                    if (EAGAIN != errno)
+                        LOGGER_PERROR("Accept on %s:%hu", inet_ntoa((struct in_addr){server->bind_addr}), server->port);
+                }
+                else
+                    close(fd);
+                accept_reserved_fd = open("/dev/null", 0);
+                if (0 > accept_reserved_fd)
+                    LOGGER_PERROR("open");
+            } else {
+                LOGGER_PERROR("Accept on %s:%hu", inet_ntoa((struct in_addr){server->bind_addr}), server->port);
+            }
             continue;
-
+        }
         if (0 > ribs_epoll_add(fd, EPOLLIN | EPOLLOUT | EPOLLET, server->idle_ctx)) {
             ribs_close(fd);
             continue;
         }
-
         timeout_handler_add_fd_data(&server->timeout_handler, epoll_worker_fd_map + fd);
     }
 }
