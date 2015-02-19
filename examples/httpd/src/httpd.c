@@ -77,10 +77,12 @@ int main(int argc, char *argv[]) {
         {"port", 1, 0, 'p'},
         {"daemonize", 0, 0, 'd'},
         {"forks", 1, 0, 'f'},
+#ifdef RIBS2_SSL
         {"ssl_port", 1, 0 ,'s'},
         {"key_file", 1, 0, 'k'},
         {"chain_file", 1, 0, 'c'},
         {"cipher_list", 1, 0, 'l'},
+#endif
         {0, 0, 0, 0}
     };
 
@@ -95,7 +97,11 @@ int main(int argc, char *argv[]) {
 #endif
     for (;;) {
         int option_index = 0;
-        int c = getopt_long(argc, argv, "p:f:s:c:k:l:d", long_options, &option_index);
+        int c = getopt_long(argc, argv, "dp:f:"
+#ifdef RIBS2_SSL
+                            "s:c:k:l:"
+#endif
+                            , long_options, &option_index);
         if (c == -1)
             break;
         switch (c) {
@@ -209,11 +215,27 @@ int main(int argc, char *argv[]) {
 
     if (key_file && 0 > http_server_init2(&server_ssl))
         exit(EXIT_FAILURE);
+
+    if (sport == 0) {
+            struct vmfile vmf = VMFILE_INITIALIZER;
+            if (0 > vmfile_init(&vmf, "httpd.sport", 4096))
+                exit(EXIT_FAILURE);
+            vmfile_sprintf(&vmf, "%d", server_ssl.port);
+            vmfile_close(&vmf);
+    }
 #endif
 
     /* initialize server, but don't accept connections yet */
     if (0 > http_server_init2(&server))
         exit(EXIT_FAILURE);
+
+    if (port == 0) {
+            struct vmfile vmf = VMFILE_INITIALIZER;
+            if (0 > vmfile_init(&vmf, "httpd.port", 4096))
+                exit(EXIT_FAILURE);
+            vmfile_sprintf(&vmf, "%d", server.port);
+            vmfile_close(&vmf);
+    }
 
     if (0 > ribs_server_init(daemon_mode, "httpd.pid", "httpd.log", forks))
         exit(EXIT_FAILURE);

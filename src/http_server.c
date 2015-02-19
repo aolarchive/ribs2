@@ -146,8 +146,11 @@ static int _http_server_read_ssl(struct http_server_context *ctx) {
         if (res < wavail)
             return errno=0, 1;
     }
-    if (res < 0)
-        return SSL_ERROR_WANT_READ == SSL_get_error(ssl, res) ? 1 : -1;
+    if (res < 0) {
+        int err = SSL_get_error(ssl, res);
+        return (SSL_ERROR_WANT_READ == err ||
+                SSL_ERROR_WANT_WRITE == err) ? 1 : -1;
+    }
     return 0; // remote side closed connection
 }
 
@@ -162,7 +165,9 @@ static int _http_server_write_ssl(struct http_server_context *ctx) {
                 vmbuf_rseek(vmb, res);
                 continue;
             }
-            if (res < 0 && SSL_ERROR_WANT_WRITE == SSL_get_error(ssl, res)) {
+            int err = SSL_get_error(ssl, res);
+            if (res < 0 && (SSL_ERROR_WANT_WRITE == err ||
+                            SSL_ERROR_WANT_READ == err)) {
                 http_server_yield();
                 continue;
             }
@@ -195,7 +200,9 @@ static int _http_server_sendfile_ssl(struct http_server_context *ctx, int ffd, s
                     break;
             } else {
                 if (res < 0) {
-                    if (SSL_ERROR_WANT_WRITE == SSL_get_error(ssl, res))
+                    int err = SSL_get_error(ssl, res);
+                    if (SSL_ERROR_WANT_WRITE == err ||
+                        SSL_ERROR_WANT_READ == err)
                         continue;
                 }
                 ctx->persistent = 0;
@@ -273,8 +280,6 @@ int http_server_init2(struct http_server *server) {
 
 #ifdef RIBS2_SSL
     if (server->use_ssl) {
-        if (!server->port)
-            server->port = 8443;
 
         server->http_server_read = _http_server_read_ssl;
         server->http_server_write = _http_server_write_ssl;
@@ -297,9 +302,6 @@ int http_server_init2(struct http_server *server) {
     } else
 #endif
     {
-        if (!server->port)
-            server->port = 8080;
-
         server->http_server_read = _http_server_read;
         server->http_server_write = _http_server_write;
         server->http_server_sendfile = _http_server_sendfile;
@@ -325,7 +327,6 @@ int http_server_init2(struct http_server *server) {
      * listen socket
      */
     const int LISTEN_BACKLOG = 32768;
-    LOGGER_INFO("listening on port: %d, backlog: %d", server->port, LISTEN_BACKLOG);
     int lfd = socket(PF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, IPPROTO_TCP);
     if (0 > lfd)
         return -1;
@@ -353,7 +354,20 @@ int http_server_init2(struct http_server *server) {
     addr.sin_port = htons(server->port);
     addr.sin_addr.s_addr = server->bind_addr;
     if (0 > bind(lfd, (struct sockaddr *)&addr, sizeof(addr)))
-        return LOGGER_PERROR("bind"), -1;
+        return close(lfd), LOGGER_PERROR("bind"), -1;
+
+    if (0 == server->port) {
+        struct sockaddr_in addr;
+        socklen_t addrlen = sizeof(addr);
+        if (0 > getsockname(lfd, &addr, &addrlen))
+            return close(lfd), LOGGER_PERROR("getsockname"), -1;
+        server->port = ntohs(addr.sin_port);
+    }
+    LOGGER_INFO("listening on port: %d, backlog: %d, protocol: http%s", server->port, LISTEN_BACKLOG,
+#ifdef RIBS2_SSL
+                server->use_ssl ? "s" :
+#endif
+                "");
 
     if (0 > listen(lfd, LISTEN_BACKLOG))
         return LOGGER_PERROR("listen"), -1;
@@ -592,7 +606,8 @@ void http_server_fiber_main(void) {
                 return;
             }
             ret = SSL_get_error(ssl, ret);
-            if (SSL_ERROR_WANT_WRITE != ret && SSL_ERROR_WANT_READ != ret) {
+            if (SSL_ERROR_WANT_WRITE != ret &&
+                SSL_ERROR_WANT_READ != ret) {
                 ribs_close(fd);
                 return;
             }

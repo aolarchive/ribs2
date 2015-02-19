@@ -40,18 +40,18 @@ struct http_client_pool {
 
 struct http_client_context {
     int fd;
+    uint32_t content_length;
     struct vmbuf request;
     struct vmbuf response;
-    epoll_data_t userdata;
-    int persistent;
-    int http_status_code;
     char *content;
-    uint32_t content_length;
     struct http_client_pool *pool;
+    epoll_data_t userdata;
+    short http_status_code;
 #ifdef RIBS2_SSL
-    int ssl_connected;
     const char *hostname;
+    char ssl_connected;
 #endif
+    char persistent;
     /* TODO: add initial buffer sizes */
 
     /* keep 1 byte aligned structs last */
@@ -74,7 +74,7 @@ int http_client_pool_get_request(struct http_client_pool *http_client_pool, stru
 int http_client_pool_get_request2(struct http_client_pool *http_client_pool, struct in_addr addr, uint16_t port, const char *hostname, const char **headers, const char *format, ...) __attribute__ ((format (gnu_printf, 6, 7)));
 int http_client_pool_post_request(struct http_client_pool *http_client_pool, struct in_addr addr, uint16_t port, const char *hostname, const char *data, size_t size_of_data, const char *format, ...) __attribute__ ((format (gnu_printf, 7, 8)));
 struct http_client_context *http_client_pool_post_request_init(struct http_client_pool *http_client_pool, struct in_addr addr, uint16_t port, const char *hostname, const char *format, ...) __attribute__ ((format (gnu_printf, 5, 6)));
-inline int http_client_pool_post_request_content_type(struct http_client_context *context, const char *content_type);
+inline int http_client_pool_post_request_content_type(struct http_client_context *cctx, const char *content_type);
 int http_client_pool_post_request_send(struct http_client_context *context, struct vmbuf *post_data);
 int http_client_get_file(struct http_client_pool *http_client_pool, struct vmfile *infile, struct in_addr addr, uint16_t port, const char *hostname, int compression, int * file_compressed, const char *format, ...) __attribute__ ((format (gnu_printf, 8, 9)));
 struct http_client_context *http_client_get_last_context(void);

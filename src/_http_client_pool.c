@@ -20,6 +20,11 @@
 /*
  * inline
  */
+
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 _RIBS_INLINE_ struct ribs_context *http_client_get_ribs_context(struct http_client_context *cctx) {
     return RIBS_RESERVED_TO_CONTEXT(cctx);
 }
@@ -41,10 +46,11 @@ _RIBS_INLINE_ int http_client_send_request(struct http_client_context *cctx) {
                 vmbuf_rseek(&cctx->request, res);
             else {
                 int err = SSL_get_error(ssl, res);
-                if (res < 0 && SSL_ERROR_WANT_WRITE == err)
+                if (res < 0 && (SSL_ERROR_WANT_WRITE == err ||
+                                SSL_ERROR_WANT_READ == err))
                     res = 0;
                 else {
-                    LOGGER_ERROR("SSL_write: %s",ERR_reason_error_string(ERR_peek_last_error()));
+                    LOGGER_PERROR("SSL_write %s:%hu %s", inet_ntoa(cctx->key.addr), cctx->key.port, ERR_reason_error_string(ERR_get_error()));
                     if (0 == res)
                         res = -1;
                 }
@@ -53,7 +59,7 @@ _RIBS_INLINE_ int http_client_send_request(struct http_client_context *cctx) {
     }
 #endif
     if (res < 0) {
-        LOGGER_PERROR("write request");
+        LOGGER_PERROR("write request %s:%hu", inet_ntoa(cctx->key.addr), cctx->key.port);
         cctx->http_status_code = 500;
         cctx->persistent = 0;
         TIMEOUT_HANDLER_REMOVE_FD_DATA(epoll_worker_fd_map + fd);

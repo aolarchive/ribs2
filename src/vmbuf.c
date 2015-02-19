@@ -110,7 +110,7 @@ static inline size_t _mem_resize_sfb(void *mem, size_t old_size, size_t new_size
 
 /* mem pool */
 static inline size_t _mem_alloc_mp(size_t size, void **mem, int fd UNUSED_ARG) {
-    return memalloc_alloc_raw(&current_ctx->memalloc, size, mem);
+    return memalloc_alloc_raw(&current_ctx->memalloc, mem_roundup(size), mem);
 }
 
 static inline void _mem_free_mp(void *mem, size_t size UNUSED_ARG, int fd UNUSED_ARG) {
@@ -131,7 +131,7 @@ struct vmbuf_mem_funcs _mem_funcs_mem_pool = { _mem_alloc_mp, _mem_free_mp, _mem
 
 static int _vmbuf_init(struct vmbuf *vmbuf, size_t initial_size) {
     size_t size = vmbuf->funcs->mem_alloc(initial_size + sizeof(struct vmbuf_header), &vmbuf->mem, vmbuf->fd);
-    if (NULL == vmbuf->mem)
+    if (0 == size)
         return -1;
     struct vmbuf_header *header = vmbuf->mem;
     vmbuf->mem += sizeof(struct vmbuf_header); /* skip header */

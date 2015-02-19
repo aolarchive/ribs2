@@ -25,6 +25,7 @@ static void expiration_handler(void) {
     struct timeout_handler **ref = (struct timeout_handler **)current_ctx->reserved;
     struct timeout_handler *timeout_handler = *ref;
     struct timeval when = {timeout_handler->timeout/1000,(timeout_handler->timeout%1000)*1000};
+    const struct timeval epoch = {0,0};
     int fd = timeout_handler->fd;
     for (;;yield()) {
         if (sizeof(num_exp) != read(fd, &num_exp, sizeof(num_exp)) || list_empty(&timeout_handler->timeout_chain))
@@ -36,6 +37,8 @@ static void expiration_handler(void) {
         int arm_timer = 1;
         LIST_FOR_EACH(&timeout_handler->timeout_chain, fd_data_list) {
             struct epoll_worker_fd_data *fd_data = LIST_ENTRY(fd_data_list, struct epoll_worker_fd_data, timeout_chain);
+            if (!timercmp(&fd_data->timestamp, &epoch, !=))
+                continue;
             if (timercmp(&fd_data->timestamp, &ts, >)) {
                 timersub(&fd_data->timestamp, &ts, &now);
                 struct itimerspec whence = {{0,0},{now.tv_sec,now.tv_usec*1000}};
@@ -46,6 +49,7 @@ static void expiration_handler(void) {
             }
             if (0 > shutdown(fd_data - epoll_worker_fd_map, SHUT_RDWR))
                 LOGGER_PERROR("shutdown");
+            fd_data->timestamp = epoch;
         }
         if (arm_timer) {
             struct itimerspec whence = {{0,0},{when.tv_sec,when.tv_usec*1000}};

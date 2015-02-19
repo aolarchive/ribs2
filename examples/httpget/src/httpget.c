@@ -28,16 +28,24 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <unistd.h>
 
 void usage(char *progname) {
     dprintf(STDERR_FILENO,
             "Usage: %s [options]... <URL>\n"
-            "\t-o, --outfile <FILE>\tOutput to file. Ignores -n,-h,-H,-s\n"
-            "\t-c, --cacert <FILE>\tRead Certificate Authorities certificates file, turns on certificate validation\n"
+            "\t-C, --cacert <FILE>\tRead Certificate Authorities certificates file, turns on certificate validation\n"
+            "\t-o, --outfile <FILE>\tOutput to file. Below options are ignored\n"
             "\t-h, --headers\t\tPrint headers too\n"
             "\t-H, -hh, --headers-only\tPrint headers only\n"
             "\t-s, --silent\t\tSilent mode. Print nothing\n"
-            "\t-n, --nreqs\t\tNumber of request\n", progname);
+            "\t-n, --nreqs\t\tNumber of request\n"
+            "\t-c, --concurrency\tNuber of concurrent requests\n"
+            "\t-r, --reconnect\t\tRequest non-persistent\n"
+            "\t-f, --filedes\t\tFile descritor for data output (default: 1)\n"
+            "Debugging options:\n"
+            "\t-p, \t\t\tUse the 'content' pointer instead of vmbuf_write\n"
+            , progname);
+
     exit(EXIT_FAILURE);
 }
 
@@ -45,43 +53,62 @@ int main(int argc, char *argv[]) {
 
     static struct option long_options[] = {
         {"outfile", 1, 0, 'o'},
-        {"cacert", 1, 0, 'c'},
+        {"cacert", 1, 0, 'C'},
         {"headers", 0, 0, 'h'},
         {"nreqs", 1, 0, 'n'},
         {"silent", 0, 0, 's'},
         {"headers-only", 0, 0, 'H'},
+        {"reconnect", 0, 0, 'r'},
+        {"concurrency", 1, 0, 'c'},
+        {"filedes", 1, 0, 'f'},
         {0, 0, 0, 0}
     };
 
-    int silent = 0;
+    int concurrency = 1;
+    char silent = 0;
     int64_t nreqs = 0;
-    int headers = 0;
+    char headers = 0;
     char *cacert = NULL;
-    char *file = NULL;
+    char *save_to_file = NULL;
+    char force_close = 0;
+    char use_content = 0;
+    int output_fileno = STDOUT_FILENO;
 
     for (;;) {
         int option_index = 0;
-        int c = getopt_long(argc, argv, "o:c:hn:sH", long_options, &option_index);
+        int c = getopt_long(argc, argv, "o:c:n:C:f:shHrp", long_options, &option_index);
         if (c == -1)
             break;
         switch (c) {
         case 'o':
-            file = optarg;
+            save_to_file = optarg;
             break;
-        case 'c':
+        case 'C':
             cacert = optarg;
             break;
         case 'h':
             ++headers;
             break;
         case 'n':
-            nreqs = atoi(optarg);
+            nreqs = strtoull(optarg, NULL, 10);
             break;
         case 's':
             silent = 1;
             break;
         case 'H':
             headers += 2;
+            break;
+        case 'r':
+            force_close = 1;
+            break;
+        case 'c':
+            concurrency = atoi(optarg);
+            break;
+        case 'p':
+            use_content = 1;
+            break;
+        case 'f':
+            output_fileno = atoi(optarg);
             break;
         default:
             LOGGER_ERROR("Wrong argument:-%c", c);
@@ -100,7 +127,7 @@ int main(int argc, char *argv[]) {
 
     if (nreqs < 1) nreqs = 1;
 
-    if (file) {
+    if (save_to_file) {
         if (nreqs > 1)
             LOGGER_INFO("File mode, nreqs will be ignored");
         if (silent)
@@ -125,14 +152,14 @@ int main(int argc, char *argv[]) {
     if (!strncasecmp("http://", url, 7)) {
         url += 7;
     } else if (!strncasecmp("https://", url, 8)) {
-        if (http_client_pool_init_ssl(&client_pool, 1, 1, cacert))
+        if (http_client_pool_init_ssl(&client_pool, concurrency, 1, cacert))
             exit(EXIT_FAILURE);
         url += 8;
         port = 443;
     }
 
     if (80 == port)
-        if (http_client_pool_init(&client_pool, 1, 1))
+        if (http_client_pool_init(&client_pool, concurrency, 1))
             exit(EXIT_FAILURE);
 
     char *hostandport = strtok(url, "/");
@@ -155,12 +182,12 @@ int main(int argc, char *argv[]) {
         LOGGER_ERROR("Could not resolve: %s", host);
         exit(EXIT_FAILURE);
     }
-    struct in_addr addr;
-    addr = *(struct in_addr *)h->h_addr_list[0];
 
-    if (file) {
+    struct in_addr addr = *(struct in_addr *)h->h_addr_list[0];
+
+    if (save_to_file) {
         struct vmfile infile = VMFILE_INITIALIZER;
-        if (0 != vmfile_init(&infile, file, 4096)) {
+        if (0 != vmfile_init(&infile, save_to_file, 4096)) {
             LOGGER_PERROR("Error opening file for write");
             exit(EXIT_FAILURE);
         }
@@ -173,47 +200,65 @@ int main(int argc, char *argv[]) {
         vmfile_close(&infile);
 
     } else {
-        struct http_client_context *rcctx;
-    LOOP:
-        rcctx = http_client_pool_create_client2(&client_pool, addr, port, host, NULL);
-        if (NULL == rcctx) {
-            LOGGER_PERROR("Error sending request");
-            exit(EXIT_FAILURE);
-        }
-        vmbuf_sprintf(&rcctx->request, "GET /%s HTTP/1.1\r\nHost: %s\r\n\r\n", uri, host);
-        int persistent = 0;
-        for (; nreqs > 0; --nreqs) {
-            if (0 > http_client_send_request(rcctx)) {
-                if (!persistent) --nreqs;
-                http_client_free(rcctx);
-                goto LOOP;
+        void requestor(void) {
+            struct http_client_context *rcctx;
+        LOOP:
+            rcctx = http_client_pool_create_client2(&client_pool, addr, port, host, NULL);
+            if (NULL == rcctx) {
+                LOGGER_PERROR("Error sending request");
+                exit(EXIT_FAILURE);
             }
-            /* Try to read right away, without epoll_wait */
-            ribs_swapcurcontext(RIBS_RESERVED_TO_CONTEXT(rcctx));
-            //yield();
-            /* rcctx = http_client_get_last_context(); */
-            if (!silent) {
-                if (headers > 1)
-                    vmbuf_wlocset(&rcctx->response, vmbuf_rlocpos(&rcctx->response)-4);
-                if (headers)
-                    vmbuf_rlocset(&rcctx->response, 0);
-                vmbuf_write(&rcctx->response, STDOUT_FILENO);
-                printf("\n");
-            }
-            /* Not persistent? */
-            if (!rcctx->persistent) {
+            rcctx->persistent = 1;
+            vmbuf_sprintf(&rcctx->request, "GET /%s HTTP/1.1\r\nHost: %s\r\n", uri, host);
+            if (force_close)
+                vmbuf_strcpy(&rcctx->request, "Connection: close\r\n\r\n");
+            else
+                vmbuf_strcpy(&rcctx->request, "\r\n");
+            while(nreqs > 0) {
                 --nreqs;
-                http_client_free(rcctx);
-                goto LOOP;
+                /* attempt to write and read right away, without epoll_wait */
+                ribs_swapcurcontext(RIBS_RESERVED_TO_CONTEXT(rcctx));
+                if (!silent) {
+                    if (headers > 1)
+                        vmbuf_wlocset(&rcctx->response, vmbuf_rlocpos(&rcctx->response)-4);
+                    if (headers)
+                        vmbuf_rlocset(&rcctx->response, 0);
+                    if (STDOUT_FILENO == output_fileno)
+                        vmbuf_chrcpy(&rcctx->response, '\n');
+                    if (use_content && rcctx->content) {
+                        vmbuf_chrcpy(&rcctx->response, '\0');
+                        dprintf(output_fileno, "%s", rcctx->content);
+                    } else
+                        vmbuf_write(&rcctx->response, output_fileno);
+                }
+                /* Not persistent? */
+                if (!rcctx->persistent) {
+                    http_client_free(rcctx);
+                    goto LOOP;
+                }
+                /* clear the response buffer */
+                vmbuf_reset(&rcctx->response);
+                /* rollback and reuse the request */
+                vmbuf_rreset(&rcctx->request);
+                /* reset the fiber */
+                http_client_reuse_context(rcctx);
             }
-            persistent = 1;
-            /* clear the response buffer */
-            vmbuf_reset(&rcctx->response);
-            /* rollback and reuse the request */
-            vmbuf_rreset(&rcctx->request);
-            /* reset the fiber */
-            http_client_reuse_context(rcctx);
-         }
+            if (rcctx->persistent) {
+                rcctx->persistent = 0;
+                ribs_close(rcctx->fd);
+            }
+            http_client_free(rcctx);
+        }
+
+        int i;
+        for (i = 0; i < concurrency; ++i) {
+            struct ribs_context *ctx = ribs_context_create(1024 * 1024, 0, requestor);
+            queue_current_ctx();
+            ribs_swapcurcontext(ctx);
+        }
+        for (i = 0; i < concurrency; ++i) {
+            yield();
+        }
     }
     return 0;
 }

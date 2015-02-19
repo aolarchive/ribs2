@@ -176,3 +176,11 @@ inline void courtesy_yield(void) {
 int epoll_close() {
     return close(ribs_epoll_fd);
 }
+
+int ribs_close(int fd) {
+#ifdef RIBS2_SSL
+    ribs_ssl_free(fd);
+#endif
+    epoll_ctl(ribs_epoll_fd, EPOLL_CTL_DEL, fd, NULL);
+    return epoll_worker_ignore_events(fd), close(fd);
+}

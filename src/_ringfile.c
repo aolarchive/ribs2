@@ -43,6 +43,13 @@ _RIBS_INLINE_ void *ringfile_rloc(struct ringfile *rb) {
     return rb->rbuf + RINGFILE_HEADER->read_loc;
 }
 
+_RIBS_INLINE_ void *ringfile_rloc_reverse(struct ringfile *rb, size_t size) {
+    void *mem = rb->rbuf;
+    if (unlikely(RINGFILE_HEADER->read_loc < size))
+        mem += RINGFILE_HEADER->capacity;
+    return mem + RINGFILE_HEADER->read_loc - size;
+}
+
 _RIBS_INLINE_ size_t ringfile_rlocpos(struct ringfile *rb) {
     return RINGFILE_HEADER->read_loc;
 }
@@ -61,6 +68,14 @@ _RIBS_INLINE_ void ringfile_rseek(struct ringfile *rb, size_t by) {
         RINGFILE_HEADER->read_loc -= RINGFILE_HEADER->capacity;
         RINGFILE_HEADER->write_loc -= RINGFILE_HEADER->capacity;
     }
+}
+
+_RIBS_INLINE_ void ringfile_rseek_reverse(struct ringfile *rb, size_t by) {
+    if (unlikely(RINGFILE_HEADER->read_loc < by)) {
+        RINGFILE_HEADER->read_loc += RINGFILE_HEADER->capacity;
+        RINGFILE_HEADER->write_loc += RINGFILE_HEADER->capacity;
+    }
+    RINGFILE_HEADER->read_loc -= by;
 }
 
 _RIBS_INLINE_ size_t ringfile_size(struct ringfile *rb) {

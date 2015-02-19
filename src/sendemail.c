@@ -92,18 +92,18 @@ _RIBS_INLINE_ int write_data(int cfd, struct vmbuf *request) {
     return 0;
 }
 
-#define SEND_DATA                                                       \
-    if (0 > write_data(cfd, &request))                                  \
-        return LOGGER_ERROR("write_data"), -1
+#define SEND_DATA                                                        \
+    if (0 > write_data(cfd, &request))                                   \
+        return LOGGER_ERROR("write_data"), ribs_close(cfd), -1
 
-#define CHECK_CODE(c)                                                   \
-    code = parse_response(&response, ofs);                              \
-    if (c != code)                                                      \
-        return LOGGER_ERROR("Returned %d. Expected: %d", code, c), -1
+#define CHECK_CODE(c)                                                    \
+    *code = parse_response(&response, ofs);                              \
+    if (c != *code)                                                      \
+        return LOGGER_ERROR("Returned %d. Expected: %d", *code, c), ribs_close(cfd), -1
 
 #define READ_AND_CHECK(c)                                               \
     if (0 > read_data(&mta->timeout_handler, cfd, &response, ofs))      \
-        return LOGGER_ERROR("read_data"), -1;                           \
+        return LOGGER_ERROR("read_data"), ribs_close(cfd), -1;          \
     CHECK_CODE(c);                                                      \
     ofs = vmbuf_wlocpos(&response)
 
@@ -124,7 +124,7 @@ static int parse_response(struct vmbuf *response, size_t ofs) {
     }
 }
 
-int sendemail2(struct sendemail_mta *mta, struct email *email) {
+int sendemail2(struct sendemail_mta *mta, struct email *email, int *code) {
     if (NULL == mta) {
         mta = global_mta;
     }
@@ -151,7 +151,7 @@ int sendemail2(struct sendemail_mta *mta, struct email *email) {
     vmbuf_init(&response, 4096);
     vmbuf_init(&request, 4096);
 
-    int code = -1;
+    *code = -1;
     size_t ofs = 0;
 
     READ_AND_CHECK(220);
@@ -184,7 +184,7 @@ int sendemail2(struct sendemail_mta *mta, struct email *email) {
     struct iovec iov[2]= {
         [0] = {
             .iov_base = email->data,
-            .iov_len = strlen(email->data)
+            .iov_len = (0 == email->data_len) ? strlen(email->data) : email->data_len
         },
         [1] = {
             .iov_base = "\r\n.\r\n",
@@ -238,10 +238,20 @@ int sendemail2(struct sendemail_mta *mta, struct email *email) {
     return 0;
 }
 
-int sendemail(struct email *email) {
+static void set_global_mta() {
     if (NULL == global_mta) {
         global_mta = &_global_mta;
         sendemail_init(global_mta);
     }
-    return sendemail2(global_mta, email);
+}
+
+int sendemail(struct email *email) {
+    set_global_mta();
+    int code;
+    return sendemail2(global_mta, email, &code);
+}
+
+int sendemail_with_code(struct email *email, int *code) {
+    set_global_mta();
+    return sendemail2(global_mta, email, code);
 }

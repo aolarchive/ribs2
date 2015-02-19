@@ -25,6 +25,8 @@
 
 int vmbuf_deflate(struct vmbuf *buf);
 int vmbuf_deflate2(struct vmbuf *inbuf, struct vmbuf *outbuf);
+int vmbuf_deflate3(struct vmbuf *buf, int level);
+int vmbuf_deflate4(struct vmbuf *inbuf, struct vmbuf *outbuf, int level);
 int vmbuf_inflate(struct vmbuf *buf);
 int vmbuf_inflate2(struct vmbuf *inbuf, struct vmbuf *outbuf);
 int vmbuf_inflate_gzip(void *inbuf, size_t in_size, struct vmbuf *outbuf);

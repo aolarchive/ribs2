@@ -50,11 +50,13 @@ struct rcptlist {
 struct email {
     char *from;
     struct rcptlist rcpt;
+    size_t data_len;  // if 0, we use strlen(data), i.e. assume data contains only text
     char *data;
 };
 
 int sendemail_init(struct sendemail_mta *mta);
-int sendemail2(struct sendemail_mta *mta, struct email *email);
+int sendemail2(struct sendemail_mta *mta, struct email *email, int *code);
 int sendemail(struct email *email);
+int sendemail_with_code(struct email *email, int *code);
 
 #endif /* _SENDMAIL__H_ */

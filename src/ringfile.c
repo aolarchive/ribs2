@@ -133,6 +133,21 @@ int ringfile_init_with_resize(struct ringfile *rb, const char *filename, size_t 
     return ringfile_init(rb, filename, size, reserved);
 }
 
+int ringfile_init_safe_resize(struct ringfile *rb, const char *filename, size_t size, size_t reserved) {
+    struct ringfile_header header;
+    if (0 > _ringfile_read_header(filename, &header))
+        return LOGGER_ERROR("failed to read header: %s", filename), -1;
+    size_t reserved_aligned = RIBS_VM_ALIGN(reserved + sizeof(struct ringfile_header));
+    size_t capacity_aligned = RIBS_VM_ALIGN(size);
+    if (0 != header.capacity) {
+        if (header.reserved_size != reserved_aligned)
+            return LOGGER_ERROR("reserved size mismatch, %zu != %zu", header.reserved_size, reserved_aligned), -1;
+        if (capacity_aligned < header.capacity)
+            return LOGGER_ERROR("capacity can't be reduced, %zu < %zu", capacity_aligned, header.capacity), -1;
+    }
+    return ringfile_init(rb, filename, size, reserved);
+}
+
 int ringfile_free(struct ringfile *rb) {
     if (rb->mem && 0 > munmap(rb->mem, RINGFILE_HEADER->reserved_size + (RINGFILE_HEADER->capacity << 1)))
         return LOGGER_PERROR("munmap"), -1;

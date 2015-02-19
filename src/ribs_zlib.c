@@ -22,20 +22,29 @@
 #include <limits.h>
 
 int vmbuf_deflate(struct vmbuf *buf) {
+    return vmbuf_deflate3(buf, Z_DEFAULT_COMPRESSION);
+}
+
+int vmbuf_deflate3(struct vmbuf *buf, int level) {
     static struct vmbuf outbuf = VMBUF_INITIALIZER;
     vmbuf_init(&outbuf, vmbuf_ravail(buf));
-    if (0 > vmbuf_deflate2(buf, &outbuf))
+    if (0 > vmbuf_deflate4(buf, &outbuf, level))
         return -1;
     vmbuf_swap(&outbuf, buf);
     return 0;
 }
 
+
 int vmbuf_deflate2(struct vmbuf *inbuf, struct vmbuf *outbuf) {
+    return vmbuf_deflate4(inbuf, outbuf, Z_DEFAULT_COMPRESSION);
+}
+
+int vmbuf_deflate4(struct vmbuf *inbuf, struct vmbuf *outbuf, int level) {
     z_stream strm;
     strm.zalloc = Z_NULL;
     strm.zfree = Z_NULL;
     strm.opaque = Z_NULL;
-    if (Z_OK != deflateInit2(&strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15+16, 8, Z_DEFAULT_STRATEGY))
+    if (Z_OK != deflateInit2(&strm, level, Z_DEFLATED, 15+16, 8, Z_DEFAULT_STRATEGY))
         return -1;
     int flush;
     do {

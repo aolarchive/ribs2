@@ -20,8 +20,8 @@
 #ifndef _HASH_FUNCS__H_
 #define _HASH_FUNCS__H_
 
-#if 0
-static inline uint32_t hashcode(const void *key, size_t n) {
+
+static inline uint32_t hashcode2(const void *key, size_t n) {
     register const unsigned char *p = (const unsigned char *)key;
     register const unsigned char *end = p + n;
     uint32_t h = 5381;
@@ -29,7 +29,7 @@ static inline uint32_t hashcode(const void *key, size_t n) {
         h = ((h << 5) + h) ^ *p;
     return h;
 }
-#endif
+
 static inline uint32_t hashcode(const void *key, size_t n)
 {
     register const unsigned char *p = (const unsigned char *)key;
