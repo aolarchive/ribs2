@@ -29,6 +29,15 @@ _RIBS_INLINE_ void *ringbuf_rloc(struct ringbuf *rb) {
     return rb->mem + rb->read_loc;
 }
 
+_RIBS_INLINE_ size_t ringbuf_wlocpos(struct ringbuf *rb) {
+    return rb->write_loc;
+}
+
+_RIBS_INLINE_ size_t ringbuf_rlocpos(struct ringbuf *rb) {
+    return rb->read_loc;
+}
+
+
 _RIBS_INLINE_ void ringbuf_wseek(struct ringbuf *rb, size_t by) {
     rb->write_loc += by;
 }
@@ -43,6 +52,10 @@ _RIBS_INLINE_ void ringbuf_rseek(struct ringbuf *rb, size_t by) {
 
 _RIBS_INLINE_ size_t ringbuf_size(struct ringbuf *rb) {
     return rb->write_loc - rb->read_loc;
+}
+
+_RIBS_INLINE_ size_t ringbuf_capacity(struct ringbuf *rb) {
+    return rb->capacity;
 }
 
 _RIBS_INLINE_ size_t ringbuf_avail(struct ringbuf *rb) {

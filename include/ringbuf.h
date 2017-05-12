@@ -37,6 +37,8 @@ int ringbuf_free(struct ringbuf *rb);
 _RIBS_INLINE_ void *ringbuf_mem(struct ringbuf *rb);
 _RIBS_INLINE_ void *ringbuf_wloc(struct ringbuf *rb);
 _RIBS_INLINE_ void *ringbuf_rloc(struct ringbuf *rb);
+_RIBS_INLINE_ size_t ringbuf_wlocpos(struct ringbuf *rb);
+_RIBS_INLINE_ size_t ringbuf_rlocpos(struct ringbuf *rb);
 _RIBS_INLINE_ void ringbuf_wseek(struct ringbuf *rb, size_t by);
 _RIBS_INLINE_ void ringbuf_rseek(struct ringbuf *rb, size_t by);
 _RIBS_INLINE_ size_t ringbuf_size(struct ringbuf *rb);
