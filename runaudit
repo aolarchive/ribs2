@@ -4,7 +4,7 @@
 #   RIBS is an infrastructure for building great SaaS applications (but not
 #   limited to).
 #
-#   Copyright (C) 2013,2014 Adap.tv, Inc.
+#   Copyright (C) 2013,2014,2017 Adap.tv, Inc.
 #
 #   RIBS is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU Lesser General Public License as published by
@@ -71,11 +71,18 @@ get_date()
     echo $WORK | sed -e "s/ /,/g"
 }
 
-CMD="grep -q Copyright"
+get_file()
+{
+    local FILE=$1
+    local DATE
+
+    DATE=$(grep "Copyright (C)" $FILE | awk '{ print $3; }')
+    echo $DATE
+}
 
 while getopts ':fv' OPTION; do
     case $OPTION in
-        f)  CMD="false";;
+        f)  force=1;;
         v)  verbose=1;;
         *)  usage;;
     esac
@@ -86,16 +93,17 @@ for FILE in $(find . -type f -name "*.c" -o -name "*.h"); do
     if is_blacklist $FILE; then
         [ -n "$verbose" ] && echo "skipped"
     else
-        if ! $CMD $FILE; then
-            [ -n "$verbose" ] || echo -n "Processing $FILE: "
-            if grep -q Copyright $FILE; then
+        DATE=$(get_date $FILE)
+        CURRENT_DATE=$(get_file $FILE)
+
+        if [ -n "$force" -o "$DATE" != "$CURRENT_DATE" ]; then
+            [ ! -n "$verbose" ] && echo -n "Processing $FILE: "
+            if [ ! -z $CURRENT_DATE ]; then
                 sed -i -e "1,19 d" $FILE
                 MSG="rebuilt"
             else
                 MSG="corrected"
             fi
-
-            DATE=$(get_date $FILE)
 
             sed -i -e "1i $COPYRIGHT_HEAD" \
                    -e "1i \ \ \ \ Copyright (C) $DATE Adap.tv, Inc." \
