@@ -62,6 +62,15 @@ is_blacklist()
     return 1
 }
 
+get_date()
+{
+    local FILE=$1
+    local WORK
+
+    WORK=$(git log --format="%ai" $FILE | cut -d "-" -f 1 | sort -un)
+    echo $WORK | sed -e "s/ /,/g"
+}
+
 CMD="grep -q Copyright"
 
 while getopts ':fv' OPTION; do
@@ -86,8 +95,7 @@ for FILE in $(find . -type f -name "*.c" -o -name "*.h"); do
                 MSG="corrected"
             fi
 
-            WORK=$(git log --format="%ai" $FILE | cut -d "-" -f 1 | sort -un)
-            DATE=$(echo $WORK | sed -e "s/ /,/g")
+            DATE=$(get_date $FILE)
 
             sed -i -e "1i $COPYRIGHT_HEAD" \
                    -e "1i \ \ \ \ Copyright (C) $DATE Adap.tv, Inc." \
