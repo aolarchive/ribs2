@@ -4,7 +4,7 @@
 #   RIBS is an infrastructure for building great SaaS applications (but not
 #   limited to).
 #
-#   Copyright (C) 2013,2014 Adap.tv, Inc.
+#   Copyright (C) 2013,2014,2017 Adap.tv, Inc.
 #
 #   RIBS is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU Lesser General Public License as published by
@@ -42,19 +42,6 @@ COPYRIGHT_FOOT="\\
 
 BLACKLIST=( "./include/search.h" "./src/search.c" )
 
-array2str()
-{
-    local ref=$1[@]
-    local array=(${!ref})
-    local n=${#array[@]}
-    local i=0
-
-    while [ $i -lt $n ]; do
-        echo -n "${array[$i]}"
-        [ $((++i)) -ne $n ] && echo -n ","
-    done
-}
-
 usage()
 {
     echo "$0 -fv"
@@ -75,39 +62,55 @@ is_blacklist()
     return 1
 }
 
-CMD="grep -q Copyright"
+get_date()
+{
+    local FILE=$1
+    local WORK
+
+    WORK=$(git log --format="%ai" "$FILE" | cut -d "-" -f 1 | sort -un)
+    echo $WORK | sed -e "s/ /,/g"
+}
+
+get_file()
+{
+    local FILE=$1
+    local DATE
+
+    DATE=$(grep "Copyright (C)" "$FILE" | awk '{ print $3; }')
+    echo $DATE
+}
 
 while getopts ':fv' OPTION; do
     case $OPTION in
-        f)  CMD="false";;
+        f)  force=1;;
         v)  verbose=1;;
         *)  usage;;
     esac
 done
 
-for FILE in $(find . -type f -name "*.c" -o -name "*.h"); do
+while IFS= read -r -d '' FILE; do
     [ -n "$verbose" ] && echo -n "Processing $FILE: "
-    if is_blacklist $FILE; then
+    if is_blacklist "$FILE"; then
         [ -n "$verbose" ] && echo "skipped"
     else
-        if ! $CMD $FILE; then
-            [ -n "$verbose" ] || echo -n "Processing $FILE: "
-            if grep -q Copyright $FILE; then
-                sed -i -e "1,19 d" $FILE
+        DATE=$(get_date "$FILE")
+        CURRENT_DATE=$(get_file "$FILE")
+
+        if [ -n "$force" -o "$DATE" != "$CURRENT_DATE" ]; then
+            [ ! -n "$verbose" ] && echo -n "Processing $FILE: "
+            if [ ! -z "$CURRENT_DATE" ]; then
+                sed -i -e "1,19 d" "$FILE"
                 MSG="rebuilt"
             else
                 MSG="corrected"
             fi
 
-            WORK=($(git log --format="%ai" $FILE | cut -d "-" -f 1 | sort -un))
-            DATE=$(array2str WORK)
-
-            sed -i -e "1i $COPYRIGHT_FOOT" $FILE
-            sed -i -e "1i \ \ \ \ Copyright (C) $DATE Adap.tv, Inc." $FILE
-            sed -i -e "1i $COPYRIGHT_HEAD" $FILE
+            sed -i -e "1i $COPYRIGHT_HEAD" \
+                   -e "1i \ \ \ \ Copyright (C) $DATE Adap.tv, Inc." \
+                   -e "1i $COPYRIGHT_FOOT" "$FILE"
             echo "$MSG"
         else
             [ -n "$verbose" ] && echo "unchanged"
         fi
     fi
-done
+done < <(find . -type f \( -name "*.c" -o -name "*.h" \) -print0)
