@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012 Adap.tv, Inc.
+    Copyright (C) 2012,2013 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -20,33 +20,14 @@
 #ifndef _RIBIFY__H_
 #define _RIBIFY__H_
 
-int ribs_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
-int ribs_fcntl(int fd, int cmd, ...);
-ssize_t ribs_read(int fd, void *buf, size_t count);
-ssize_t ribs_write(int fd, const void *buf, size_t count);
-ssize_t ribs_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
-ssize_t ribs_send(int sockfd, const void *buf, size_t len, int flags);
-ssize_t ribs_recv(int sockfd, void *buf, size_t len, int flags);
-ssize_t ribs_readv(int fd, const struct iovec *iov, int iovcnt);
-ssize_t ribs_writev(int fd, const struct iovec *iov, int iovcnt);
-ssize_t ribs_sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
-int ribs_pipe2(int pipefd[2], int flags);
-int ribs_pipe(int pipefd[2]);
-int ribs_nanosleep(const struct timespec *req, struct timespec *rem);
-unsigned int ribs_sleep(unsigned int seconds);
-int ribs_usleep(useconds_t usec);
+#include "ribs.h"
 
-#ifdef UGLY_GETADDRINFO_WORKAROUND
-/* In this ugly mode ribs_getaddrinfo is not blocking but getaddrinfo_a creates threads internally */
-
-#include <netdb.h>
-int ribs_getaddrinfo(const char *node, const char *service,
-                     const struct addrinfo *hints,
-                     struct addrinfo **results);
-#else
-/* In this mode ribs_getaddrinfo is blocking */
-#define ribs_getaddrinfo getaddrinfo
-#endif
+void *ribify_malloc(size_t size);
+void ribify_free(void *ptr);
+void *ribify_calloc(size_t nmemb, size_t size);
+void *ribify_realloc(void *ptr, size_t size);
+char *ribify_strdup(const char *s);
+char *ribify_wcsdup(const wchar_t *s);
+size_t ribify_malloc_usable_size(void *ptr);
 
 #endif // _RIBIFY__H_
-

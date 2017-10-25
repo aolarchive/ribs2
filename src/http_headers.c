@@ -41,13 +41,14 @@ static struct request_headers request_headers[] = {
     { "if-none-match",   offsetof(struct http_headers, if_none_match)   },
     { "accept-language", offsetof(struct http_headers, accept_language) },
     { "origin",          offsetof(struct http_headers, origin)          },
+    { "authorization",   offsetof(struct http_headers, authorization)   },
     /* terminate the list */
     { NULL, 0 }
 };
 
 
-int http_headers_init() {
-    if (hashtable_get_size(&ht_request_headers) > 0)
+int http_headers_init(void) {
+    if (hashtable_is_initialized(&ht_request_headers))
         return 1;
     hashtable_init(&ht_request_headers, 64);
     struct request_headers *rh = request_headers;
@@ -105,6 +106,7 @@ static void http_header_decode_accept_encoding(struct http_headers *h) {
 void http_headers_parse(char *headers, struct http_headers *h) {
     static char no_value[] = { '-', 0 };
     *h = (struct http_headers) {
+        no_value,
         no_value,
         no_value,
         no_value,

@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -20,43 +20,48 @@
 #ifndef _HASHTABLE__H_
 #define _HASHTABLE__H_
 
-#include "ribs_defs.h"
-#include "vmbuf.h"
-#include "vmfile.h"
-#include "template.h"
-#include "hash_funcs.h"
-#include "ilog2.h"
-#include "hashtablefile_header.h"
+#include "vmallocator.h"
 
-#define _TEMPLATE_HTBL_FUNC_HELPER(S,T,F) S ## T ##_## F
-#define TEMPLATE_HTBL_FUNC(S,T,F) _TEMPLATE_HTBL_FUNC_HELPER(S,T,F)
-
-#define _TEMPLATE_HTBL_HELPER(S,T) S ## T
-#define TEMPLATE_HTBL(S,T) _TEMPLATE_HTBL_HELPER(S,T)
-
-#define HASHTABLE_INITIAL_SIZE_BITS 5
-#define HASHTABLE_INITIAL_SIZE (1<<HASHTABLE_INITIAL_SIZE_BITS)
-
-#define HASHTABLE_INITIALIZER { VMBUF_INITIALIZER, 0, 0 }
+#define HASHTABLE_INITIALIZER { VMALLOCATOR_INITIALIZER }
 #define HASHTABLE_MAKE(x) (x) = (struct hashtable)HASHTABLE_INITIALIZER
 
-#define HASHTABLEFILE_INITIALIZER { VMFILE_INITIALIZER }
-#define HASHTABLEFILE_MAKE(x) (x) = (struct hashtablefile)HASHTABLEFILE_INITIALIZER
-
 struct hashtable {
-    struct vmbuf data;
-    uint32_t mask;
-    uint32_t size;
+    struct vmallocator data;
 };
 
-struct hashtablefile {
-    struct vmfile data;
+struct hashtable_header {
+    uint32_t mask;
+    uint32_t size;
+    uint32_t free_list;
+    uint32_t slots[32];
+};
+
+struct hashtable_rec {
+    uint32_t key_size;
+    void *key;
+    uint32_t val_size;
+    void *val;
+};
+
+union hashtable_internal_rec {
+    struct {
+        uint32_t key_size;
+        uint32_t val_size;
+        char data[];
+    } rec;
+    struct {
+        uint32_t next;
+        uint32_t size;
+    } free_rec;
 };
 
 /* hashtable */
 int hashtable_init(struct hashtable *ht, uint32_t initial_size);
+int hashtable_create(struct hashtable *ht, uint32_t initial_size, const char *filename);
+int hashtable_open(struct hashtable *ht, uint32_t initial_size, const char *filename, int flags);
+int hashtable_close(struct hashtable *ht);
 uint32_t hashtable_insert(struct hashtable *ht, const void *key, size_t key_len, const void *val, size_t val_len);
-uint32_t hashtable_insert_new(struct hashtable *ht, const void *key, size_t key_len, size_t val_len);
+uint32_t hashtable_insert_alloc(struct hashtable *ht, const void *key, size_t key_len, size_t val_len);
 uint32_t hashtable_lookup_insert(struct hashtable *ht, const void *key, size_t key_len, const void *val, size_t val_len);
 uint32_t hashtable_lookup(struct hashtable *ht, const void *key, size_t key_len);
 uint32_t hashtable_remove(struct hashtable *ht, const void *key, size_t key_len);
@@ -68,56 +73,10 @@ static inline uint32_t hashtable_get_val_size(struct hashtable *ht, uint32_t rec
 static inline uint32_t hashtable_get_size(struct hashtable *ht);
 static inline const char *hashtable_lookup_str(struct hashtable *ht, const char *key, const char *default_val);
 static inline void hashtable_free(struct hashtable *ht);
+static inline struct hashtable_rec hashtable_get_rec(struct hashtable *ht, uint32_t rec_ofs);
+static inline int hashtable_is_initialized(struct hashtable *ht);
+static inline size_t hashtable_get_size_bytes(struct hashtable *ht);
 
-/* hashtable_file */
-int hashtablefile_init_create(struct hashtablefile *ht, const char *file_name, uint32_t initial_size);
-int hashtablefile_finalize(struct hashtablefile *ht);
-int hashtablefile_init(struct hashtablefile *ht, uint32_t initial_size);
-uint32_t hashtablefile_insert(struct hashtablefile *ht, const void *key, size_t key_len, const void *val, size_t val_len);
-uint32_t hashtablefile_insert_new(struct hashtablefile *ht, const void *key, size_t key_len, size_t val_len);
-uint32_t hashtablefile_lookup_insert(struct hashtablefile *ht, const void *key, size_t key_len, const void *val, size_t val_len);
-uint32_t hashtablefile_lookup(struct hashtablefile *ht, const void *key, size_t key_len);
-uint32_t hashtablefile_remove(struct hashtablefile *ht, const void *key, size_t key_len);
-int hashtablefile_foreach(struct hashtablefile *ht, int (*func)(uint32_t rec));
-static inline void *hashtablefile_get_key(struct hashtablefile *ht, uint32_t rec_ofs);
-static inline uint32_t hashtablefile_get_key_size(struct hashtablefile *ht, uint32_t rec_ofs);
-static inline void *hashtablefile_get_val(struct hashtablefile *ht, uint32_t rec_ofs);
-static inline uint32_t hashtablefile_get_val_size(struct hashtablefile *ht, uint32_t rec_ofs);
-static inline uint32_t hashtablefile_get_size(struct hashtablefile *ht);
-static inline const char *hashtablefile_lookup_str(struct hashtablefile *ht, const char *key, const char *default_val);
-static inline void hashtablefile_free(struct hashtablefile *ht);
-
-
-#ifdef T
-#undef T
-#endif
-
-#ifdef TS
-#undef TS
-#endif
-
-#define T
-#define TS vmbuf
-#define HT_SIZE ht->size
-#define HT_MASK ht->mask
-#define HT_SLOT ((uint32_t *) TEMPLATE(TS, data)(&ht->data))
-#include "_hashtable.h"
-#undef HT_SIZE
-#undef HT_MASK
-#undef HT_SLOT
-#undef TS
-#undef T
-
-#define T file
-#define TS vmfile
-#define HT_SIZE (((struct hashtablefile_header *) TEMPLATE(TS, data)(&ht->data))->size)
-#define HT_MASK (((struct hashtablefile_header *) TEMPLATE(TS, data)(&ht->data))->mask)
-#define HT_SLOT ((uint32_t *) TEMPLATE(TS, data_ofs)(&ht->data, sizeof(struct hashtablefile_header)))
-#include "_hashtable.h"
-#undef HT_SIZE
-#undef HT_MASK
-#undef HT_SLOT
-#undef TS
-#undef T
+#include "../src/_hashtable.c"
 
 #endif // _HASHTABLE__H_

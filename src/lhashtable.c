@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -37,31 +37,31 @@ int lhashtable_init(struct lhashtable *lht, const char *filename) {
             return LOGGER_ERROR("corrupted file (size): %s", filename), -1;
         lht->fd = open(filename, O_RDWR, 0644);
         if (0 > lht->fd)
-            return LOGGER_PERROR(filename), -1;
+            return LOGGER_PERROR("%s", filename), -1;
         lht->mem = mmap(NULL, st.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, lht->fd, 0);
         if (MAP_FAILED == lht->mem)
-            return LOGGER_PERROR(filename), close(lht->fd), lht->fd = -1;
+            return LOGGER_PERROR("%s", filename), close(lht->fd), lht->fd = -1;
         if (0 != memcmp(LHT_SIGNATURE, lht->mem, sizeof(LHT_SIGNATURE))) {
-            LOGGER_ERROR("corrupted file (signature): %s", filename), -1;
+            LOGGER_ERROR("corrupted file (signature): %s", filename);
             return close(lht->fd), lht->fd = -1, munmap(lht->mem, st.st_size), -1;
         }
         if (0 == (LHT_GET_HEADER()->flags & LHT_FLAG_FIN))
-            LOGGER_ERROR("dirty table detected");
+            LOGGER_ERROR("dirty table detected %s ", filename);
         LHT_GET_HEADER()->flags &= ~LHT_FLAG_FIN;
         return 0;
     }
     unlink(filename);
     lht->fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, 0644);
     if (0 > lht->fd)
-        return LOGGER_PERROR(filename), -1;
+        return LOGGER_PERROR("%s", filename), -1;
     /* initial size */
     size_t size = sizeof(struct lhashtable_header);
     _LHT_ALIGN_P2(size, LHT_BLOCK_SIZE);
     if (0 > ftruncate(lht->fd, size))
-        return LOGGER_PERROR(filename), -1;
+        return LOGGER_PERROR("%s", filename), -1;
     lht->mem = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, lht->fd, 0);
     if (MAP_FAILED == lht->mem)
-        return LOGGER_PERROR(filename), close(lht->fd), lht->fd = -1;
+        return LOGGER_PERROR("%s", filename), close(lht->fd), lht->fd = -1;
     struct lhashtable_header *header = (struct lhashtable_header *)lht->mem;
     header->write_loc = 0;
     header->capacity = size;
@@ -166,6 +166,74 @@ uint64_t lhashtable_put(struct lhashtable *lht, const void *key, size_t key_len,
     return 0;
 }
 
+uint64_t lhashtable_put_key(struct lhashtable *lht, const void *key, size_t key_len, size_t val_len, int *is_inserted) {
+    *is_inserted = 0;
+    uint32_t h = hashcode(key, key_len);
+    uint32_t sub_tbl_idx = LHT_SUB_TABLE_HASH(h);
+    uint64_t sub_table_ofs = LHT_GET_HEADER()->tables_offsets[sub_tbl_idx];
+    _lhashtable_resize_table_if_needed(lht, sub_table_ofs);
+    uint32_t mask = LHT_GET_SUB_TABLE()->mask;
+    uint32_t b = h & mask;
+    uint64_t rec_ofs;
+    for (;;) {
+        uint64_t bkt_ofs = _lhashtable_get_bucket_ofs(lht, sub_table_ofs, b);
+        struct lhashtable_bucket *bkt = lht->mem + bkt_ofs;
+        if (0 == bkt->data_ofs.u32) {
+            size_t n = sizeof(struct lhashtable_record) + key_len + val_len;
+            union lhashtable_data_ofs data_ofs;
+            _lhashtable_sub_alloc(lht, sub_table_ofs, n, &data_ofs);
+            /* pointer may move after alloc */
+            bkt = lht->mem + bkt_ofs;
+            bkt->hashcode = h;
+            bkt->data_ofs = data_ofs;
+            rec_ofs = _lhashtable_data_ofs_to_abs_ofs(LHT_GET_SUB_TABLE(), &data_ofs);
+            struct lhashtable_record *rec = lht->mem + rec_ofs;
+            rec->key_len = key_len;
+            rec->val_len = val_len;
+            memcpy(rec->data, key, key_len);
+            ++LHT_GET_SUB_TABLE()->size;
+            ++LHT_GET_HEADER()->size;
+            *is_inserted = 1;
+            return rec_ofs;
+        }
+        if (h == bkt->hashcode) {
+            rec_ofs = _lhashtable_data_ofs_to_abs_ofs(LHT_GET_SUB_TABLE(), &bkt->data_ofs);
+            struct lhashtable_record *rec = lht->mem + rec_ofs;
+            if (key_len == rec->key_len && 0 == memcmp(rec->data, key, key_len)) {
+                size_t n = sizeof(struct lhashtable_record) + key_len + val_len;
+                size_t oldn = sizeof(struct lhashtable_record) + rec->key_len + rec->val_len;
+                LHT_X_ALIGN(n);
+                LHT_X_ALIGN(oldn);
+                if (n != oldn) {
+                    union lhashtable_data_ofs data_ofs;
+                    _lhashtable_sub_alloc(lht, sub_table_ofs, n, &data_ofs);
+                    /* pointer may move after alloc */
+                    bkt = lht->mem + bkt_ofs;
+                    uint64_t old_rec_ofs = rec_ofs;
+                    struct lhashtable_record *old_rec = lht->mem + old_rec_ofs;
+                    /* new record */
+                    rec_ofs = _lhashtable_data_ofs_to_abs_ofs(LHT_GET_SUB_TABLE(), &data_ofs);
+                    rec = lht->mem + rec_ofs;
+                    /* copy the key to the new record */
+                    rec->key_len = key_len;
+                    memcpy(rec->data, key, key_len);
+                    /* copy the value, truncate if needed */
+                    memcpy(rec->data + key_len, old_rec->data + key_len, (old_rec->val_len >= val_len ? val_len : old_rec->val_len));
+                    /* recycle the old record */
+                    _lhashtable_add_to_freelist(lht, sub_table_ofs, old_rec_ofs, bkt->data_ofs, oldn);
+                    bkt->data_ofs = data_ofs;
+                }
+                rec->val_len = val_len;
+                return rec_ofs;
+            }
+        }
+        ++b;
+        if (b > mask)
+            b = 0;
+    }
+    return 0;
+}
+
 uint64_t lhashtable_get(struct lhashtable *lht, const void *key, size_t key_len) {
     uint32_t h = hashcode(key, key_len);
     uint32_t sub_tbl_idx = LHT_SUB_TABLE_HASH(h);
@@ -252,20 +320,32 @@ int lhashtable_del(struct lhashtable *lht, const void *key, size_t key_len) {
     return -1;
 }
 
-void lhashtable_dump(struct lhashtable *lht) {
-    int i;
-    printf("signature: %s, version: %hu, flags: %hhu, write_loc: %llu, capacity: %llu\n",
-           LHT_GET_HEADER()->signature,
-           LHT_GET_HEADER()->version,
-           LHT_GET_HEADER()->flags,
-           (unsigned long long)LHT_GET_HEADER()->write_loc,
-           (unsigned long long)LHT_GET_HEADER()->capacity);
-    for (i = 0; i < LHT_NUM_SUB_TABLES; ++i) {
-        struct lhashtable_table *tbl = lht->mem + LHT_GET_HEADER()->tables_offsets[i];
-        printf("sub table %d\n", i);
-        printf("\tmask=%u, size=%u, next_alloc=%u, current_block=%hu\n", tbl->mask, tbl->size, tbl->next_alloc, tbl->current_block);
-        /* TODO: print keys and values */
+static inline int _lhashtable_subtable_foreach(struct lhashtable *lht, uint64_t sub_table_ofs, int (*callback)(uint64_t, void *), void *arg) {
+    struct lhashtable_table *tbl = LHT_GET_SUB_TABLE();
+    uint32_t mask = tbl->mask;
+    uint32_t capacity = mask + 1;
+    uint32_t num_slots = ilog2(capacity) - LHT_SUB_TABLE_MIN_BITS + 1;
+    uint64_t *slots = tbl->buckets_offsets;
+    uint32_t s;
+    uint32_t vect_size = LHT_SUB_TABLE_INITIAL_SIZE;
+    int res;
+    for (s = 0; s < num_slots; ++s) {
+        struct lhashtable_bucket *hte = (lht->mem + slots[s]), *htend = hte + vect_size;
+        for (; hte != htend; ++hte) {
+            if (0 < hte->data_ofs.u32 && 0 > (res = callback(_lhashtable_data_ofs_to_abs_ofs(tbl, &hte->data_ofs), arg)))
+                return res;
+        }
+        if (s) vect_size <<= 1;
     }
+    return 0;
+}
+
+int lhashtable_foreach(struct lhashtable *lht, int (*callback)(uint64_t, void *), void *arg) {
+    int i, res;
+    for (i = 0; i < LHT_NUM_SUB_TABLES; ++i)
+        if (0 > (res = _lhashtable_subtable_foreach(lht, LHT_GET_HEADER()->tables_offsets[i], callback, arg)))
+            return res;
+    return 0;
 }
 
 uint32_t lhashtable_size(struct lhashtable *lht) {

@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -61,6 +61,7 @@ struct mysql_helper_column_map {
         uint64_t *u64;
         double *dbl;
         struct tm *ts;
+        uint64_t *ts_unix;
         char **str;
         const char **cstr;
         void *ptr;
@@ -70,6 +71,11 @@ struct mysql_helper_column_map {
 };
 
 #define MYSQL_HELPER_COL_MAP_GET_STR(d,m) (*((char **)((d) + (m)->data.ofs)))
+
+/* field declaration helper macros */
+#define _MYSQL_HELPER_COL_MAP(type,name,is_un,mysqlt,field)             \
+    {#name,{mysql_helper_field_type_##field,is_un,mysqlt,sizeof(((struct mysql_helper_column_map *)0)->data.field[0])},{.field=&((type *)0)->name}}
+
 #define MYSQL_HELPER_COL_MAP_I8(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_TINY, i8)
 #define MYSQL_HELPER_COL_MAP_U8(type,name) _MYSQL_HELPER_COL_MAP(type, name, 1, MYSQL_TYPE_TINY, u8)
 #define MYSQL_HELPER_COL_MAP_I16(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_SHORT, i16)
@@ -80,28 +86,30 @@ struct mysql_helper_column_map {
 #define MYSQL_HELPER_COL_MAP_U64(type,name) _MYSQL_HELPER_COL_MAP(type, name, 1, MYSQL_TYPE_LONGLONG, u64)
 #define MYSQL_HELPER_COL_MAP_DBL(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_DOUBLE, dbl)
 #define MYSQL_HELPER_COL_MAP_TS(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_DATETIME, ts)
+#define MYSQL_HELPER_COL_MAP_TS_UNIX(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_LONGLONG, ts_unix)
 #define MYSQL_HELPER_COL_MAP_STR(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_STRING, str)
 #define MYSQL_HELPER_COL_MAP_CSTR(type,name) _MYSQL_HELPER_COL_MAP(type, name, 0, MYSQL_TYPE_STRING, cstr)
+// NOTE: Don't use the following macro for col binding!
 #define MYSQL_HELPER_COL_MAP_CUSTOM_STR(name,value) \
     {name,{mysql_helper_field_type_cstr,0,MYSQL_TYPE_STRING,0},{.custom_str=value}}
 
-#define MYSQL_HELPER_COL_MAP_ADD_IF(name, class, type, buf)                \
-    do {                                                                \
-        if (*name) {                                                    \
-            struct mysql_helper_column_map __field__ = MYSQL_HELPER_COL_MAP_##type(class, name); \
-            vmbuf_memcpy(&buf, &__field__, sizeof(__field__));          \
-        }                                                               \
-    } while (0)
-
 #define MYSQL_HELPER_COL_MAP_ADD(name, class, type, buf)                \
     {                                                                   \
-        struct mysql_helper_column_map __field__ = MYSQL_HELPER_COL_MAP_##type(class, name); \
+        struct mysql_helper_column_map __field__ =                      \
+            MYSQL_HELPER_COL_MAP_##type(class, name);                   \
         vmbuf_memcpy(&buf, &__field__, sizeof(__field__));              \
     }
 
+#define MYSQL_HELPER_COL_MAP_ADD_IF(name, class, type, buf)             \
+    if (name && *name)                                                  \
+        MYSQL_HELPER_COL_MAP_ADD(name, class, type, buf)
 
+void mysql_helper_connect_init(struct mysql_helper *mysql_helper);
+int mysql_helper_real_connect(struct mysql_helper *mysql_helper, struct mysql_login_info *login_info);
 int mysql_helper_connect(struct mysql_helper *mysql_helper, struct mysql_login_info *login_info);
 int mysql_helper_stmt(struct mysql_helper *mysql_helper, const char *query, size_t query_len, const char *params, const char *fields, ...);
+int mysql_helper_vstmt(struct mysql_helper *mysql_helper, const char *query, size_t query_len, const char *params, const char *fields, void ** input);
+int mysql_helper_hstmt(struct mysql_helper *helper, const char *query, size_t query_len, const char *input_param_types, void **input_params, const char *output_field_types, ...);
 int mysql_helper_stmt_col_map(struct mysql_helper *mysql_helper,
                               const char *query, size_t query_len,
                               void *params, struct mysql_helper_column_map *params_map, size_t nparams, /* primary params */
@@ -116,6 +124,8 @@ int mysql_helper_tx_commit(struct mysql_helper *mysql_helper);
 int mysql_helper_tx_rollback(struct mysql_helper *mysql_helper);
 #define mysql_helper_last_insert_id(helper) mysql_insert_id(&((helper)->mysql))
 #define mysql_helper_affected_rows(helper) mysql_affected_rows(&((helper)->mysql))
+#define mysql_helper_warning_counts(helper) mysql_warning_count(&((helper)->mysql))
+#define mysql_helper_mysql_error(helper) mysql_error(&((helper)->mysql))
 void mysql_helper_generate_select(struct vmbuf *outbuf, const char *table,
                                   struct mysql_helper_column_map *columns, size_t n);
 int mysql_helper_generate_insert(struct vmbuf *outbuf, const char *table,
@@ -125,7 +135,6 @@ int mysql_helper_generate_update(struct vmbuf *outbuf, const char *table,
                                  struct mysql_helper_column_map *params, size_t nparams,
                                  struct mysql_helper_column_map *fixed_values, size_t nfixed_values,
                                  struct mysql_helper_column_map *wparams, size_t nwparams);
-
 /*
  * internal stuff
  */
@@ -141,12 +150,9 @@ enum {
     mysql_helper_field_type_dbl,
     mysql_helper_field_type_str,
     mysql_helper_field_type_cstr,
-    mysql_helper_field_type_ts
+    mysql_helper_field_type_ts,
+    mysql_helper_field_type_ts_unix
 };
-
-/* field declaration helper macros */
-#define _MYSQL_HELPER_COL_MAP(type,name,is_un,mysqlt,field)             \
-    {#name,{mysql_helper_field_type_##field,is_un,mysqlt,sizeof(((struct mysql_helper_column_map *)0)->data.field[0])},{.field=&((type *)0)->name}}
 
 /* get data from field */
 #define _MYSQL_HELPER_FIELD_TYPE_TO_STR(T) case mysql_helper_field_type_##T: return #T
@@ -165,6 +171,7 @@ static inline const char *_mysql_helper_field_type_to_str(int type) {
         _MYSQL_HELPER_FIELD_TYPE_TO_STR(str);
         _MYSQL_HELPER_FIELD_TYPE_TO_STR(cstr);
         _MYSQL_HELPER_FIELD_TYPE_TO_STR(ts);
+        _MYSQL_HELPER_FIELD_TYPE_TO_STR(ts_unix);
         default: return "unknown";
     }
 }

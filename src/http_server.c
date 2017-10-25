@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -22,6 +22,7 @@
 #include <dirent.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <netinet/tcp.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -40,6 +41,10 @@
 #define HTTP_DEF_STR(var,str)                   \
     const char var[]=str
 #include "http_defs.h"
+
+#ifdef RIBS2_SSL
+#include "ribs_ssl.h"
+#endif
 
 #define ACCEPTOR_STACK_SIZE 8192
 #define MIN_HTTP_REQ_SIZE 5 // method(3) + space(1) + URI(1) + optional VER...
@@ -62,21 +67,168 @@ SSTRL(CONNECTION_KEEPALIVE, "Keep-Alive");
 SSTRL(CONTENT_LENGTH, "\r\nContent-Length: ");
 SSTRL(SET_COOKIE, "\r\nSet-Cookie: ");
 SSTRL(COOKIE_VERSION, "Version=\"1\"");
+SSTRL(HTTP_LOCATION, "\r\nLocation: ");
+SSTR(CACHE_CONTROL, "\r\nCache-Control: ");
+SSTR(PRAGMA, "\r\nPragma: ");
+SSTR(EXPIRES, "\r\nExpires: ");
 /* 1xx */
 SSTRL(HTTP_STATUS_100, "100 Continue");
 SSTRL(EXPECT_100, "\r\nExpect: 100");
+
+static int accept_reserved_fd = -1;
+static inline void http_server_yield(void);
+
+static int _http_server_read(struct http_server_context *ctx) {
+    ssize_t res;
+    ssize_t wavail;
+    while (0 < (res = read(ctx->fd, vmbuf_wloc(&ctx->request), wavail = vmbuf_wavail(&ctx->request)))) {
+        if (0 > vmbuf_wseek(&ctx->request, res))
+            return -1;
+        if (res < wavail)
+            return errno=0, 1;
+    }
+    if (res < 0)
+        return (EAGAIN == errno ? 1 : -1);
+    return 0; // remote side closed connection
+}
+
+static int _http_server_write(struct http_server_context *ctx) {
+    struct iovec iovec[2] = {
+        { vmbuf_data(&ctx->header), vmbuf_wlocpos(&ctx->header)},
+        { vmbuf_data(&ctx->payload), vmbuf_wlocpos(&ctx->payload)}
+    };
+    ssize_t num_write;
+    for (;;http_server_yield()) {
+        num_write = writev(ctx->fd, iovec, iovec[1].iov_len ? 2 : 1);
+        if (0 > num_write) {
+            if (EAGAIN == errno) {
+                continue;
+            } else {
+                ctx->persistent = 0;
+                return -1;
+            }
+        } else {
+            if (num_write >= (ssize_t)iovec[0].iov_len) {
+                num_write -= iovec[0].iov_len;
+                iovec[0].iov_len = iovec[1].iov_len - num_write;
+                if (iovec[0].iov_len == 0)
+                    break;
+                iovec[0].iov_base = iovec[1].iov_base + num_write;
+                iovec[1].iov_len = 0;
+            } else {
+                iovec[0].iov_len -= num_write;
+                iovec[0].iov_base += num_write;
+            }
+        }
+    }
+    return 0;
+}
+
+static int _http_server_sendfile(struct http_server_context *ctx, int ffd, ssize_t size) {
+    off_t ofs = 0;
+    int fd = ctx->fd;
+    for (;;http_server_yield()) {
+        if (0 > sendfile(fd, ffd, &ofs, size - ofs) && EAGAIN != errno)
+            return ctx->persistent = 0, -1;
+        if (ofs >= size) break;
+    }
+    return 0;
+}
+
+#ifdef RIBS2_SSL
+static int _http_server_read_ssl(struct http_server_context *ctx) {
+    ssize_t res;
+    ssize_t wavail;
+    SSL *ssl = ribs_ssl_get(ctx->fd);
+    while (0 < (res = SSL_read(ssl, vmbuf_wloc(&ctx->request), wavail = vmbuf_wavail(&ctx->request)))) {
+        if (0 > vmbuf_wseek(&ctx->request, res))
+            return -1;
+        if (res < wavail)
+            return errno=0, 1;
+    }
+    if (res < 0) {
+        int err = SSL_get_error(ssl, res);
+        return (SSL_ERROR_WANT_READ == err ||
+                SSL_ERROR_WANT_WRITE == err) ? 1 : -1;
+    }
+    return 0; // remote side closed connection
+}
+
+static int _http_server_write_ssl(struct http_server_context *ctx) {
+    SSL *ssl = ribs_ssl_get(ctx->fd);
+    int _write(struct vmbuf *vmb) {
+        int res;
+        size_t rav;
+        while ((rav = vmbuf_ravail(vmb)) > 0) {
+            res = SSL_write(ssl, vmbuf_rloc(vmb), rav);
+            if (res > 0) {
+                vmbuf_rseek(vmb, res);
+                continue;
+            }
+            int err = SSL_get_error(ssl, res);
+            if (res < 0 && (SSL_ERROR_WANT_WRITE == err ||
+                            SSL_ERROR_WANT_READ == err)) {
+                http_server_yield();
+                continue;
+            }
+            ctx->persistent = 0;
+            return errno = ENODATA, -1; // error, can not be zero
+        }
+        return 1; // reached the end
+    }
+
+    if ( 0 > _write(&ctx->header) ||
+         0 > _write(&ctx->payload))
+        return -1;
+    return 0;
+}
+
+static int _http_server_sendfile_ssl(struct http_server_context *ctx, int ffd, ssize_t size) {
+    off_t ofs = 0;
+    SSL *ssl = ribs_ssl_get(ctx->fd);
+    do {
+        ssize_t chunk_size = 1024*1024;
+        off_t chunk_ofs = 0;
+        if (ofs + chunk_size > size)
+            chunk_size = size - ofs;
+        void *mem = mmap(NULL, 1024*1024, PROT_READ, MAP_SHARED, ffd, ofs);
+        for (;;http_server_yield()) {
+            int res = SSL_write(ssl, mem + chunk_ofs, chunk_size - chunk_ofs);
+            if (res > 0) {
+                chunk_ofs += res;
+                if (chunk_ofs == chunk_size)
+                    break;
+            } else {
+                if (res < 0) {
+                    int err = SSL_get_error(ssl, res);
+                    if (SSL_ERROR_WANT_WRITE == err ||
+                        SSL_ERROR_WANT_READ == err)
+                        continue;
+                }
+                ctx->persistent = 0;
+                munmap(mem, 1024*1024);
+                return errno = ENODATA, -1;
+            }
+        }
+        ofs += chunk_size;
+        munmap(mem, 1024*1024);
+    } while (ofs < size);
+    return 0;
+}
+#endif
 
 static void http_server_process_request(char *uri, char *headers);
 static void http_server_accept_connections(void);
 
 static void http_server_fiber_main_wrapper(void) {
     http_server_fiber_main();
-    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
-    ctx_pool_put(&server->ctx_pool, current_ctx);
+    struct http_server_context *ctx = http_server_get_context();
+    ctx_pool_put(&ctx->server->ctx_pool, current_ctx);
 }
 
 static void http_server_idle_handler(void) {
-    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
+    struct http_server **server_ref = (struct http_server **)current_ctx->reserved;
+    struct http_server *server = *server_ref;
     for (;;) {
         if (last_epollev.events == EPOLLOUT)
             yield();
@@ -84,10 +236,11 @@ static void http_server_idle_handler(void) {
             struct ribs_context *new_ctx = ctx_pool_get(&server->ctx_pool);
             ribs_makecontext(new_ctx, event_loop_ctx, http_server_fiber_main_wrapper);
             int fd = last_epollev.data.fd;
-            new_ctx->fd = fd;
-            new_ctx->data.ptr = server;
             struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + fd;
             fd_data->ctx = new_ctx;
+            struct http_server_context *ctx = (struct http_server_context *)new_ctx->reserved;
+            ctx->fd = fd;
+            ctx->server = server;
             TIMEOUT_HANDLER_REMOVE_FD_DATA(fd_data);
             ribs_swapcurcontext(new_ctx);
         }
@@ -95,6 +248,22 @@ static void http_server_idle_handler(void) {
 }
 
 int http_server_init(struct http_server *server) {
+    server->bind_addr = htonl(INADDR_ANY);
+#ifdef RIBS2_SSL
+    server->use_ssl = 0;
+#endif
+    return http_server_init2(server);
+}
+
+#ifdef RIBS2_SSL
+int http_server_init_ssl(struct http_server *server) {
+    server->bind_addr = htonl(INADDR_ANY);
+    server->use_ssl = 1;
+    return http_server_init2(server);
+}
+#endif
+
+int http_server_init2(struct http_server *server) {
     /*
      * one time global initializers
      */
@@ -102,30 +271,63 @@ int http_server_init(struct http_server *server) {
         return LOGGER_ERROR("failed to initialize mime types"), -1;
     if (0 > http_headers_init())
         return LOGGER_ERROR("failed to initialize http headers"), -1;
+
+    if (-1 == accept_reserved_fd) {
+        accept_reserved_fd = open("/dev/null", 0);
+        if (0 > accept_reserved_fd)
+            return LOGGER_PERROR("open"), -1;
+    }
+
+#ifdef RIBS2_SSL
+    if (server->use_ssl) {
+
+        server->http_server_read = _http_server_read_ssl;
+        server->http_server_write = _http_server_write_ssl;
+        server->http_server_sendfile = _http_server_sendfile_ssl;
+
+        /* init */
+        SSL_library_init();
+        server->ssl_ctx = SSL_CTX_new(SSLv23_server_method());
+
+        if (0 != ribs_ssl_set_options(server->ssl_ctx, server->cipher_list))
+            return -1;
+
+        /* Chain file must start with the server's certificate, appended by the authority certs */
+        if (0 == SSL_CTX_use_certificate_chain_file(server->ssl_ctx, server->certificate_chain_file))
+            return LOGGER_ERROR("failed to initialize SSL:chain_file"), -1;
+        if (0 == SSL_CTX_use_PrivateKey_file(server->ssl_ctx, server->privatekey_file, SSL_FILETYPE_PEM))
+            return LOGGER_ERROR("failed to initialize SSL:load privatekey_file"), -1;
+        if (0 == SSL_CTX_check_private_key(server->ssl_ctx))
+            return LOGGER_ERROR("failed to initialize SSL:check private_key"), -1;
+    } else
+#endif
+    {
+        server->http_server_read = _http_server_read;
+        server->http_server_write = _http_server_write;
+        server->http_server_sendfile = _http_server_sendfile;
+    }
     /*
      * idle connection handler
      */
-    server->idle_ctx = ribs_context_create(SMALL_STACK_SIZE, http_server_idle_handler);
-    server->idle_ctx->data.ptr = server;
+    server->idle_ctx = ribs_context_create(SMALL_STACK_SIZE, sizeof(struct http_server *), http_server_idle_handler);
+    struct http_server **server_ref = (struct http_server **)server->idle_ctx->reserved;
+    *server_ref = server;
     /*
      * context pool
      */
     if (0 == server->num_stacks)
         server->num_stacks = DEFAULT_NUM_STACKS;
-    if (0 == server->stack_size) {
-        struct rlimit rlim;
-        if (0 > getrlimit(RLIMIT_STACK, &rlim))
-            return LOGGER_PERROR("getrlimit(RLIMIT_STACK)"), -1;
-        server->stack_size = rlim.rlim_cur;
-    }
+    struct rlimit rlim;
+    if (0 > getrlimit(RLIMIT_STACK, &rlim))
+        return LOGGER_PERROR("getrlimit(RLIMIT_STACK)"), -1;
+    server->stack_size = server->stack_size > rlim.rlim_cur ? server->stack_size : rlim.rlim_cur;
     LOGGER_INFO("http server pool: initial=%zu, grow=%zu, stack_size=%zu", server->num_stacks, server->num_stacks, server->stack_size);
     ctx_pool_init(&server->ctx_pool, server->num_stacks, server->num_stacks, server->stack_size, sizeof(struct http_server_context) + server->context_size);
     /*
      * listen socket
      */
     const int LISTEN_BACKLOG = 32768;
-    LOGGER_INFO("listening on port: %d, backlog: %d", server->port, LISTEN_BACKLOG);
-    int lfd = socket(PF_INET, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
+    int lfd = socket(PF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, IPPROTO_TCP);
     if (0 > lfd)
         return -1;
 
@@ -150,16 +352,30 @@ int http_server_init(struct http_server *server) {
     memset(&addr, 0, sizeof(struct sockaddr_in));
     addr.sin_family = AF_INET;
     addr.sin_port = htons(server->port);
-    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_addr.s_addr = server->bind_addr;
     if (0 > bind(lfd, (struct sockaddr *)&addr, sizeof(addr)))
-        return LOGGER_PERROR("bind"), -1;
+        return close(lfd), LOGGER_PERROR("bind"), -1;
+
+    if (0 == server->port) {
+        struct sockaddr_in addr;
+        socklen_t addrlen = sizeof(addr);
+        if (0 > getsockname(lfd, &addr, &addrlen))
+            return close(lfd), LOGGER_PERROR("getsockname"), -1;
+        server->port = ntohs(addr.sin_port);
+    }
+    LOGGER_INFO("listening on port: %d, backlog: %d, protocol: http%s", server->port, LISTEN_BACKLOG,
+#ifdef RIBS2_SSL
+                server->use_ssl ? "s" :
+#endif
+                "");
 
     if (0 > listen(lfd, LISTEN_BACKLOG))
         return LOGGER_PERROR("listen"), -1;
 
-    server->accept_ctx = ribs_context_create(ACCEPTOR_STACK_SIZE, http_server_accept_connections);
-    server->accept_ctx->fd = lfd;
-    server->accept_ctx->data.ptr = server;
+    server->accept_ctx = ribs_context_create(ACCEPTOR_STACK_SIZE, sizeof(struct http_server *), http_server_accept_connections);
+    server->fd = lfd;
+    server_ref = (struct http_server **)server->accept_ctx->reserved;
+    *server_ref = server;
 
     if (server->max_req_size == 0)
         server->max_req_size = DEFAULT_MAX_REQ_SIZE;
@@ -167,25 +383,43 @@ int http_server_init(struct http_server *server) {
 }
 
 int http_server_init_acceptor(struct http_server *server) {
-    if (0 > ribs_epoll_add(server->accept_ctx->fd, EPOLLIN, server->accept_ctx))
+    if (0 > ribs_epoll_add(server->fd, EPOLLIN, server->accept_ctx))
         return -1;
     return timeout_handler_init(&server->timeout_handler);
 }
 
 static void http_server_accept_connections(void) {
-    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
+    struct http_server **server_ref = (struct http_server **)current_ctx->reserved;
+    struct http_server *server = *server_ref;
     for (;; yield()) {
         struct sockaddr_in new_addr;
         socklen_t new_addr_size = sizeof(struct sockaddr_in);
-        int fd = accept4(current_ctx->fd, (struct sockaddr *)&new_addr, &new_addr_size, SOCK_CLOEXEC | SOCK_NONBLOCK);
-        if (0 > fd)
-            continue;
-
-        if (0 > ribs_epoll_add(fd, EPOLLIN | EPOLLOUT | EPOLLET, server->idle_ctx)) {
-            close(fd);
+        int fd = accept4(server->fd, (struct sockaddr *)&new_addr, &new_addr_size, SOCK_CLOEXEC | SOCK_NONBLOCK);
+        if (0 > fd) {
+            if (EAGAIN == errno)
+                continue;
+            if (EMFILE == errno || ENFILE == errno) {
+                LOGGER_PERROR("Not accepting connection on %s:%hu", inet_ntoa((struct in_addr){server->bind_addr}), server->port);
+                close(accept_reserved_fd);
+                fd = accept4(server->fd, (struct sockaddr *)&new_addr, &new_addr_size, SOCK_CLOEXEC | SOCK_NONBLOCK);
+                if (0 > fd) {
+                    if (EAGAIN != errno)
+                        LOGGER_PERROR("Accept on %s:%hu", inet_ntoa((struct in_addr){server->bind_addr}), server->port);
+                }
+                else
+                    close(fd);
+                accept_reserved_fd = open("/dev/null", 0);
+                if (0 > accept_reserved_fd)
+                    LOGGER_PERROR("open");
+            } else {
+                LOGGER_PERROR("Accept on %s:%hu", inet_ntoa((struct in_addr){server->bind_addr}), server->port);
+            }
             continue;
         }
-
+        if (0 > ribs_epoll_add(fd, EPOLLIN | EPOLLOUT | EPOLLET, server->idle_ctx)) {
+            ribs_close(fd);
+            continue;
+        }
         timeout_handler_add_fd_data(&server->timeout_handler, epoll_worker_fd_map + fd);
     }
 }
@@ -212,10 +446,23 @@ void http_server_header_start(const char *status, const char *content_type) {
     vmbuf_sprintf(&ctx->header, "%s %s\r\nServer: %s\r\nContent-Type: %s%s%s", HTTP_SERVER_VER, status, HTTP_SERVER_NAME, content_type, CONNECTION, ctx->persistent ? CONNECTION_KEEPALIVE : CONNECTION_CLOSE);
 }
 
-void http_server_header_close() {
+void http_server_header_start_no_body(const char *status) {
+    struct http_server_context *ctx = http_server_get_context();
+    vmbuf_sprintf(&ctx->header, "%s %s\r\nServer: %s%s%s", HTTP_SERVER_VER, status, HTTP_SERVER_NAME, CONNECTION, ctx->persistent ? CONNECTION_KEEPALIVE : CONNECTION_CLOSE);
+}
+
+void http_server_header_close(void) {
     struct http_server_context *ctx = http_server_get_context();
     vmbuf_strcpy(&ctx->header, CRLFCRLF);
 }
+
+void http_server_header_no_cache(){
+    struct http_server_context *ctx = http_server_get_context();
+    vmbuf_sprintf(&ctx->header, "%s%s", CACHE_CONTROL, "no-cache, no-store, must-revalidate");
+    vmbuf_sprintf(&ctx->header, "%s%s", PRAGMA, "no-cache");
+    vmbuf_sprintf(&ctx->header, "%s%s", EXPIRES, "0");
+}
+
 
 void http_server_set_cookie(const char *name, const char *value, uint32_t max_age, const char *path, const char *domain) {
     struct http_server_context *ctx = http_server_get_context();
@@ -230,6 +477,21 @@ void http_server_set_session_cookie(const char *name, const char *value, const c
     http_server_set_cookie(name, value, 0, path, NULL);
 }
 
+struct vmbuf *http_server_begin_cookie(const char *name) {
+    struct vmbuf *buf = &http_server_get_context()->header;
+    vmbuf_sprintf(buf, "\r\nSet-Cookie: %s=\"", name);
+    return buf;
+}
+
+struct vmbuf *http_server_end_cookie(time_t expires, const char *domain, const char *path) {
+    struct vmbuf *buf = &http_server_get_context()->header;
+    struct tm tm;
+    gmtime_r(&expires, &tm);
+    vmbuf_sprintf(buf, "\";Path=%s;Domain=%s;Expires=", path, domain);
+    vmbuf_strftime(buf, "%a, %d-%b-%Y %H:%M:%S %Z", &tm);
+    return buf;
+}
+
 void http_server_response(const char *status, const char *content_type) {
     struct http_server_context *ctx = http_server_get_context();
     vmbuf_reset(&ctx->header);
@@ -239,84 +501,83 @@ void http_server_response(const char *status, const char *content_type) {
 }
 
 void http_server_response_sprintf(const char *status, const char *content_type, const char *format, ...) {
+    va_list ap;
+    va_start(ap, format);
+    http_server_response_vsprintf(status, content_type, format, ap);
+    va_end(ap);
+}
+
+void http_server_response_vsprintf(const char *status, const char *content_type, const char *format, va_list ap) {
     struct http_server_context *ctx = http_server_get_context();
     vmbuf_reset(&ctx->header);
     vmbuf_reset(&ctx->payload);
     http_server_header_start(status, content_type);
-    va_list ap;
-    va_start(ap, format);
     vmbuf_vsprintf(&ctx->payload, format, ap);
-    va_end(ap);
     http_server_header_content_length();
     http_server_header_close();
 }
 
-void http_server_header_content_length() {
+void http_server_header_redirect(const char *format, ...) {
+    va_list ap;
+    va_start(ap, format);
+    http_server_header_vredirect(format, ap);
+    va_end(ap);
+}
+
+void http_server_header_vredirect(const char *format, va_list ap) {
+    struct http_server_context *ctx = http_server_get_context();
+    vmbuf_strcpy(&ctx->header, HTTP_LOCATION);
+    vmbuf_vsprintf(&ctx->header, format, ap);
+}
+
+void http_server_redirect(const char *status, const char *content_type, const char *format, ...) {
+    va_list ap;
+    va_start(ap, format);
+    http_server_vredirect(status, content_type, format, ap);
+    va_end(ap);
+}
+
+void http_server_vredirect(const char *status, const char *content_type, const char *format, va_list ap) {
+    struct http_server_context *ctx = http_server_get_context();
+    vmbuf_reset(&ctx->header);
+    http_server_header_start(status, content_type);
+    http_server_header_vredirect(format, ap);
+    http_server_header_content_length();
+    http_server_header_close();
+}
+
+void http_server_header_content_length(void) {
     struct http_server_context *ctx = http_server_get_context();
     vmbuf_sprintf(&ctx->header, "%s%zu", CONTENT_LENGTH, vmbuf_wlocpos(&ctx->payload));
 }
 
 #define READ_FROM_SOCKET()                                              \
-    res = vmbuf_read(&ctx->request, fd);                                \
+    res = server->http_server_read(ctx);                                \
     if (0 >= res) {                                                     \
-        close(fd); /* remote side closed or other error occured */      \
+        ribs_close(fd); /* remote side closed or other error occured */ \
         return;                                                         \
     }                                                                   \
     if (vmbuf_wlocpos(&ctx->request) > max_req_size) {                  \
         ctx->persistent = 0;                                            \
         http_server_response(HTTP_STATUS_413, HTTP_CONTENT_TYPE_TEXT_PLAIN); \
-        http_server_write();                                            \
-        close(fd);                                                      \
+        server->http_server_write(ctx);                                 \
+        ribs_close(fd);                                                 \
         return;                                                         \
     }
 
 
-static inline void http_server_yield() {
-    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
-    struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + current_ctx->fd;
-    timeout_handler_add_fd_data(&server->timeout_handler, fd_data);
+static inline void http_server_yield(void) {
+    struct http_server_context *ctx = http_server_get_context();
+    struct epoll_worker_fd_data *fd_data = epoll_worker_fd_map + ctx->fd;
+    timeout_handler_add_fd_data(&ctx->server->timeout_handler, fd_data);
     yield();
     TIMEOUT_HANDLER_REMOVE_FD_DATA(fd_data);
 }
 
-inline void http_server_write() {
-    struct http_server_context *ctx = http_server_get_context();
-    struct iovec iovec[2] = {
-        { vmbuf_data(&ctx->header), vmbuf_wlocpos(&ctx->header)},
-        { vmbuf_data(&ctx->payload), vmbuf_wlocpos(&ctx->payload)}
-    };
-    int fd = current_ctx->fd;
-
-    ssize_t num_write;
-    for (;;http_server_yield()) {
-        num_write = writev(fd, iovec, iovec[1].iov_len ? 2 : 1);
-        if (0 > num_write) {
-            if (EAGAIN == errno) {
-                continue;
-            } else {
-                ctx->persistent = 0;
-                return;
-            }
-        } else {
-            if (num_write >= (ssize_t)iovec[0].iov_len) {
-                num_write -= iovec[0].iov_len;
-                iovec[0].iov_len = iovec[1].iov_len - num_write;
-                if (iovec[0].iov_len == 0)
-                    break;
-                iovec[0].iov_base = iovec[1].iov_base + num_write;
-                iovec[1].iov_len = 0;
-            } else {
-                iovec[0].iov_len -= num_write;
-                iovec[0].iov_base += num_write;
-            }
-        }
-    }
-}
-
 void http_server_fiber_main(void) {
     struct http_server_context *ctx = http_server_get_context();
-    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
-    int fd = current_ctx->fd;
+    struct http_server *server = ctx->server;
+    int fd = ctx->fd;
 
     char *URI;
     char *headers;
@@ -329,6 +590,32 @@ void http_server_fiber_main(void) {
     vmbuf_init(&ctx->header, server->init_header_size);
     vmbuf_init(&ctx->payload, server->init_payload_size);
     size_t max_req_size = server->max_req_size;
+
+#ifdef RIBS2_SSL
+    if (server->use_ssl && NULL == ribs_ssl_get(fd)) {
+        SSL *ssl = ribs_ssl_alloc(fd, server->ssl_ctx);
+        if (NULL == ssl) {
+            ribs_close(fd);
+            return;
+        }
+        for (;;http_server_yield()) {
+            int ret = SSL_accept(ssl);
+            if (1 == ret) break;
+            if (0 == ret) {
+                ribs_close(fd);
+                return;
+            }
+            ret = SSL_get_error(ssl, ret);
+            if (SSL_ERROR_WANT_WRITE != ret &&
+                SSL_ERROR_WANT_READ != ret) {
+                ribs_close(fd);
+                return;
+            }
+        }
+        /* disable client initiated renegotiate CVE-2009-3555 */
+        ssl->s3->flags |= SSL3_FLAGS_NO_RENEGOTIATE_CIPHERS;
+    }
+#endif
 
     for (;; http_server_yield()) {
         READ_FROM_SOCKET();
@@ -379,8 +666,8 @@ void http_server_fiber_main(void) {
 
             if (strstr(vmbuf_data(&ctx->request), EXPECT_100)) {
                 vmbuf_sprintf(&ctx->header, "%s %s\r\n\r\n", HTTP_SERVER_VER, HTTP_STATUS_100);
-                if (0 > vmbuf_write(&ctx->header, fd)) {
-                    close(fd);
+                if (0 > server->http_server_write(ctx)) {
+                    ribs_close(fd);
                     return;
                 }
                 vmbuf_reset(&ctx->header);
@@ -426,8 +713,8 @@ void http_server_fiber_main(void) {
     } while(0);
 
     if (vmbuf_wlocpos(&ctx->header) > 0) {
-        epoll_worker_resume_events();
-        http_server_write();
+        epoll_worker_resume_events(fd);
+        server->http_server_write(ctx);
     }
 
     if (ctx->persistent) {
@@ -435,12 +722,11 @@ void http_server_fiber_main(void) {
         fd_data->ctx = server->idle_ctx;
         timeout_handler_add_fd_data(&server->timeout_handler, fd_data);
     } else
-        close(fd);
+        ribs_close(fd);
 }
 
 static void http_server_process_request(char *uri, char *headers) {
     struct http_server_context *ctx = http_server_get_context();
-    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
     ctx->headers = headers;
     char *query = strchrnul(uri, '?');
     if (*query)
@@ -452,22 +738,24 @@ static void http_server_process_request(char *uri, char *headers) {
         uri = strchrnul(uri, '/');
     }
     ctx->uri = uri;
-    epoll_worker_ignore_events();
-    server->user_func();
+    epoll_worker_ignore_events(ctx->fd);
+    ctx->server->user_func();
 }
 
+int http_server_sendfile(const char *filename) {
+    return http_server_sendfile2(filename, NULL, NULL);
+}
 
-int http_server_sendfile(const char *filename, const char *additional_headers, const char *ext) {
+int http_server_sendfile2(const char *filename, const char *additional_headers, const char *ext) {
     if (0 == *filename)
         filename = ".";
     struct http_server_context *ctx = http_server_get_context();
-    int fd = current_ctx->fd;
     int ffd = open(filename, O_RDONLY);
     if (ffd < 0)
         return HTTP_SERVER_NOT_FOUND;
     struct stat st;
     if (0 > fstat(ffd, &st)) {
-        LOGGER_PERROR(filename);
+        LOGGER_PERROR("%s", filename);
         close(ffd);
         return HTTP_SERVER_NOT_FOUND;
     }
@@ -476,52 +764,44 @@ int http_server_sendfile(const char *filename, const char *additional_headers, c
         return 1;
     }
 
-    epoll_worker_resume_events();
     vmbuf_reset(&ctx->header);
 
     if (NULL != ext)
         http_server_header_start(HTTP_STATUS_200, mime_types_by_ext(ext));
     else
         http_server_header_start(HTTP_STATUS_200, mime_types_by_filename(filename));
-    vmbuf_sprintf(&ctx->header, "%s%zu", CONTENT_LENGTH, st.st_size);
-    vmbuf_strcpy(&ctx->header, additional_headers);
+    vmbuf_sprintf(&ctx->header, "%s%jd", CONTENT_LENGTH, (intmax_t)st.st_size);
+    if (additional_headers)
+        vmbuf_strcpy(&ctx->header, additional_headers);
 
     http_server_header_close();
+    int res = http_server_sendfile_payload(ffd, st.st_size);
+    close(ffd);
+    if (0 > res)
+        LOGGER_PERROR("%s", filename);
+    return res;
+}
+
+int http_server_sendfile_payload(int ffd, off_t size) {
+    struct http_server_context *ctx = http_server_get_context();
+    int fd = ctx->fd;
     int option = 1;
     if (0 > setsockopt(fd, IPPROTO_TCP, TCP_CORK, &option, sizeof(option)))
         LOGGER_PERROR("TCP_CORK set");
-    http_server_write();
-    off_t ofs = 0;
-    ssize_t res;
-    int ret;
-    for (;;http_server_yield()) {
-        res = sendfile(fd, ffd, &ofs, st.st_size - ofs);
-        if (res < 0) {
-            if (EAGAIN == errno)
-                continue;
-            LOGGER_PERROR(filename);
-            ctx->persistent = 0;
-            ret = -1;
-            break;
-        }
-        if (ofs < st.st_size)
-            continue;
-        ret = 0;
-        break;
-    }
+    epoll_worker_resume_events(ctx->fd);
+    ctx->server->http_server_write(ctx);
     vmbuf_reset(&ctx->header);
-    close(ffd);
-    if (ctx->persistent) {
+    int res = ctx->server->http_server_sendfile(ctx, ffd, size);
+    if (0 == res) {
         option = 0;
         if (0 > setsockopt(fd, IPPROTO_TCP, TCP_CORK, &option, sizeof(option)))
             LOGGER_PERROR("TCP_CORK release");
     }
-    return ret;
+    return res;
 }
 
 int http_server_generate_dir_list(const char *URI) {
     struct http_server_context *ctx = http_server_get_context();
-    struct http_server *server = (struct http_server *)current_ctx->data.ptr;
     struct vmbuf *payload = &ctx->payload;
     const char *dir = URI;
     if (*dir == '/') ++dir;
@@ -532,7 +812,7 @@ int http_server_generate_dir_list(const char *URI) {
     vmbuf_sprintf(payload, "<h1>Index of %s</h1><hr>", dir);
 
     vmbuf_sprintf(payload, "<a href=\"..\">../</a><br><br>");
-    vmbuf_sprintf(payload, "<table width=\"100%\" border=\"0\">");
+    vmbuf_sprintf(payload, "<table width=\"100%%\" border=\"0\">");
     DIR *d = opendir(dir);
     int error = 0;
     if (d) {
@@ -555,18 +835,18 @@ int http_server_generate_dir_list(const char *URI) {
             if (t)
                 vmbuf_strftime(payload, "%F %T", t);
             vmbuf_strcpy(payload, "</td>");
-            vmbuf_sprintf(payload, "<td>%zu</td>", st.st_size);
+            vmbuf_sprintf(payload, "<td>%jd</td>", (intmax_t)st.st_size);
             vmbuf_strcpy(payload, "</tr>");
         }
         closedir(d);
     }
     vmbuf_strcpy(payload, "<tr><td colspan=3><hr></td></tr></table>");
-    vmbuf_sprintf(payload, "<address>RIBS 2.0 Port %hu</address></body>", server->port);
+    vmbuf_sprintf(payload, "<address>RIBS 2.0 Port %hu</address></body>", ctx->server->port);
     vmbuf_strcpy(payload, "</html>");
     return error;
 }
 
 
 void http_server_close(struct http_server *server) {
-    close(server->accept_ctx->fd);
+    ribs_close(server->fd);
 }

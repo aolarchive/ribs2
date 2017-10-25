@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -20,7 +20,7 @@
 #ifndef _VM_MISC__H_
 #define _VM_MISC__H_
 
-#define RIBS_VM_PAGESIZE 4096
+#define RIBS_VM_PAGESIZE 4096ULL
 #define RIBS_VM_PAGEMASK (RIBS_VM_PAGESIZE-1)
 
 #define RIBS_VM_ALIGN(x) (((x)+RIBS_VM_PAGEMASK)&~RIBS_VM_PAGEMASK)

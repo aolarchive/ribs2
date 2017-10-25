@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012 Adap.tv, Inc.
+    Copyright (C) 2012,2013 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -34,6 +34,7 @@ HTTP_DEF_STR(HTTP_STATUS_302, "302 Found");
 HTTP_DEF_STR(HTTP_STATUS_303, "303 See Other");
 HTTP_DEF_STR(HTTP_STATUS_304, "304 Not Modified");
 /* 4xx */
+HTTP_DEF_STR(HTTP_STATUS_400, "400 Bad Format");
 HTTP_DEF_STR(HTTP_STATUS_401, "401 Unauthorized");
 HTTP_DEF_STR(HTTP_STATUS_403, "403 Forbidden");
 HTTP_DEF_STR(HTTP_STATUS_404, "404 Not Found");

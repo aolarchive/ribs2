@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -17,7 +17,6 @@
     You should have received a copy of the GNU Lesser General Public License
     along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
 */
-
 #ifndef _MYSQL_COMMON__H_
 #define _MYSQL_COMMON__H_
 
@@ -32,7 +31,7 @@
 
 #define INDEXER_O2O(T,db, tbl, field) if (0 > IDX_GEN_DS_FILE_O2O(T, base_path, db, tbl, field)) return -1
 #define INDEXER_O2M(T,db, tbl, field) if (0 > IDX_GEN_DS_FILE_O2M(T, base_path, db, tbl, field)) return -1
-#define VAR_INDEXER_O2O(db, tbl, field) if (0 > var_index_gen_generate_ds_file(base_path, db, tbl, field)) return -1
+#define VAR_INDEXER_O2M(db, tbl, field) if (0 > var_index_gen_generate_ds_file(base_path, db, tbl, field)) return -1
 
 struct mysql_login_info {
     const char *host;

@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012 Adap.tv, Inc.
+    Copyright (C) 2012,2013 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -30,6 +30,7 @@
 #include "logger.h"
 
 struct timeout_handler {
+    int fd;
     struct ribs_context *timeout_handler_ctx;
     struct list timeout_chain;
     time_t timeout;

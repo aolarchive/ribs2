@@ -18,6 +18,7 @@
     along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
 */
 .extern current_ctx
+.extern __ribs_context_cleanup
 .globl ribs_swapcurcontext
 .globl __ribs_context_jump
 
@@ -47,6 +48,7 @@ ribs_setcontext:
         ret
 
 __ribs_context_jump:
+        call    __ribs_context_cleanup
         movq    %rbx, %rdi
         jmp     ribs_setcontext
 #endif
@@ -72,25 +74,45 @@ ribs_setcontext:
         ret
 
 __ribs_context_jump:
+        call    __ribs_context_cleanup
         movl    %ebx, %eax
         jmp     ribs_setcontext
 #endif
 
 #ifdef __arm__
+#ifdef __thumb2__
+.thumb
+.thumb_func
+.syntax unified
+
         ldr     r1, =current_ctx
         ldr     r2, [r1]
-        stmia   r2, {r4-r14}
+        str     sp, [r2, #36]
+        stmia   r2, {r4-r11, lr}
         str     r0, [r1]
-        ldmia   r0, {r4-r14}
-        mov     pc, lr
+        ldr     sp, [r0, #36]
+        ldmia   r0, {r4-r11, pc}
 
 __ribs_context_jump:
-        ldr     lr, =__ribs_context_exit
-        mov     pc, r5
-
-__ribs_context_exit:
+        blx     r5
+        bl      __ribs_context_cleanup
         ldr     r1, =current_ctx
         str     r4, [r1]
-        ldmia   r4, {r4-r14}
-        mov     pc, lr
+        ldr     sp, [r4, #36]
+        ldmia   r4, {r4-r11, pc}
+
+#else /* __arm__, not __thumb2__ */
+        ldr     r1, =current_ctx
+        ldr     r2, [r1]
+        stmia   r2, {r4-r11, sp, lr}
+        str     r0, [r1]
+        ldmia   r0, {r4-r11, sp, pc}
+
+__ribs_context_jump:
+        blx     r5
+        bl      __ribs_context_cleanup
+        ldr     r1, =current_ctx
+        str     r4, [r1]
+        ldmia   r4, {r4-r11, sp, pc}
+#endif
 #endif

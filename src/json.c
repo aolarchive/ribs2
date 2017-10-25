@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -35,13 +35,20 @@ inline int json_stack_item_isset(struct json_stack_item *si)
     return si->begin != si->end;
 }
 
-void null_callback(struct json *js, char *kb, char *ke, char *vb, char *ve)
+static void null_callback(struct json *js, char *kb, char *ke, char *vb, char *ve)
 {
-    (void)js; (void)kb; (void)ke; (void)vb; (void)ve;
+    UNUSED(js);
+    UNUSED(kb);
+    UNUSED(ke);
+    UNUSED(vb);
+    UNUSED(ve);
 }
-void null_block_callback(struct json *js, char *kb, char *ke)
+
+static void null_block_callback(struct json *js, char *kb, char *ke)
 {
-    (void)js; (void)kb; (void)ke;
+    UNUSED(js);
+    UNUSED(kb);
+    UNUSED(ke);
 }
 
 inline void json_reset_callbacks(struct json *js)
@@ -252,9 +259,16 @@ size_t json_escape_str(char *d, const char *s) {
 }
 
 size_t json_escape_str_vmb(struct vmbuf *buf, const char *s) {
-    vmbuf_resize_if_less(buf, strlen(s));
+    vmbuf_resize_if_less(buf, strlen(s) * 2 + 1);
     size_t l = json_escape_str(vmbuf_wloc(buf), s);
     vmbuf_wseek(buf, l);
     return l;
 }
 
+char json_copy_key(const char *kb, const char *ke, char *strOut, size_t strOutLen) {
+    size_t len = ke - kb;
+    if((len + 1) > strOutLen) return -1;
+    memcpy(strOut, kb, len);
+    strOut[len] = 0;
+    return 0;
+}

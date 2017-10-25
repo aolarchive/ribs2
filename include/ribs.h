@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -26,15 +26,18 @@
 #include "context.h"
 #include "ctx_pool.h"
 #include "hashtable.h"
+#include "thashtable.h"
+#include "lhashtable.h"
 #include "epoll_worker.h"
 #include "logger.h"
 #include "daemonize.h"
 #include "http_server.h"
+#include "http_file_server.h"
+#include "http_vhost.h"
 #include "http_defs.h"
 #include "http_client_pool.h"
 #include "http_headers.h"
 #include "http_cookies.h"
-#include "ribify.h"
 #include "file_mapper.h"
 #include "file_writer.h"
 #include "ds.h"
@@ -42,5 +45,10 @@
 #include "search.h"
 #include "bitvect.h"
 #include "object_pool.h"
+#include "sleep.h"
+#include "malloc.h"
+#include "timer.h"
+#include "timer_worker.h"
+#include "base64.h"
 
 #endif // _RIBS__H_

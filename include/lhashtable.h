@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -48,7 +48,6 @@
   15bits - block number. The real offset of the block is mapped via data_start_ofs
 
   real address = data_start_ofs[block] + (ofs << 3)
-
 
 */
 
@@ -148,9 +147,10 @@ struct lhashtable {
 int lhashtable_init(struct lhashtable *lht, const char *filename);
 int lhashtable_close(struct lhashtable *lht);
 uint64_t lhashtable_put(struct lhashtable *lht, const void *key, size_t key_len, const void *val, size_t val_len);
+uint64_t lhashtable_put_key(struct lhashtable *lht, const void *key, size_t key_len, size_t val_len, int *is_inserted);
 uint64_t lhashtable_get(struct lhashtable *lht, const void *key, size_t key_len);
 int lhashtable_del(struct lhashtable *lht, const void *key, size_t key_len);
-void lhashtable_dump(struct lhashtable *lht);
+int lhashtable_foreach(struct lhashtable *lht, int (*callback)(uint64_t, void *), void *arg);
 uint32_t lhashtable_size(struct lhashtable *lht);
 /*
  * inline

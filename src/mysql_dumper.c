@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -107,10 +107,14 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
     MYSQL mysql;
     MYSQL_STMT *stmt = NULL;
     mysql_init(&mysql);
+    my_bool b_flag = 1;
+    if (0 != mysql_options(&mysql, MYSQL_OPT_RECONNECT, (const char *)&b_flag))
+        return report_error(&mysql);
+
     if (NULL == mysql_real_connect(&mysql, mysql_login_info->host, mysql_login_info->user, mysql_login_info->pass, mysql_login_info->db, mysql_login_info->port, NULL, CLIENT_COMPRESS))
         return report_error(&mysql);
 
-    my_bool b_flag = 0;
+    b_flag = 0;
     if (0 != mysql_options(&mysql, MYSQL_REPORT_DATA_TRUNCATION, (const char *)&b_flag))
         return report_error(&mysql);
 
@@ -137,7 +141,7 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
     memset(null_terminate_str, 0, sizeof(int) * n);
 
     struct file_writer ffields[n];
-    struct file_writer vfields[2][n];
+    struct ds_var_field_writer vfields[n];
 
     struct vmbuf buf = VMBUF_INITIALIZER;
     vmbuf_init(&buf, 4096);
@@ -156,7 +160,7 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
     if (len < 0) len = 4;
     char header[len];
     memset(header, '=', len);
-    vmfile_sprintf(&ds_txt, "/* %.*s[ %s ]%.*s */\n", len / 2, header, tablename, len - (len / 2), header);
+    vmfile_sprintf(&ds_txt, "/* %.*s[ %s ]%.*s */\n", (int)len / 2, header, tablename, (int)(len - (len / 2)), header);
     vmfile_sprintf(&ds_txt, "#   undef TABLE_NAME\n#   define TABLE_NAME %s\n", tablename);
     /*
      * initialize output files
@@ -164,8 +168,7 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
     unsigned int i;
     for (i = 0; i < n; ++i) {
         file_writer_make(&ffields[i]);
-        file_writer_make(&vfields[0][i]);
-        file_writer_make(&vfields[1][i]);
+        DS_VAR_FIELD_WRITER_INIT(vfields[i]);
     }
 
     struct hashtable ht_types = HASHTABLE_INITIALIZER;
@@ -205,13 +208,7 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
 
         mkdir_for_file_recursive(vmbuf_data(&buf));
         if (is_var_length_field(field_types[i])) {
-            size_t ofs = vmbuf_wlocpos(&buf);
-            vmbuf_sprintf(&buf, ".ofs");
-            if (0 > (err = file_writer_init(&vfields[0][i], vmbuf_data(&buf))))
-                break;
-            vmbuf_wlocset(&buf, ofs);
-            vmbuf_sprintf(&buf, ".dat");
-            if (0 > (err = file_writer_init(&vfields[1][i], vmbuf_data(&buf))))
+            if (0 > (err = ds_var_field_writer_init(&vfields[i], vmbuf_data(&buf))))
                 break;
         } else {
             ds_type = get_ds_type(field_types[i], bind[i].is_unsigned);
@@ -221,7 +218,7 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
                 0 > (err = file_writer_write(&ffields[i], &ds_type, sizeof(ds_type))))
                 break;;
         }
-        size_t len = ribs_mysql_get_storage_size(field_types[i], fields[i].length);
+        len = ribs_mysql_get_storage_size(field_types[i], fields[i].length);
         if (fdschema > 0)
             dprintf(fdschema, "%03d  name = %s, size=%zu, length=%lu, type=%s (%s), is_prikey=%d, ds_type=%s\n", i, fields[i].name, len, fields[i].length, ribs_mysql_get_type_name(field_types[i]), bind[i].is_unsigned ? "unsigned" : "signed", IS_PRI_KEY(fields[i].flags), ds_type_str);
         if (is_var_length_field(field_types[i])) {
@@ -260,7 +257,6 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
      * write all rows to output files
      */
     while (0 == (mysql_err = mysql_stmt_fetch(stmt))) {
-        unsigned int i;
         int b = 0;
         for (i = 0; i < n && !b; ++i)
             b = b || error[i];
@@ -270,13 +266,11 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
         }
         for (i = 0; i < n; ++i) {
             if (is_var_length_field(field_types[i])) {
-                size_t ofs = file_writer_wlocpos(&vfields[1][i]);
-                if (0 > (err = file_writer_write(&vfields[0][i], &ofs, sizeof(ofs))) ||
-                    0 > (err = file_writer_write(&vfields[1][i], is_null[i] ? NULL : bind[i].buffer, is_null[i] ? 0 : length[i])))
+                if (0 > (err = ds_var_field_writer_write(&vfields[i], is_null[i] ? NULL : bind[i].buffer, is_null[i] ? 0 : length[i])))
                     goto dumper_error;
                 if (null_terminate_str[i]) {
                     const char c = '\0';
-                    if (0 > (err = file_writer_write(&vfields[1][i], &c, sizeof(c))))
+                    if (0 > (err = ds_var_field_writer_append(&vfields[i], &c, sizeof(c))))
                         goto dumper_error;
                 }
             } else {
@@ -297,7 +291,7 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
     LOGGER_INFO("%s: %zu records, %zu skipped", tablename, count, num_rows_errors);
     /* check for mysql errors */
     if (mysql_err != MYSQL_NO_DATA) {
-        LOGGER_ERROR("mysql_stmt_fetch returned an error (code=%d)\n", mysql_err);
+        LOGGER_ERROR("mysql_stmt_fetch returned an error (code=%d)", mysql_err);
         err = -1;
     }
  dumper_close_writer:
@@ -306,11 +300,8 @@ int mysql_dumper_dump(struct mysql_login_info *mysql_login_info, const char *out
      */
     for (i = 0; i < n; ++i) {
         if (is_var_length_field(field_types[i])) {
-            size_t ofs = file_writer_wlocpos(&vfields[1][i]);
-            if (0 > (err = file_writer_write(&vfields[0][i], &ofs, sizeof(ofs))))
+            if (0 > (err = ds_var_field_writer_close(&vfields[i])))
                 LOGGER_ERROR("failed to write offset");
-            file_writer_close(&vfields[0][i]);
-            file_writer_close(&vfields[1][i]);
         } else {
             file_writer_close(&ffields[i]);
         }

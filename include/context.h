@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012 Adap.tv, Inc.
+    Copyright (C) 2012,2013 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -21,6 +21,7 @@
 #define _CONTEXT__H_
 
 #include "ribs_defs.h"
+#include "memalloc.h"
 #include <sys/epoll.h>
 
 #define SMALL_STACK_SIZE 4096
@@ -34,20 +35,25 @@
 #endif
 
 struct ribs_context {
-#ifndef __arm__
+#if defined(__x86_64__) || defined (__i386__)
     uintptr_t stack_pointer_reg;
     uintptr_t parent_context_reg;
     uintptr_t additional_reg[NUM_ADDITIONAL_REGS];
-#else
+#else //__arm__
     uintptr_t parent_context_reg;
     uintptr_t first_func_reg;
-    uintptr_t additional_reg[7];
+    uintptr_t additional_reg[6];
+#ifdef __thumb2__
+    uintptr_t linked_func_reg;
+    uintptr_t stack_pointer_reg;
+#else
     uintptr_t stack_pointer_reg;
     uintptr_t linked_func_reg;
 #endif
-    epoll_data_t data;
+#endif
     struct ribs_context *next_free;
-    int fd;
+    struct memalloc memalloc;
+    uint32_t ribify_memalloc_refcount;
     char reserved[];
 };
 
@@ -56,7 +62,7 @@ extern struct ribs_context *current_ctx, *event_loop_ctx;
 extern void ribs_swapcurcontext(struct ribs_context *rctx);
 extern void ribs_makecontext(struct ribs_context *ctx, struct ribs_context *pctx, void (*func)(void));
 
-extern struct ribs_context *ribs_context_create(size_t stack_size, void (*func)(void));
+extern struct ribs_context *ribs_context_create(size_t stack_size, size_t reserved_size, void (*func)(void));
 
 #define RIBS_RESERVED_TO_CONTEXT(ptr) ((struct ribs_context *)((char *)ptr - offsetof(struct ribs_context, reserved)))
 

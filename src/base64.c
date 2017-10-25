@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2013 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -17,142 +17,106 @@
     You should have received a copy of the GNU Lesser General Public License
     along with RIBS.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
-
 #include "base64.h"
+#include <stdint.h>
+#include <stdio.h>
 
-#define B64_DEC_MIN 43
-#define B64_DEC_MAX 122
-#define B64_DEC_OFFSET 43
-#define B64_DEC_ASCII_OFFSET 62
-#define ENC_WIDTH 4
-#define DEC_WIDTH 3
-#define INVALID '$'
-
-static const char b64_enc_tables[][65] = {
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/", // STANDARD
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+_", // URL_FRIENDLY
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-/", // URL_MODIFIED
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"  // GOOGLE_URL_FRIENDLY
-};
-
-static const char pads[] = {
-        '=', // STANDARD
-        '=', // URL_FRIENDLY
-        '_', // URL_MODIFIED
-        '='  // GOOGLE_URL_FRIENDLY
-};
-
-static const char b64_dec_tables[][82] = {
-        "|$$$}rstuvwxyz{$$$$$$$>?@ABCDEFGHIJKLMNOPQRSTUVW$$$$$$XYZ[\\]^_`abcdefghijklmnopq", // STANDARD
-        "|$$$$rstuvwxyz{$$$$$$$>?@ABCDEFGHIJKLMNOPQRSTUVW$$$$}$XYZ[\\]^_`abcdefghijklmnopq", // URL_FRIENDLY
-        "$$|$}rstuvwxyz{$$$$$$$>?@ABCDEFGHIJKLMNOPQRSTUVW$$$$$$XYZ[\\]^_`abcdefghijklmnopq", // URL_MODIFIED
-        "$$|$$rstuvwxyz{$$$$$$$>?@ABCDEFGHIJKLMNOPQRSTUVW$$$$}$XYZ[\\]^_`abcdefghijklmnopq"  // GOOGLE_URL_FRIENDLY
-};
-
-int _ribs_base64_encode(char *dst, uint32_t *dstLen, const unsigned char *src, uint32_t srcLen, const char b64_enc[], const char pad);
-int _ribs_base64_decode(unsigned char *dst, uint32_t *dstLen, const char *src, uint32_t srcLen, const char b64_dec[], const char pad);
-
-int ribs_base64_encode(
-        char *dst,                  // Use 'base64_decode_len()' for required result buffer size
-        uint32_t *dstLen,           // The length of the result string
-        const unsigned char *src,   // Source buffer
-        uint32_t srcLen,            // Length of the source buffer
-        int mode                    // Base64 encoding mode B64_STANDARD, B64_URL_FRIENDLY, B64_URL_MODIFIED
-) {
-    return _ribs_base64_encode(dst, dstLen, src, srcLen, b64_enc_tables[mode], pads[mode]);
-}
-
-int _ribs_base64_encode(
-        char *dst,                  // Use 'base64_decode_len()' for required result buffer size
-        uint32_t *dstLen,           // The length of the result string
-        const unsigned char *src,   // Source buffer
-        uint32_t srcLen,            // Length of the source buffer
-        const char b64_enc[],       // encoding table to use (depends on mode)
-        const char pad              // padding character to use (depends on mode)
-) {
-    if (dst == NULL || src == NULL)
-        return -1;
-
-    uint32_t srcPos, dstChars = DEC_WIDTH;
-    unsigned char triple[DEC_WIDTH];
-
-    *dstLen = 0;
-    for (srcPos = 0; srcPos < srcLen; srcPos += DEC_WIDTH, *dstLen += ENC_WIDTH) {
-        if (srcLen - srcPos < DEC_WIDTH) {
-            dstChars = srcLen - srcPos;
-            memset(&triple, 0, DEC_WIDTH);
-        }
-        memcpy(&triple, src + srcPos, dstChars);
-
-        dst[*dstLen] = b64_enc[(triple[0] & 0xFC) >> 2];
-        dst[*dstLen + 1] = b64_enc[((triple[0] & 0x03) << 4) | ((triple[1] & 0xF0) >> 4)];
-
-        if (dstChars < 2)
-            dst[*dstLen + 2] = pad;
-        else
-            dst[*dstLen + 2] = b64_enc[((triple[1] & 0x0F) << 2) | ((triple[2] & 0xC0) >> 6)];
-
-        if (dstChars < 3)
-            dst[*dstLen + 3] = pad;
-        else
-            dst[*dstLen + 3] = b64_enc[triple[2] & 0x3F];
+unsigned char *ribs_base64_encode(void *dst, size_t *dstsize, const void *src, size_t srcsize, int padding) {
+    static const char *code = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    *dstsize = 0;
+    size_t total_chars = srcsize / 3;
+    size_t left_chars = srcsize - (total_chars * 3);
+    const unsigned char *s = src;
+    unsigned char *d = dst;
+    size_t i;
+    for (i = 0; i < total_chars; ++i) {
+        unsigned long data = *s++ << 16;
+        data |= *s++ << 8;
+        data |= *s++;
+        *d++ = code[data >> 18];
+        *d++ = code[(data >> 12) & 0x3F];
+        *d++ = code[(data >> 6) & 0x3F];
+        *d++ = code[data & 0x3F];
     }
-    return 0;
-}
-
-int ribs_base64_decode(
-        unsigned char *dst,   // Use 'base64_decode_len()' for required result buffer size
-        uint32_t *dstLen,     // The length of the result used in the dst buffer
-        const char *src,      // Source string
-        uint32_t srcLen,      // Length of the source string
-        int mode              // Base64 encoding mode B64_STANDARD, B64_URL_FRIENDLY, B64_URL_MODIFIED
-) {
-    return _ribs_base64_decode(dst, dstLen, src, srcLen, b64_dec_tables[mode], pads[mode]);
-}
-
-int _ribs_base64_decode(
-        unsigned char *dst,   // Use 'base64_decode_len()' for required result buffer size
-        uint32_t *dstLen,     // The length of the result used in the dst buffer
-        const char *src,      // Source string
-        uint32_t srcLen,      // Length of the source string
-        const char b64_dec[], // decoding table to use (depends on mode)
-        const char pad        // padding character to use (depends on mode)
-) {
-    if (dst == NULL || src == NULL)
-        return -1;
-
-    char in[ENC_WIDTH];
-    char c;
-    uint32_t i, srcOff, dstOff, dstBytes;
-
-    if (srcLen % ENC_WIDTH != 0)
-        return -1;
-
-    *dstLen = 0;
-    for (srcOff = 0, dstOff = 0; srcOff < srcLen; srcOff += ENC_WIDTH, dstOff += DEC_WIDTH) {
-        dstBytes = DEC_WIDTH;
-        for (i = 0; i < ENC_WIDTH; i++ ) {
-            c = src[srcOff + i];
-            if (c < B64_DEC_MIN || c > B64_DEC_MAX) {
-                return -1;
-            } else if (c == pad) {
-                in[i] = '\0';
-                if (dstBytes > 0) --dstBytes;
-            } else {
-                c = b64_dec[c - B64_DEC_OFFSET];
-                if (c == INVALID)
-                    return -1;
-                in[i] = c - B64_DEC_ASCII_OFFSET;
-            }
+    unsigned long data;
+    switch (left_chars) {
+    case 1:
+        *d++ = code[*s >> 2];
+        *d++ = code[(*s & 0x3) << 4];
+        if (padding) {
+            *d++ = '=';
+            *d++ = '=';
         }
-        *dstLen += dstBytes;
-        dst[dstOff]     = in[0] << 2 | in[1] >> 4;
-        dst[dstOff + 1] = in[1] << 4 | in[2] >> 2;
-        dst[dstOff + 2] = ((in[2] << 6) & 0xc0) | in[3];
+        break;
+    case 2:
+        data = *s++ << 8;
+        data |= *s++;
+        *d++ = code[data >> 10];
+        *d++ = code[(data >> 4) & 0x3F];
+        *d++ = code[(data & 0xF) << 2];
+        if (padding)
+            *d++ = '=';
+        break;
     }
-    return 0;
+    *d = 0;
+    *dstsize = d - (unsigned char *)dst;
+    return dst;
+}
+
+unsigned char *ribs_base64_decode(void *dst, size_t *dstsize, const void *src, size_t srcsize) {
+    static const uint8_t decoder[] = {
+        0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+        0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+        0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x3e,0xff,0xff,
+        0x34,0x35,0x36,0x37,0x38,0x39,0x3a,0x3b,0x3c,0x3d,0xff,0xff,0xff,0xff,0xff,0xff,
+        0xff,0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,
+        0x0f,0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0xff,0xff,0xff,0xff,0x3f,
+        0xff,0x1a,0x1b,0x1c,0x1d,0x1e,0x1f,0x20,0x21,0x22,0x23,0x24,0x25,0x26,0x27,0x28,
+        0x29,0x2a,0x2b,0x2c,0x2d,0x2e,0x2f,0x30,0x31,0x32,0x33,0xff,0xff,0xff,0xff,0xff,
+        0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+        0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+        0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+        0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+        0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+        0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+        0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+        0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff };
+    const unsigned char *s = src;
+    if (srcsize > 2 && s[srcsize-2] == '=')
+        srcsize -= 2;
+    else if (srcsize > 1 && s[srcsize-1] == '=')
+        --srcsize;
+    size_t total_chars = srcsize / 4;
+    size_t left_chars = srcsize - (total_chars * 4);
+    unsigned char *d = dst;
+    size_t i;
+    for (i = 0; i < total_chars; ++i) {
+        uint32_t data = decoder[(*s++)] << 18;
+        data |= decoder[(*s++)] << 12;
+        data |= decoder[(*s++)] << 6;
+        data |= decoder[(*s++)];
+        *d++ = (data >> 16);
+        *d++ = (data >> 8);
+        *d++ = data;
+    }
+    uint32_t data;
+    switch (left_chars) {
+    case 1:
+        break;
+    case 2:
+        data = decoder[(*s++)] << 6;
+        data |= decoder[(*s++)];
+        *d++ = data >> 4;
+        break;
+    case 3:
+        data = decoder[(*s++)] << 12;
+        data |= decoder[(*s++)] << 6;
+        data |= decoder[(*s++)];
+        *d++ = data >> 10;
+        *d++ = data >> 2;
+        break;
+    }
+    *d = 0;
+    *dstsize = d - (unsigned char *)dst;
+    return dst;
 }

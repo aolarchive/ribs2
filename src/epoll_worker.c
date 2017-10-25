@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -33,18 +33,16 @@ static int ribs_epoll_fd = -1;
 struct epoll_event last_epollev;
 struct epoll_worker_fd_data *epoll_worker_fd_map;
 
-static struct ribs_context main_ctx;
+static struct ribs_context main_ctx = { .memalloc = MEMALLOC_INITIALIZER };
 struct ribs_context *current_ctx = &main_ctx;
 struct ribs_context *event_loop_ctx;
 
 static int queue_ctx_fd = -1;
 
-LIST_CREATE(epoll_worker_timeout_chain);
-
 #ifdef UGLY_GETADDRINFO_WORKAROUND
 static void sigrtmin_to_context(void) {
     struct signalfd_siginfo siginfo;
-    while (1) {
+    for (;;) {
        int res = read(last_epollev.data.fd, &siginfo, sizeof(struct signalfd_siginfo));
        if (sizeof(struct signalfd_siginfo) != res || NULL == (void *)siginfo.ssi_ptr) {
            LOGGER_PERROR("sigrtmin_to_ctx got NULL or < 128 bytes: %d", res);
@@ -57,8 +55,8 @@ static void sigrtmin_to_context(void) {
 
 static void pipe_to_context(void) {
     void *ctx;
-    while (1) {
-        if (sizeof(&ctx) != read(last_epollev.data.fd, &ctx, sizeof(&ctx))) {
+    for (;;) {
+        if (sizeof(ctx) != read(last_epollev.data.fd, &ctx, sizeof(ctx))) {
             LOGGER_PERROR("read in pipe_to_context");
             yield();
         } else
@@ -74,8 +72,8 @@ int ribs_epoll_add(int fd, uint32_t events, struct ribs_context* ctx) {
     return 0;
 }
 
-struct ribs_context* small_ctx_for_fd(int fd, void (*func)(void)) {
-    void *ctx=ribs_context_create(SMALL_STACK_SIZE, func);
+struct ribs_context* small_ctx_for_fd(int fd, size_t reserved_size, void (*func)(void)) {
+    void *ctx=ribs_context_create(SMALL_STACK_SIZE, reserved_size, func);
     if (NULL == ctx)
         return LOGGER_PERROR("ribs_context_create"), NULL;
     if (0 > ribs_epoll_add(fd, EPOLLIN, ctx))
@@ -88,13 +86,19 @@ static void event_loop(void) {
 }
 
 int epoll_worker_init(void) {
+    if (0 <= ribs_epoll_fd)
+        return 0;
+#ifdef RIBS2_SSL
+    ribs_ssl_init();
+#endif
+
     struct rlimit rlim;
     if (0 > getrlimit(RLIMIT_NOFILE, &rlim))
         return LOGGER_PERROR("getrlimit(RLIMIT_NOFILE)"), -1;
     epoll_worker_fd_map = calloc(rlim.rlim_cur, sizeof(struct epoll_worker_fd_data));
 
     ribs_epoll_fd = epoll_create1(EPOLL_CLOEXEC);
-    if (ribs_epoll_fd < 0)
+    if (0 > ribs_epoll_fd)
         return LOGGER_PERROR("epoll_create1"), -1;
 
     /* block some signals */
@@ -114,17 +118,17 @@ int epoll_worker_init(void) {
     int sfd = signalfd(-1, &set, SFD_NONBLOCK);
     if (0 > sfd)
         return LOGGER_PERROR("signalfd"), -1;
-    if (NULL == small_ctx_for_fd(sfd, sigrtmin_to_context))
+    if (NULL == small_ctx_for_fd(sfd, 0, sigrtmin_to_context))
         return -1;
 #endif
 
-    event_loop_ctx = ribs_context_create(SMALL_STACK_SIZE, event_loop);
+    event_loop_ctx = ribs_context_create(SMALL_STACK_SIZE, 0, event_loop);
 
-    /* pipe to conetxt */
+    /* pipe to context */
     int pipefd[2];
     if (0 > pipe2(pipefd, O_NONBLOCK))
         return LOGGER_PERROR("pipe"), -1;
-    if (NULL == small_ctx_for_fd(pipefd[0], pipe_to_context))
+    if (NULL == small_ctx_for_fd(pipefd[0], 0, pipe_to_context))
         return -1;
     queue_ctx_fd = pipefd[1];
     return ribs_epoll_add(queue_ctx_fd, EPOLLOUT | EPOLLET, event_loop_ctx);
@@ -140,7 +144,7 @@ void epoll_worker_exit(void) {
 
 inline void yield(void) {
     while(0 >= epoll_wait(ribs_epoll_fd, &last_epollev, 1, -1));
-    ribs_swapcurcontext(epoll_worker_get_last_context());
+    ribs_swapcurcontext(epoll_worker_fd_map[last_epollev.data.fd].ctx);
 }
 
 int queue_current_ctx(void) {
@@ -163,6 +167,20 @@ int queue_current_ctx(void) {
 inline void courtesy_yield(void) {
     if (0 == epoll_wait(ribs_epoll_fd, &last_epollev, 1, 0))
         return;
+    // save since queue_current_ctx() will override if queue if full;
+    struct ribs_context *save_ctx = epoll_worker_fd_map[last_epollev.data.fd].ctx;
     queue_current_ctx();
-    ribs_swapcurcontext(epoll_worker_get_last_context());
+    ribs_swapcurcontext(save_ctx);
+}
+
+int epoll_close() {
+    return close(ribs_epoll_fd);
+}
+
+int ribs_close(int fd) {
+#ifdef RIBS2_SSL
+    ribs_ssl_free(fd);
+#endif
+    epoll_ctl(ribs_epoll_fd, EPOLL_CTL_DEL, fd, NULL);
+    return epoll_worker_ignore_events(fd), close(fd);
 }

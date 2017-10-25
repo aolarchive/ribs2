@@ -37,6 +37,7 @@ struct http_headers{
     char *if_none_match;
     char *accept_language;
     char *origin;
+    char *authorization;
     uint8_t accept_encoding_mask;
     char peer_ip_addr[INET_ADDRSTRLEN];
 };
@@ -52,7 +53,7 @@ enum {
     HTTP_AE_ALL = 0xFF
 };
 
-int http_headers_init();
+int http_headers_init(void);
 void http_headers_parse(char *headers, struct http_headers *h);
 
 #endif // _HTTP_HEADERS__H_

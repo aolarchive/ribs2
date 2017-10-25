@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012 Adap.tv, Inc.
+    Copyright (C) 2012,2013 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -31,6 +31,10 @@ struct file_mapper {
 };
 
 int file_mapper_init(struct file_mapper *fm, const char *filename);
+int file_mapper_init2(struct file_mapper *fm, const char *filename, size_t size, int flags, int mmap_prot, int mmap_flags);
+int file_mapper_init_rw(struct file_mapper *fm, const char *filename, size_t size);
+int file_mapper_init_with_fd_r(struct file_mapper *fm, int fd);
+int file_mapper_init_with_fd_rw(struct file_mapper *fm, int fd);
 int file_mapper_free(struct file_mapper *fm);
 
 _RIBS_INLINE_ void *file_mapper_data(struct file_mapper *fm) {

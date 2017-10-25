@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2013 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -21,24 +21,29 @@
     if (0 > ftruncate(vmb->fd, (size)))                                 \
         return perror("ftruncate, " STRINGIFY(VMBUF_T) "_" funcname), -1;
 
-_RIBS_INLINE_ int TEMPLATE(VMBUF_T,init)(struct VMBUF_T *vmb, const char *filename, size_t initial_size) {
+_RIBS_INLINE_ int TEMPLATE(VMBUF_T,attachfd)(struct VMBUF_T *vmb, int fd, size_t initial_size) {
     if (0 > vmfile_close(vmb))
         return -1;
-    unlink(filename);
-    vmb->fd = open(filename, O_CREAT | O_RDWR, 0644);
-    if (vmb->fd < 0)
-        return perror("open, " STRINGIFY(VMBUF_T) "_init"), -1;
+    vmb->fd = fd;
     initial_size = RIBS_VM_ALIGN(initial_size);
-    VMFILE_FTRUNCATE(initial_size, "init");
+    VMFILE_FTRUNCATE(initial_size, "attachfd");
     vmb->buf = (char *)mmap(NULL, initial_size, PROT_WRITE | PROT_READ, MAP_SHARED, vmb->fd, 0);
     if (MAP_FAILED == vmb->buf) {
-        perror("mmap, " STRINGIFY(VMBUF_T) "_init");
+        perror("mmap, " STRINGIFY(VMBUF_T) "_attachfd");
         vmb->buf = NULL;
         return -1;
     }
     vmb->capacity = initial_size;
     TEMPLATE(VMBUF_T,reset)(vmb);
     return 0;
+}
+
+_RIBS_INLINE_ int TEMPLATE(VMBUF_T,init)(struct VMBUF_T *vmb, const char *filename, size_t initial_size) {
+    unlink(filename);
+    int fd = open(filename, O_CREAT | O_RDWR, 0644);
+    if (fd < 0)
+        return perror("open, " STRINGIFY(VMBUF_T) "_init"), -1;
+    return vmfile_attachfd(vmb, fd, initial_size);
 }
 
 _RIBS_INLINE_ int TEMPLATE(VMBUF_T,resize_to)(struct VMBUF_T *vmb, size_t new_capacity) {
@@ -58,5 +63,7 @@ _RIBS_INLINE_ int TEMPLATE(VMBUF_T,close)(struct VMBUF_T *vmb) {
         return 0;
     VMFILE_FTRUNCATE(vmb->write_loc, "close");
     vmfile_free(vmb);
-    return close(vmb->fd);
+    int res = close(vmb->fd);
+    vmb->fd = -1;
+    return res;
 }

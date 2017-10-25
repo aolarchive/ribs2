@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012 Adap.tv, Inc.
+    Copyright (C) 2012,2013 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -27,8 +27,10 @@ static struct vmbuf misc;
 
 static int create_entry(struct list *l) {
     struct mysql_pool_entry *entry = (struct mysql_pool_entry *)calloc(1, sizeof(struct mysql_pool_entry));
-    if (!mysql_init(&(entry->helper.mysql)))
+    if (!mysql_init(&(entry->helper.mysql))) {
+        free(entry);
         return -1;
+    }
     list_insert_head(l, &entry->l);
     return 0;
 }

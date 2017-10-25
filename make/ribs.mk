@@ -25,31 +25,33 @@ else
 OBJ_DIR=../obj/$(OBJ_SUB_DIR)
 endif
 
+ifneq ($(wildcard /usr/include/zlib.h),)
+CPPFLAGS+=-DHAVE_ZLIB
+endif
+
+ifeq ($(RIBS2_SSL),1)
+CPPFLAGS+=-DRIBS2_SSL
+endif
+
 LDFLAGS+=-L../lib
 CFLAGS+=$(OPTFLAGS) -ggdb3 -W -Wall -Werror
+GCCVER_GTE_4_7=$(shell expr `gcc -dumpversion` \>= 4.7)
+ifeq ($(GCCVER_GTE_4_7),1)
+CFLAGS+=-ftrack-macro-expansion=2
+endif
 
-RIBIFYFLAGS+= \
---redefine-sym write=ribs_write \
---redefine-sym read=ribs_read \
---redefine-sym connect=ribs_connect \
---redefine-sym fcntl=ribs_fcntl \
---redefine-sym recvfrom=ribs_recvfrom \
---redefine-sym send=ribs_send \
---redefine-sym recv=ribs_recv \
---redefine-sym readv=ribs_readv \
---redefine-sym writev=ribs_writev \
---redefine-sym pipe2=ribs_pipe2 \
---redefine-sym pipe=ribs_pipe \
---redefine-sym nanosleep=ribs_nanosleep \
---redefine-sym usleep=ribs_usleep \
---redefine-sym sleep=ribs_sleep \
---redefine-sym sendfile=ribs_sendfile
+RIBIFY_SYMS+=write read socket connect fcntl recv recvfrom recvmsg send sendto sendmsg readv writev pipe pipe2 nanosleep usleep sleep sendfile close
+ifeq ($(RIBIFY_MALLOC),1)
+RIBIFY_SYMS+=malloc calloc realloc free strdup wcsdup malloc_usable_size
+endif
 
 ifdef UGLY_GETADDRINFO_WORKAROUND
 LDFLAGS+=-lanl
-RIBIFYFLAGS+=--redefine-sym getaddrinfo=ribs_getaddrinfo
-CFLAGS+=-DUGLY_GETADDRINFO_WORKAROUND
+RIBIFY_SYMS+=getaddrinfo
+CPPFLAGS+=-DUGLY_GETADDRINFO_WORKAROUND
 endif
+
+RIBIFYFLAGS+=$(subst --redefine-sym_,--redefine-sym ,$(join $(RIBIFY_SYMS:%=--redefine-sym_%=),$(RIBIFY_SYMS:%=_ribified_%)))
 
 OBJ=$(SRC:%.c=$(OBJ_DIR)/%.o) $(ASM:%.S=$(OBJ_DIR)/%.o)
 DEP=$(SRC:%.c=$(OBJ_DIR)/%.d)
@@ -57,6 +59,7 @@ DEP=$(SRC:%.c=$(OBJ_DIR)/%.d)
 DIRS=$(OBJ_DIR)/.dir ../bin/.dir ../lib/.dir
 RIBIFY_DIR=../ribified/.dir
 ALL_DIRS=$(DIRS) $(RIBIFY_DIR)
+ALL_OUTPUT_FILES=$(patsubst %,$(OBJ_DIR)/%,*.o *.d) ../ribified/*
 
 ifeq ($(TARGET:%.a=%).a,$(TARGET))
 LIB_OBJ:=$(OBJ)
@@ -64,6 +67,8 @@ TARGET_FILE=../lib/lib$(TARGET)
 else
 TARGET_FILE=../bin/$(TARGET)
 endif
+
+ALL_OUTPUT_FILES+=$(TARGET_FILE)
 
 all: $(TARGET_FILE)
 
@@ -73,16 +78,16 @@ $(ALL_DIRS):
 	@touch $@
 
 $(OBJ_DIR)/%.o: %.c $(OBJ_DIR)/%.d
-	@echo "  (C)      $*.c  [ -c $(CFLAGS) $*.c -o $(OBJ_DIR)/$*.o ]"
-	@$(CC) -c $(CFLAGS) $*.c -o $(OBJ_DIR)/$*.o
+	@echo "  (C)      $*.c  [ $(CPPFLAGS) -c $(CFLAGS) $*.c -o $(OBJ_DIR)/$*.o ]"
+	@$(CC) $(CPPFLAGS) -c $(CFLAGS) $*.c -o $(OBJ_DIR)/$*.o
 
 $(OBJ_DIR)/%.o: %.S
-	@echo "  (ASM)    $*.S  [ -c $(CFLAGS) $*.S -o $(OBJ_DIR)/$*.o ]"
-	@$(CC) -c $(CFLAGS) $*.S -o $(OBJ_DIR)/$*.o
+	@echo "  (ASM)    $*.S  [ $(CPPFLAGS) -c $(CFLAGS) $*.S -o $(OBJ_DIR)/$*.o ]"
+	@$(CC) $(CPPFLAGS) -c $(CFLAGS) $*.S -o $(OBJ_DIR)/$*.o
 
 $(OBJ_DIR)/%.d: %.c
 	@echo "  (DEP)    $*.c"
-	@$(CC) -MM $(CFLAGS) $(INCLUDES) $*.c | sed -e 's|.*:|$(OBJ_DIR)/$*.o:|' > $@
+	@$(CC) -MM $(CPPFLAGS) $(CFLAGS) $(INCLUDES) $*.c | sed -e 's|.*:|$(OBJ_DIR)/$*.o:|' > $@
 
 $(OBJ): $(DIRS)
 
@@ -96,17 +101,17 @@ $(DEP): $(DIRS)
 
 ../ribified/%: $(RIBIFY_DIR)
 	@echo "  (RIBIFY) $(@:../ribified/%=%) [ $@ $(RIBIFYFLAGS) ]"
-	@objcopy $(shell find /usr/lib -name $(@:../ribified/%=%)) $@ $(RIBIFYFLAGS)
+	@objcopy $(shell find $(RIBIFY_LIB_PATH) /usr/lib64 /usr/lib -name $(@:../ribified/%=%) 2>/dev/null) $@ $(RIBIFYFLAGS)
 
-../bin/%: $(OBJ) $(RIBIFY:%=../ribified/%)
+../bin/%: $(OBJ) $(RIBIFY:%=../ribified/%) $(EXTRA_DEPS)
 	@echo "  (LD)     $(@:../bin/%=%)  [ -o $@ $(OBJ) $(LDFLAGS) ]"
 	@$(CC) -o $@ $(OBJ) $(LDFLAGS)
 
-$(ALL_DIRS:%=RM_%):
-	@echo "  (RM)     $(@:RM_%/.dir=%)/*"
-	@-$(RM) $(@:RM_%/.dir=%)/*
+$(ALL_OUTPUT_FILES:%=%.__clean__):
+	@echo "  (RM)     $(@:%.__clean__=%)"
+	@-$(RM) $(@:%.__clean__=%)
 
-clean: $(ALL_DIRS:%=RM_%)
+clean: $(ALL_OUTPUT_FILES:%=%.__clean__)
 
 etags:
 	@echo "  (ETAGS)"

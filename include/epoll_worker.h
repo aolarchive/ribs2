@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -23,6 +23,7 @@
 #include "ribs_defs.h"
 #include "context.h"
 #include "list.h"
+#include "ribs_ssl.h"
 
 extern struct epoll_event last_epollev;
 
@@ -40,8 +41,16 @@ void epoll_worker_exit(void);
 void yield(void);
 void courtesy_yield(void);
 int ribs_epoll_add(int fd, uint32_t events, struct ribs_context* ctx);
-struct ribs_context* small_ctx_for_fd(int fd, void (*func)(void));
+struct ribs_context* small_ctx_for_fd(int fd, size_t reserved_size, void (*func)(void));
 int queue_current_ctx(void);
+int epoll_close();
+int ribs_close(int fd);
+
+_RIBS_INLINE_ void epoll_worker_ignore_events(int fd);
+_RIBS_INLINE_ void epoll_worker_resume_events(int fd);
+_RIBS_INLINE_ void epoll_worker_set_fd_ctx(int fd, struct ribs_context* ctx);
+_RIBS_INLINE_ void epoll_worker_set_last_fd(int fd);
+
 
 #include "../src/_epoll_worker.c"
 

@@ -76,19 +76,7 @@
 #undef T
 #endif
 
-enum
-{
-    ds_type_int8_t,
-    ds_type_uint8_t,
-    ds_type_int16_t,
-    ds_type_uint16_t,
-    ds_type_int32_t,
-    ds_type_uint32_t,
-    ds_type_int64_t,
-    ds_type_uint64_t,
-    ds_type_float,
-    ds_type_double,
-};
+#include "ds_types.h"
 
 #define _DS_TYPE(x) ds_type_ ## x
 #define DS_TYPE(x) _DS_TYPE(x)
@@ -106,6 +94,7 @@ static inline const char *ds_type_to_string(int64_t t) {
         _DS_TYPE_TO_STR(uint64_t);
         _DS_TYPE_TO_STR(float);
         _DS_TYPE_TO_STR(double);
+        _DS_TYPE_TO_STR(var);
     default:
         return "unknown";
     }

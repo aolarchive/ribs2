@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012 Adap.tv, Inc.
+    Copyright (C) 2012,2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -20,16 +20,12 @@
 /*
  * inline
  */
-_RIBS_INLINE_ void epoll_worker_ignore_events() {
-    epoll_worker_fd_map[current_ctx->fd].ctx = event_loop_ctx;
+_RIBS_INLINE_ void epoll_worker_ignore_events(int fd) {
+    epoll_worker_fd_map[fd].ctx = event_loop_ctx;
 }
 
-_RIBS_INLINE_ void epoll_worker_resume_events() {
-    epoll_worker_fd_map[current_ctx->fd].ctx = current_ctx;
-}
-
-_RIBS_INLINE_ struct ribs_context *epoll_worker_get_last_context() {
-    return epoll_worker_fd_map[last_epollev.data.fd].ctx;
+_RIBS_INLINE_ void epoll_worker_resume_events(int fd) {
+    epoll_worker_fd_map[fd].ctx = current_ctx;
 }
 
 _RIBS_INLINE_ void epoll_worker_set_fd_ctx(int fd, struct ribs_context* ctx) {

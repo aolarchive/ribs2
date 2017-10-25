@@ -3,7 +3,7 @@
     RIBS is an infrastructure for building great SaaS applications (but not
     limited to).
 
-    Copyright (C) 2012,2013 Adap.tv, Inc.
+    Copyright (C) 2013,2014 Adap.tv, Inc.
 
     RIBS is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -177,17 +177,19 @@ _RIBS_INLINE_ int TEMPLATE(VMBUF_T,sprintf)(struct VMBUF_T *vmb, const char *for
 }
 
 _RIBS_INLINE_ int TEMPLATE(VMBUF_T,vsprintf)(struct VMBUF_T *vmb, const char *format, va_list ap) {
-    size_t n;
+    int n;
     for (;;) {
         size_t wav = TEMPLATE(VMBUF_T,wavail)(vmb);
         va_list apc;
         va_copy(apc, ap);
         n = vsnprintf(TEMPLATE(VMBUF_T,wloc)(vmb), wav, format, apc);
         va_end(apc);
-        if (n < wav)
+        if (unlikely(0 > n))
+            return -1;
+        if (likely((unsigned int)n < wav))
             break;
         // not enough space, resize
-        if (0 > TEMPLATE(VMBUF_T,resize_no_check)(vmb, n))
+        if (unlikely(0 > TEMPLATE(VMBUF_T,resize_no_check)(vmb, n)))
             return -1;
     }
     TEMPLATE(VMBUF_T,wseek)(vmb, n);
@@ -207,13 +209,19 @@ _RIBS_INLINE_ int TEMPLATE(VMBUF_T,strcpy)(struct VMBUF_T *vmb, const char *src)
     return 0;
 }
 
-_RIBS_INLINE_ void TEMPLATE(VMBUF_T,remove_last_if)(struct VMBUF_T *vmb, char c) {
+_RIBS_INLINE_ int TEMPLATE(VMBUF_T,replace_last_if)(struct VMBUF_T *vmb, char s, char d)
+{
     char *loc = TEMPLATE(VMBUF_T,wloc)(vmb);
-    --loc;
-    if (vmb->write_loc > 0 && *loc == c) {
-        --vmb->write_loc;
-        *loc = 0;
+    if (0 < vmb->write_loc && s == *--loc) {
+        *loc = d;
+        return 0;
     }
+    return -1;
+}
+
+_RIBS_INLINE_ void TEMPLATE(VMBUF_T,remove_last_if)(struct VMBUF_T *vmb, char c) {
+    if (!TEMPLATE(VMBUF_T,replace_last_if)(vmb, c, 0))
+        --vmb->write_loc;
 }
 
 _RIBS_INLINE_ int TEMPLATE(VMBUF_T,read)(struct VMBUF_T *vmb, int fd) {
@@ -223,7 +231,7 @@ _RIBS_INLINE_ int TEMPLATE(VMBUF_T,read)(struct VMBUF_T *vmb, int fd) {
         if (0 > TEMPLATE(VMBUF_T,wseek)(vmb, res))
             return -1;
         if (res < wavail)
-            return 1;
+            return errno=0, 1;
     }
     if (res < 0)
         return (EAGAIN == errno ? 1 : -1);
@@ -274,3 +282,13 @@ _RIBS_INLINE_ void *TEMPLATE(VMBUF_T,allocptr)(struct VMBUF_T *vmb, size_t n) {
     return TEMPLATE(VMBUF_T,data_ofs)(vmb, TEMPLATE(VMBUF_T,alloc)(vmb, n));
 }
 
+_RIBS_INLINE_ int TEMPLATE(VMBUF_T,chrcpy)(struct VMBUF_T *vmb, char c) {
+    *(TEMPLATE(VMBUF_T,wloc)(vmb)) = c;
+    return TEMPLATE(VMBUF_T,wseek)(vmb, 1);
+}
+
+_RIBS_INLINE_ void TEMPLATE(VMBUF_T,swap)(struct VMBUF_T *vmb1, struct VMBUF_T *vmb2) {
+    struct VMBUF_T tmpbuf = *vmb1;
+    *vmb1 = *vmb2;
+    *vmb2 = tmpbuf;
+}
